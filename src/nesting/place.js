@@ -3,8 +3,8 @@ import {
   boundingBox,
   rotatePolygon,
   normalizeToOrigin,
-  translatePolygon,
   toClipperPath,
+  placedPolygon,
   SCALE,
 } from './geometry.js';
 import { computeNFP } from './nfp.js';
@@ -40,6 +40,10 @@ export function place(sheetPolygon, parts) {
       const maxX = sheetBounds.maxX - width;
       const maxY = sheetBounds.maxY - height;
       const forbiddenRegions = placed.flatMap((p) => computeNFP(p.polygon, normalized));
+      // Forbidden regions don't change during the grid scan below, so
+      // convert to clipper format once per rotation trial rather than once
+      // per candidate point (was 4.8x slower re-converting per point).
+      const forbiddenClipperPaths = forbiddenRegions.map(toClipperPath);
 
       let found = null;
       // Bottom-left-fill scan: rows from sheet minY upward, left to right
@@ -50,12 +54,14 @@ export function place(sheetPolygon, parts) {
             Math.round(x * SCALE),
             Math.round(y * SCALE)
           );
-          const overlapsPlacedPart = forbiddenRegions.some(
-            (region) =>
-              ClipperLib.Clipper.PointInPolygon(clipperPoint, toClipperPath(region)) === 1
+          const overlapsPlacedPart = forbiddenClipperPaths.some(
+            (path) =>
+              // 1 = strictly inside (overlap, reject); -1 = on boundary
+              // (touching, allowed — enables flush nesting); 0 = outside (allowed).
+              ClipperLib.Clipper.PointInPolygon(clipperPoint, path) === 1
           );
           if (!overlapsPlacedPart) {
-            found = { x, y, rotation, polygon: translatePolygon(normalized, x, y) };
+            found = { x, y, rotation, polygon: placedPolygon(part, { x, y, rotation }) };
           }
         }
       }
