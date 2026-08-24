@@ -17,7 +17,7 @@ const server = http.createServer((req, res) => {
   const urlPath = req.url === '/' ? '/public/index.html' : req.url;
   const filePath = path.join(__dirname, urlPath);
 
-  if (!filePath.startsWith(__dirname)) {
+  if (!filePath.startsWith(__dirname + path.sep)) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
@@ -35,6 +35,6 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`leather-nest dev server running at http://localhost:${PORT}`);
 });
