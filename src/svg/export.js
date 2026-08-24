@@ -1,10 +1,4 @@
-import {
-  boundingBox,
-  rotatePolygon,
-  normalizeToOrigin,
-  translatePolygon,
-  polygonToSVGPoints,
-} from '../nesting/geometry.js';
+import { boundingBox, placedPolygon, polygonToSVGPoints } from '../nesting/geometry.js';
 
 export function exportToSVG(sheetPolygon, placements, parts) {
   const bounds = boundingBox(sheetPolygon);
@@ -13,10 +7,9 @@ export function exportToSVG(sheetPolygon, placements, parts) {
   const partsById = new Map(parts.map((p) => [p.id, p]));
 
   const polygonsMarkup = placements
-    .map(({ id, x, y, rotation }) => {
-      const part = partsById.get(id);
-      const normalized = normalizeToOrigin(rotatePolygon(part.polygon, rotation));
-      const absolute = translatePolygon(normalized, x, y);
+    .map((placement) => {
+      const part = partsById.get(placement.id);
+      const absolute = placedPolygon(part, placement);
       return `  <polygon points="${polygonToSVGPoints(absolute)}" stroke="#FF0000" stroke-width="0.01" fill="none" />`;
     })
     .join('\n');

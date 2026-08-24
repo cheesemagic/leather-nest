@@ -51,6 +51,14 @@ export function normalizeToOrigin(polygon) {
   return translatePolygon(polygon, -bounds.minX, -bounds.minY);
 }
 
+// The one place the placement transform (rotate -> normalize to origin ->
+// translate) is implemented. Used by placement, SVG export, preview
+// rendering, and tests so all four stay in lockstep.
+export function placedPolygon(part, placement) {
+  const normalized = normalizeToOrigin(rotatePolygon(part.polygon, placement.rotation));
+  return translatePolygon(normalized, placement.x, placement.y);
+}
+
 export function polygonToSVGPoints(polygon) {
   return polygon.map((p) => `${p.x},${p.y}`).join(' ');
 }

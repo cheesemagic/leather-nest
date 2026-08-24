@@ -1,11 +1,5 @@
 import { nest } from './nesting/index.js';
-import {
-  boundingBox,
-  rotatePolygon,
-  normalizeToOrigin,
-  translatePolygon,
-  polygonToSVGPoints,
-} from './nesting/geometry.js';
+import { boundingBox, placedPolygon, polygonToSVGPoints } from './nesting/geometry.js';
 import { parseSVGPolygon } from './svg/parse.js';
 import { exportToSVG } from './svg/export.js';
 
@@ -36,10 +30,9 @@ function renderPreview(sheetPolygon, placements) {
   const bounds = boundingBox(sheetPolygon);
   const sheetMarkup = `<polygon points="${polygonToSVGPoints(sheetPolygon)}" stroke="#000000" stroke-width="0.5" fill="none" />`;
   const partsMarkup = placements
-    .map(({ id, x, y, rotation }) => {
-      const part = partsById.get(id);
-      const normalized = normalizeToOrigin(rotatePolygon(part.polygon, rotation));
-      const absolute = translatePolygon(normalized, x, y);
+    .map((placement) => {
+      const part = partsById.get(placement.id);
+      const absolute = placedPolygon(part, placement);
       return `<polygon points="${polygonToSVGPoints(absolute)}" stroke="#FF0000" stroke-width="0.5" fill="none" />`;
     })
     .join('');

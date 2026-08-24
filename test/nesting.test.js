@@ -6,12 +6,7 @@ import ClipperLib from 'clipper-lib';
 globalThis.ClipperLib = ClipperLib;
 
 import { nest } from '../src/nesting/index.js';
-import {
-  boundingBox,
-  rotatePolygon,
-  normalizeToOrigin,
-  translatePolygon,
-} from '../src/nesting/geometry.js';
+import { boundingBox, placedPolygon } from '../src/nesting/geometry.js';
 
 function intersectionArea(polyA, polyB) {
   const SCALE = 1000;
@@ -32,11 +27,6 @@ function intersectionArea(polyA, polyB) {
     area += Math.abs(ClipperLib.Clipper.Area(path));
   }
   return area / (SCALE * SCALE);
-}
-
-function absolutePolygon(part, placement) {
-  const normalized = normalizeToOrigin(rotatePolygon(part.polygon, placement.rotation));
-  return translatePolygon(normalized, placement.x, placement.y);
 }
 
 test('two known rectangles nest onto a sheet without overlapping and within bounds', () => {
@@ -60,7 +50,7 @@ test('two known rectangles nest onto a sheet without overlapping and within boun
   const sheetBounds = boundingBox(sheet);
   const partsById = new Map([partA, partB].map((p) => [p.id, p]));
   const absolutePolygons = result.placements.map((placement) =>
-    absolutePolygon(partsById.get(placement.id), placement)
+    placedPolygon(partsById.get(placement.id), placement)
   );
 
   for (const poly of absolutePolygons) {
