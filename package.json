@@ -1,0 +1,13 @@
+{
+  "name": "leather-nest",
+  "version": "0.1.0",
+  "description": "Nest laser-cut leather pattern pieces onto irregular exotic-leather scrap offcuts.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "clipper-lib": "^6.4.2"
+  }
+}
