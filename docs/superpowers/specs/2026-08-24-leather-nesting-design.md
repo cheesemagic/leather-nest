@@ -52,8 +52,8 @@ leather-nest/
   src/
     app.js                 # renders sheet + nested parts, "Export SVG" button
     nesting/
-      nfp.js                # no-fit-polygon calculation (adapted from SVGnest,
-                             # MIT-licensed original — see NOTICE)
+      nfp.js                # no-fit-polygon calculation (clipper-lib
+                             # MinkowskiSum — see Licensing/Attribution)
       place.js               # v0 first-fit placement using NFP + rotation
                               # constraints
       index.js                # orchestrates nfp.js + place.js
@@ -62,7 +62,6 @@ leather-nest/
       export.js                 # placement result -> LightBurn-ready SVG
   test/
     nesting.test.js            # node:test assertions (see Testing)
-  NOTICE                        # attribution for SVGnest-derived code (MIT)
   package.json
   README.md
 ```
@@ -71,10 +70,11 @@ leather-nest/
 
 ### `src/nesting/nfp.js`
 
-Computes the no-fit-polygon between a stationary polygon (sheet boundary or
-an already-placed part) and a moving polygon (the part being placed), using
-`clipper-lib` (npm dependency) for the underlying polygon boolean operations.
-Adapted from SVGnest's NFP calculation approach.
+Computes the no-fit-polygon between a stationary polygon (an already-placed
+part) and a moving polygon (the part being placed) via Minkowski sum, using
+`clipper-lib`'s built-in `Clipper.MinkowskiSum` directly (not adapted from
+SVGnest — see Licensing/Attribution below for why). Exact for convex
+polygons, which covers all of v0's hardcoded test shapes.
 
 - **Input:** two polygons, each an array of `{x, y}` points in millimeters.
 - **Output:** the NFP as an array of polygons (may be non-convex, may contain
@@ -155,11 +155,20 @@ NFP/placement code) gets one test file, no framework, using Node's built-in
 
 ## Licensing / Attribution
 
-`src/nesting/nfp.js` and `src/nesting/place.js` are adapted from SVGnest
-(https://github.com/Jack000/SVGnest, MIT License). A `NOTICE` file at the
-repo root retains the original copyright notice as required by the MIT
-license. `clipper-lib` is used as an npm dependency (not vendored) for
-polygon boolean operations.
+**Amended 2026-08-24, during implementation planning:** the original draft
+of this spec called for adapting NFP-calculation code from SVGnest
+(MIT-licensed). While translating the design into concrete implementation
+tasks, `clipper-lib`'s own `Clipper.MinkowskiSum` function (confirmed present
+in the installed `clipper-lib@6.4.2` package) turned out to be sufficient to
+compute exact NFPs for v0's convex test shapes directly — no SVGnest code
+needs to be ported. This is simpler and avoids maintaining an adapted copy of
+SVGnest's more elaborate orbiting-NFP algorithm, which only earns its
+complexity once concave/hole shapes are in scope (see Future Work). As a
+result, no code in this repo is adapted from SVGnest, and no `NOTICE` file is
+needed — `clipper-lib` is used only as a normal npm dependency (its own
+Boost Software License ships with the package, as with any dependency).
+SVGnest remains a useful reference if/when concave-polygon NFP support
+becomes necessary.
 
 ## Future Work (separate design conversations)
 
