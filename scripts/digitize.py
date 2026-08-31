@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import json
+import math
 import cv2
 import numpy as np
 
@@ -23,6 +24,9 @@ def main():
     pixel_distance = ((p2x - p1x) ** 2 + (p2y - p1y) ** 2) ** 0.5
     if pixel_distance < 1e-6:
         fail("Calibration points must be distinct.")
+
+    if not all(math.isfinite(v) for v in (p1x, p1y, p2x, p2y, real_distance_mm)) or real_distance_mm <= 0:
+        fail("Calibration points and distance must be finite numbers, and the distance must be positive.")
 
     image = cv2.imread(image_path)
     if image is None:
@@ -49,11 +53,10 @@ def main():
 
     _, best_contour = max(candidates, key=lambda pair: pair[0])
 
-    perimeter = cv2.arcLength(best_contour, True)
-    epsilon = 0.005 * perimeter
+    scale_mm_per_px = real_distance_mm / pixel_distance
+    epsilon = 0.5 / scale_mm_per_px
     approx = cv2.approxPolyDP(best_contour, epsilon, True)
 
-    scale_mm_per_px = real_distance_mm / pixel_distance
     points_mm = [
         {"x": float(pt[0][0]) * scale_mm_per_px, "y": float(pt[0][1]) * scale_mm_per_px}
         for pt in approx
