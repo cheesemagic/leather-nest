@@ -8,6 +8,7 @@
     "test": "node --test"
   },
   "dependencies": {
-    "clipper-lib": "^6.4.2"
+    "clipper-lib": "^6.4.2",
+    "formidable": "^3.5.4"
   }
 }
