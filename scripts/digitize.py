@@ -15,7 +15,10 @@ def main():
         fail("Usage: digitize.py <image_path> <p1x> <p1y> <p2x> <p2y> <real_distance_mm>")
 
     image_path = sys.argv[1]
-    p1x, p1y, p2x, p2y, real_distance_mm = (float(v) for v in sys.argv[2:7])
+    try:
+        p1x, p1y, p2x, p2y, real_distance_mm = (float(v) for v in sys.argv[2:7])
+    except ValueError:
+        fail("Calibration points and distance must be numbers.")
 
     pixel_distance = ((p2x - p1x) ** 2 + (p2y - p1y) ** 2) ** 0.5
     if pixel_distance < 1e-6:
