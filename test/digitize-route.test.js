@@ -3,22 +3,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
-import { createServer } from '../server.js';
+import { withServer } from './helpers/with-server.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(__dirname, 'fixtures', 'test-rectangle.png');
 const BLANK_FIXTURE = path.join(__dirname, 'fixtures', 'test-blank.png');
-
-async function withServer(fn) {
-  const server = createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const port = server.address().port;
-  try {
-    await fn(`http://127.0.0.1:${port}`);
-  } finally {
-    await new Promise((resolve) => server.close(resolve));
-  }
-}
 
 async function postDigitize(baseUrl, fixturePath, calibration) {
   const fileBuffer = await readFile(fixturePath);
