@@ -25,22 +25,26 @@ photoInput.addEventListener('change', () => {
     formData.append('p2y', calibration.p2y);
     formData.append('realDistanceMm', calibration.realDistanceMm);
 
-    const response = await fetch('/digitize', { method: 'POST', body: formData });
-    const body = await response.json();
+    try {
+      const response = await fetch('/digitize', { method: 'POST', body: formData });
+      const body = await response.json();
 
-    if (!response.ok) {
-      resultEl.textContent = `Error: ${body.error}`;
-      return;
+      if (!response.ok) {
+        resultEl.textContent = `Error: ${body.error}`;
+        return;
+      }
+
+      const bounds = boundingBox(body.polygon);
+      const width = bounds.maxX - bounds.minX;
+      const height = bounds.maxY - bounds.minY;
+      resultEl.innerHTML = `
+        <p>${width.toFixed(1)}mm &times; ${height.toFixed(1)}mm</p>
+        <svg width="300" height="${(300 * height) / width}" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}">
+          <polygon points="${polygonToSVGPoints(body.polygon)}" stroke="#FF0000" stroke-width="${width / 300}" fill="none" />
+        </svg>
+      `;
+    } catch {
+      resultEl.textContent = 'Error: could not reach the server or the response was invalid. Please try again.';
     }
-
-    const bounds = boundingBox(body.polygon);
-    const width = bounds.maxX - bounds.minX;
-    const height = bounds.maxY - bounds.minY;
-    resultEl.innerHTML = `
-      <p>${width.toFixed(1)}mm &times; ${height.toFixed(1)}mm</p>
-      <svg width="300" height="${(300 * height) / width}" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}">
-        <polygon points="${polygonToSVGPoints(body.polygon)}" stroke="#FF0000" stroke-width="${width / 300}" fill="none" />
-      </svg>
-    `;
   });
 });

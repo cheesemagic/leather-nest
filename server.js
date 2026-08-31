@@ -53,6 +53,11 @@ async function handleDigitize(req, res) {
 
   const photo = files.photo && files.photo[0];
   if (!photo) {
+    for (const fileList of Object.values(files)) {
+      for (const file of fileList) {
+        fs.unlink(file.filepath, () => {});
+      }
+    }
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'No photo uploaded.' }));
     return;

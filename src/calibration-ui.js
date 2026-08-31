@@ -55,10 +55,14 @@ export function attachCalibration(container, imgSrc, onComplete) {
     }
   }
 
-  img.addEventListener('load', () => {
+  function resizeOverlay() {
     overlay.width = img.clientWidth;
     overlay.height = img.clientHeight;
-  });
+    drawMarkers();
+  }
+
+  img.addEventListener('load', resizeOverlay);
+  window.addEventListener('resize', resizeOverlay);
 
   overlay.addEventListener('click', (event) => {
     if (points.length >= 2) {
