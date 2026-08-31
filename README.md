@@ -16,3 +16,12 @@ Then open http://localhost:8080 in a browser.
 ## Test
 
     npm test
+
+## Python setup (photo digitization)
+
+The photo digitization feature uses a small Python/OpenCV script. One-time setup:
+
+    python3 -m venv venv
+    venv/bin/pip install -r requirements.txt
+
+The server calls `venv/bin/python3` directly — no need to activate the venv.
