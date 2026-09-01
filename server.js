@@ -388,10 +388,13 @@ function createSessionsRoutes(dataDir, diesDataDir) {
       sendJSON(res, 400, { error: 'Could not parse request body.' });
       return;
     }
+    if (!payload || typeof payload !== 'object') {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
 
     const { dieId, x, y, rotation } = payload;
-    const dies = dieStore.list();
-    const die = dies.find((d) => d.id === dieId);
+    const die = dieStore.list().find((d) => d.id === dieId);
     if (!die) {
       sendJSON(res, 404, { error: 'Die not found.' });
       return;
@@ -399,10 +402,8 @@ function createSessionsRoutes(dataDir, diesDataDir) {
 
     const occupied = session.placements.flatMap((p) => {
       const entries = [];
-      const dieForPlacement = dies.find((d) => d.id === p.dieId);
-      const polygon = dieForPlacement ? dieForPlacement.polygon : die.polygon;
-      entries.push({ polygon, x: p.reference.x, y: p.reference.y, rotation: p.reference.rotation });
-      if (p.match) entries.push({ polygon, x: p.match.x, y: p.match.y, rotation: p.match.rotation });
+      entries.push({ polygon: p.polygon, x: p.reference.x, y: p.reference.y, rotation: p.reference.rotation });
+      if (p.match) entries.push({ polygon: p.polygon, x: p.match.x, y: p.match.y, rotation: p.match.rotation });
       return entries;
     });
 
@@ -420,10 +421,17 @@ function createSessionsRoutes(dataDir, diesDataDir) {
         sendJSON(res, 422, { error: stderr.trim() || 'Search failed.' });
         return;
       }
-      const { match } = JSON.parse(stdout);
+      let match;
+      try {
+        ({ match } = JSON.parse(stdout));
+      } catch {
+        sendJSON(res, 422, { error: 'Search produced an unreadable result.' });
+        return;
+      }
       const updated = store.addPlacement(id, {
         dieId,
         dieName: die.name,
+        polygon: die.polygon,
         reference: { x, y, rotation },
         match,
       });

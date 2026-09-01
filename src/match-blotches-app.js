@@ -123,9 +123,7 @@ function renderPlacements() {
 
   const shapes = currentSession.placements
     .map((placement) => {
-      const die = dies.find((d) => d.id === placement.dieId);
-      if (!die) return '';
-      const polygonPx = polygonToPx(die.polygon, mmPerPx);
+      const polygonPx = polygonToPx(placement.polygon, mmPerPx);
       const refPolygon = placedPolygon({ polygon: polygonPx }, placement.reference);
       const refShape = `<polygon points="${polygonToSVGPoints(refPolygon)}" stroke="${placement.color}" stroke-width="3" fill="none" />`;
       if (!placement.match) return refShape;

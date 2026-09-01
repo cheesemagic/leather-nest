@@ -68,6 +68,7 @@ test('POST /sessions/:id/placements finds a match and appends it', async () => {
     assert.equal(updated.placements.length, 1);
     assert.ok(updated.placements[0].match);
     assert.ok(Math.abs(updated.placements[0].match.x - 300) <= 2);
+    assert.deepEqual(updated.placements[0].polygon, die.polygon);
   });
 });
 
