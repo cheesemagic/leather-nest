@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>leather-nest — blotch matching</title>
+  </head>
+  <body>
+    <h1>Blotch-pattern matching</h1>
+
+    <section>
+      <h2>New session</h2>
+      <input type="file" id="photo-input" accept="image/*" />
+      <div id="calibration-container"></div>
+      <div id="region-container"></div>
+      <div id="create-status"></div>
+    </section>
+
+    <section id="session-section" style="display: none">
+      <h2>Session</h2>
+      <div id="die-palette"></div>
+      <div id="photo-stage" style="position: relative; display: inline-block">
+        <img id="session-photo" style="display: block; max-width: 100%" />
+        <svg id="placements-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%"></svg>
+      </div>
+      <div id="placement-status"></div>
+    </section>
+
+    <section>
+      <h2>Saved sessions</h2>
+      <button type="button" id="refresh-sessions">Refresh</button>
+      <div id="sessions-list"></div>
+    </section>
+
+    <script type="module" src="/src/match-blotches-app.js"></script>
+  </body>
+</html>
