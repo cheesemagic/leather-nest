@@ -6,6 +6,8 @@ import { execFile } from 'node:child_process';
 import formidable from 'formidable';
 import { createStore } from './src/skins/store.js';
 import { rankMatches } from './src/skins/similarity.js';
+import { createStore as createDieStore } from './src/dies/store.js';
+import { parseSVGPolygon } from './src/svg/parse.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 8080;
@@ -206,8 +208,83 @@ function createSkinsRoutes(dataDir) {
   return { handleCreateSkin, handleListSkins, handleMatchSkins, handleDeleteSkin, handleSkinPhoto };
 }
 
-export function createServer({ dataDir = path.join(__dirname, 'data', 'skins') } = {}) {
+function createDiesRoutes(dataDir) {
+  const store = createDieStore(dataDir);
+
+  async function handleCreateDie(req, res) {
+    let fields, files;
+    try {
+      ({ fields, files } = await parseForm(req));
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse upload.' });
+      return;
+    }
+
+    const getField = (name) => fields[name] && fields[name][0];
+    const name = getField('name');
+    const svgFile = files.svg && files.svg[0];
+    const photoFile = files.photo && files.photo[0];
+
+    if (!name || (!svgFile && !photoFile)) {
+      cleanupFiles(files);
+      sendJSON(res, 400, { error: 'name and either an svg file or a photo with calibration are required.' });
+      return;
+    }
+
+    if (svgFile) {
+      const svgContent = fs.readFileSync(svgFile.filepath, 'utf8');
+      fs.unlink(svgFile.filepath, () => {});
+      try {
+        const polygon = parseSVGPolygon(svgContent);
+        sendJSON(res, 200, store.create({ name, polygon }));
+      } catch (err) {
+        sendJSON(res, 422, { error: err.message });
+      }
+      return;
+    }
+
+    const args = [
+      DIGITIZE_SCRIPT,
+      photoFile.filepath,
+      getField('p1x'),
+      getField('p1y'),
+      getField('p2x'),
+      getField('p2y'),
+      getField('realDistanceMm'),
+    ];
+    execFile(PYTHON, args, (err, stdout, stderr) => {
+      fs.unlink(photoFile.filepath, () => {});
+      if (err) {
+        sendJSON(res, 422, { error: stderr.trim() || 'Digitization failed.' });
+        return;
+      }
+      const { polygon } = JSON.parse(stdout);
+      sendJSON(res, 200, store.create({ name, polygon }));
+    });
+  }
+
+  function handleListDies(req, res) {
+    sendJSON(res, 200, store.list());
+  }
+
+  function handleDeleteDie(req, res, id) {
+    if (!store.remove(id)) {
+      sendJSON(res, 404, { error: 'Die not found.' });
+      return;
+    }
+    res.writeHead(204);
+    res.end();
+  }
+
+  return { handleCreateDie, handleListDies, handleDeleteDie };
+}
+
+export function createServer({
+  dataDir = path.join(__dirname, 'data', 'skins'),
+  diesDataDir = path.join(__dirname, 'data', 'dies'),
+} = {}) {
   const skins = createSkinsRoutes(dataDir);
+  const dies = createDiesRoutes(diesDataDir);
 
   return http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/digitize') {
@@ -231,9 +308,22 @@ export function createServer({ dataDir = path.join(__dirname, 'data', 'skins') }
       skins.handleSkinPhoto(req, res, photoMatch[1]);
       return;
     }
-    const deleteMatch = req.method === 'DELETE' && req.url.match(/^\/skins\/([^/]+)$/);
-    if (deleteMatch) {
-      skins.handleDeleteSkin(req, res, deleteMatch[1]);
+    const skinDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/skins\/([^/]+)$/);
+    if (skinDeleteMatch) {
+      skins.handleDeleteSkin(req, res, skinDeleteMatch[1]);
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/dies') {
+      dies.handleCreateDie(req, res);
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/dies') {
+      dies.handleListDies(req, res);
+      return;
+    }
+    const dieDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/dies\/([^/]+)$/);
+    if (dieDeleteMatch) {
+      dies.handleDeleteDie(req, res, dieDeleteMatch[1]);
       return;
     }
     serveStatic(req, res);
