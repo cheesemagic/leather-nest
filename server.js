@@ -8,12 +8,14 @@ import { createStore } from './src/skins/store.js';
 import { rankMatches } from './src/skins/similarity.js';
 import { createStore as createDieStore } from './src/dies/store.js';
 import { parseSVGPolygon } from './src/svg/parse.js';
+import { createStore as createSessionStore } from './src/sessions/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 8080;
 const PYTHON = path.join(__dirname, 'venv', 'bin', 'python3');
 const DIGITIZE_SCRIPT = path.join(__dirname, 'scripts', 'digitize.py');
 const SKIN_SIGNATURE_SCRIPT = path.join(__dirname, 'scripts', 'skin_signature.py');
+const BLOTCH_MATCH_SCRIPT = path.join(__dirname, 'scripts', 'blotch_match.py');
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -290,12 +292,164 @@ function createDiesRoutes(dataDir) {
   return { handleCreateDie, handleListDies, handleDeleteDie };
 }
 
+function createSessionsRoutes(dataDir, diesDataDir) {
+  const store = createSessionStore(dataDir);
+  const dieStore = createDieStore(diesDataDir);
+
+  async function handleCreateSession(req, res) {
+    let fields, files;
+    try {
+      ({ fields, files } = await parseForm(req));
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse upload.' });
+      return;
+    }
+
+    const photo = files.photo && files.photo[0];
+    if (!photo) {
+      cleanupFiles(files);
+      sendJSON(res, 400, { error: 'No photo uploaded.' });
+      return;
+    }
+
+    const getField = (name) => fields[name] && fields[name][0];
+    const calibration = {
+      p1x: Number(getField('p1x')),
+      p1y: Number(getField('p1y')),
+      p2x: Number(getField('p2x')),
+      p2y: Number(getField('p2y')),
+      realDistanceMm: Number(getField('realDistanceMm')),
+    };
+    const searchRegion = {
+      roiX: Number(getField('roiX')),
+      roiY: Number(getField('roiY')),
+      roiWidth: Number(getField('roiWidth')),
+      roiHeight: Number(getField('roiHeight')),
+    };
+
+    const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
+    const record = store.create({ calibration, searchRegion, photoPath: photo.filepath, photoExt });
+    fs.unlink(photo.filepath, () => {});
+    sendJSON(res, 200, record);
+  }
+
+  function handleListSessions(req, res) {
+    sendJSON(res, 200, store.list());
+  }
+
+  function handleGetSession(req, res, id) {
+    const record = store.list().find((s) => s.id === id);
+    if (!record) {
+      sendJSON(res, 404, { error: 'Session not found.' });
+      return;
+    }
+    sendJSON(res, 200, record);
+  }
+
+  function handleDeleteSession(req, res, id) {
+    if (!store.remove(id)) {
+      sendJSON(res, 404, { error: 'Session not found.' });
+      return;
+    }
+    res.writeHead(204);
+    res.end();
+  }
+
+  function handleSessionPhoto(req, res, id) {
+    const photoPath = store.photoPath(id);
+    if (!photoPath) {
+      sendJSON(res, 404, { error: 'Session not found.' });
+      return;
+    }
+    fs.readFile(photoPath, (err, data) => {
+      if (err) {
+        sendJSON(res, 404, { error: 'Session not found.' });
+        return;
+      }
+      const ext = path.extname(photoPath);
+      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+      res.end(data);
+    });
+  }
+
+  async function handleCreatePlacement(req, res, id) {
+    const session = store.list().find((s) => s.id === id);
+    if (!session) {
+      sendJSON(res, 404, { error: 'Session not found.' });
+      return;
+    }
+
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+
+    const { dieId, x, y, rotation } = payload;
+    const dies = dieStore.list();
+    const die = dies.find((d) => d.id === dieId);
+    if (!die) {
+      sendJSON(res, 404, { error: 'Die not found.' });
+      return;
+    }
+
+    const occupied = session.placements.flatMap((p) => {
+      const entries = [];
+      const dieForPlacement = dies.find((d) => d.id === p.dieId);
+      const polygon = dieForPlacement ? dieForPlacement.polygon : die.polygon;
+      entries.push({ polygon, x: p.reference.x, y: p.reference.y, rotation: p.reference.rotation });
+      if (p.match) entries.push({ polygon, x: p.match.x, y: p.match.y, rotation: p.match.rotation });
+      return entries;
+    });
+
+    const scriptPayload = {
+      imagePath: store.photoPath(id),
+      calibration: session.calibration,
+      searchRegion: session.searchRegion,
+      diePolygon: die.polygon,
+      referencePlacement: { x, y, rotation },
+      occupied,
+    };
+
+    const child = execFile(PYTHON, [BLOTCH_MATCH_SCRIPT], { maxBuffer: 1024 * 1024 * 16 }, (err, stdout, stderr) => {
+      if (err) {
+        sendJSON(res, 422, { error: stderr.trim() || 'Search failed.' });
+        return;
+      }
+      const { match } = JSON.parse(stdout);
+      const updated = store.addPlacement(id, {
+        dieId,
+        dieName: die.name,
+        reference: { x, y, rotation },
+        match,
+      });
+      sendJSON(res, 200, updated);
+    });
+    child.stdin.end(JSON.stringify(scriptPayload));
+  }
+
+  return {
+    handleCreateSession,
+    handleListSessions,
+    handleGetSession,
+    handleDeleteSession,
+    handleSessionPhoto,
+    handleCreatePlacement,
+  };
+}
+
 export function createServer({
   dataDir = path.join(__dirname, 'data', 'skins'),
   diesDataDir = path.join(__dirname, 'data', 'dies'),
+  sessionsDataDir = path.join(__dirname, 'data', 'sessions'),
 } = {}) {
   const skins = createSkinsRoutes(dataDir);
   const dies = createDiesRoutes(diesDataDir);
+  const sessions = createSessionsRoutes(sessionsDataDir, diesDataDir);
 
   return http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/digitize') {
@@ -335,6 +489,34 @@ export function createServer({
     const dieDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/dies\/([^/]+)$/);
     if (dieDeleteMatch) {
       dies.handleDeleteDie(req, res, dieDeleteMatch[1]);
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/sessions') {
+      sessions.handleCreateSession(req, res);
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/sessions') {
+      sessions.handleListSessions(req, res);
+      return;
+    }
+    const sessionPhotoMatch = req.method === 'GET' && req.url.match(/^\/sessions\/([^/]+)\/photo$/);
+    if (sessionPhotoMatch) {
+      sessions.handleSessionPhoto(req, res, sessionPhotoMatch[1]);
+      return;
+    }
+    const placementMatch = req.method === 'POST' && req.url.match(/^\/sessions\/([^/]+)\/placements$/);
+    if (placementMatch) {
+      sessions.handleCreatePlacement(req, res, placementMatch[1]);
+      return;
+    }
+    const sessionGetMatch = req.method === 'GET' && req.url.match(/^\/sessions\/([^/]+)$/);
+    if (sessionGetMatch) {
+      sessions.handleGetSession(req, res, sessionGetMatch[1]);
+      return;
+    }
+    const sessionDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/sessions\/([^/]+)$/);
+    if (sessionDeleteMatch) {
+      sessions.handleDeleteSession(req, res, sessionDeleteMatch[1]);
       return;
     }
     serveStatic(req, res);
