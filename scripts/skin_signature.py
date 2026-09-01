@@ -44,7 +44,13 @@ def main():
     if roi_w <= 0 or roi_h <= 0:
         fail("Selected region must have positive width and height.")
 
-    image = cv2.imread(image_path)
+    # IMREAD_IGNORE_ORIENTATION applies the file's EXIF orientation tag
+    # (phone photos are frequently stored rotated) instead of the default
+    # of returning raw sensor pixels — verified against real EXIF-rotated
+    # photos, since without it the pixel frame doesn't match the
+    # calibration/region coordinates the browser computed from the
+    # EXIF-corrected image it displayed.
+    image = cv2.imread(image_path, cv2.IMREAD_IGNORE_ORIENTATION | cv2.IMREAD_COLOR)
     if image is None:
         fail("Could not read image file.")
 

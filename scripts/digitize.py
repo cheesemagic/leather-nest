@@ -28,7 +28,13 @@ def main():
     if not all(math.isfinite(v) for v in (p1x, p1y, p2x, p2y, real_distance_mm)) or real_distance_mm <= 0:
         fail("Calibration points and distance must be finite numbers, and the distance must be positive.")
 
-    image = cv2.imread(image_path)
+    # IMREAD_IGNORE_ORIENTATION applies the file's EXIF orientation tag
+    # (phone photos are frequently stored rotated) instead of the default
+    # of returning raw sensor pixels — verified against real EXIF-rotated
+    # photos, since without it the pixel frame doesn't match the
+    # calibration/outline coordinates the browser computed from the
+    # EXIF-corrected image it displayed.
+    image = cv2.imread(image_path, cv2.IMREAD_IGNORE_ORIENTATION | cv2.IMREAD_COLOR)
     if image is None:
         fail("Could not read image file.")
 
