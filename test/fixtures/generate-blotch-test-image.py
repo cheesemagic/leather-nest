@@ -27,7 +27,7 @@ canvas[100:140, 100:160] = patch
 # True match: the identical pattern, rotated 45 degrees (a multiple of
 # ROTATION_STEP_DEG so the coarse-angle search lands on it exactly),
 # top-left placed at (300, 250).
-rotated, rotated_mask = rotate_template_normalized(patch, patch_mask, 45)
+rotated, rotated_mask, _ = rotate_template_normalized(patch, patch_mask, 45)
 rh, rw = rotated.shape[:2]
 region = canvas[250:250 + rh, 300:300 + rw]
 canvas[250:250 + rh, 300:300 + rw] = np.where(cv2.merge([rotated_mask] * 3) > 0, rotated, region)

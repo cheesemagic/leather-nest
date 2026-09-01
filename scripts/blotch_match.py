@@ -14,16 +14,22 @@ def fail(message):
     sys.exit(1)
 
 
+def rotation_matrix_deg(angle_deg):
+    """The single authoritative 2x2 rotation matrix derivation -- both
+    rotate_points_deg() and rotate_template_normalized()'s cv2.warpAffine
+    matrix are built from this, so they can't desync."""
+    theta = np.radians(angle_deg)
+    cos_a, sin_a = np.cos(theta), np.sin(theta)
+    return np.array([[cos_a, -sin_a], [sin_a, cos_a]], dtype=np.float32)
+
+
 def rotate_points_deg(points, angle_deg):
     """Rotate (N,2) points around origin using the same formula as
     rotatePolygon() in src/nesting/geometry.js: x'=x*cos-y*sin, y'=x*sin+y*cos.
     This is the single authoritative rotation formula; both rotate_template_normalized()
     and stamp_occupied() use it to stay in lockstep.
     """
-    theta = np.radians(angle_deg)
-    cos_a, sin_a = np.cos(theta), np.sin(theta)
-    rot2x2 = np.array([[cos_a, -sin_a], [sin_a, cos_a]], dtype=np.float32)
-    return points @ rot2x2.T
+    return points @ rotation_matrix_deg(angle_deg).T
 
 
 def polygon_to_px(polygon_mm, mm_per_px):
@@ -33,15 +39,20 @@ def polygon_to_px(polygon_mm, mm_per_px):
     )
 
 
-def rotate_template_normalized(template, mask, angle_deg):
+def rotate_template_normalized(template, mask, angle_deg, poly_local=None):
     """Rotates template+mask around pixel (0,0), then shifts so the
-    rotated shape's own bounding box starts at (0,0) -- i.e. this matches
-    rotatePolygon()+normalizeToOrigin() in src/nesting/geometry.js exactly
-    (uses rotate_points_deg for the rotation formula, not cv2's own rotation
-    sign convention). Output pixel (0,0) is always where the die's own
-    normalized-rotated origin lands, so a found top-left position is
-    directly usable as match.x/match.y for later rendering via the same
-    rotatePolygon()-based placedPolygon() the browser already uses.
+    rotated CROP RECTANGLE's own bounding box starts at (0,0). This is
+    NOT the same frame placedPolygon() uses in src/nesting/geometry.js --
+    that normalizes to bbox(rotate(the die's own polygon)), which for a
+    non-rectangular die sits inside and offset from the crop rectangle's
+    own rotated bbox. `poly_local`, when given, is the die's polygon in
+    the template's local coordinate frame (i.e. points_px - [x0, y0] from
+    the crop step); when provided, this also returns `offset` -- where
+    the die's own normalized-rotated origin sits within THIS function's
+    rotated-raster frame. A caller must add `offset` to a found top-left
+    raster position to get match.x/match.y in the placedPolygon() frame;
+    using the raster's raw top-left directly (as if offset were always
+    (0,0)) is only correct when the die is itself a rectangle.
     """
     h, w = template.shape[:2]
     corners = np.array([[0, 0], [w, 0], [w, h], [0, h]], dtype=np.float32)
@@ -51,15 +62,19 @@ def rotate_template_normalized(template, mask, angle_deg):
     out_w = int(np.ceil(max_xy[0] - min_xy[0]))
     out_h = int(np.ceil(max_xy[1] - min_xy[1]))
     if out_w <= 0 or out_h <= 0:
-        return None, None
+        return None, None, None
 
-    theta = np.radians(angle_deg)
-    cos_a, sin_a = np.cos(theta), np.sin(theta)
-    rot2x2 = np.array([[cos_a, -sin_a], [sin_a, cos_a]], dtype=np.float32)
+    rot2x2 = rotation_matrix_deg(angle_deg)
     M = np.hstack([rot2x2, (-min_xy).reshape(2, 1)]).astype(np.float32)
     rotated_template = cv2.warpAffine(template, M, (out_w, out_h))
     rotated_mask = cv2.warpAffine(mask, M, (out_w, out_h))
-    return rotated_template, rotated_mask
+
+    offset = None
+    if poly_local is not None:
+        poly_rotated = rotate_points_deg(poly_local, angle_deg)
+        offset = poly_rotated.min(axis=0) - min_xy
+
+    return rotated_template, rotated_mask, offset
 
 
 def crop_to_polygon(image, points_px):
@@ -131,6 +146,12 @@ def main():
         fail("Search region falls outside the photo bounds.")
 
     die_points_px = polygon_to_px(die_polygon, mm_per_px)
+    # Normalize so the die's own bbox minimum is (0,0) -- true for
+    # photo-digitized dies already, but NOT guaranteed for SVG-uploaded
+    # dies (src/svg/parse.js doesn't normalize). Without this, ref_points
+    # below would be offset by the die's raw (un-normalized) bbox origin
+    # instead of matching the placedPolygon() convention the browser uses.
+    die_points_px -= die_points_px.min(axis=0)
 
     # Reference template: crop the die's own footprint directly from the
     # full photo. Rotation is always 0 for a reference (v1 doesn't allow
@@ -139,8 +160,13 @@ def main():
     ref_crop = crop_to_polygon(image, ref_points)
     if ref_crop is None:
         fail("Reference placement falls outside the photo bounds.")
-    template_bgr, template_mask, _ = ref_crop
+    template_bgr, template_mask, (x0, y0) = ref_crop
     template_lab = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2LAB)
+    # The die's own polygon in the template's local frame (relative to the
+    # crop's own top-left corner) -- fed to rotate_template_normalized() so
+    # it can report where the die's own rotated-normalized origin lands
+    # within its rotated raster, not just the raster rectangle's own origin.
+    poly_local = ref_points - [x0, y0]
 
     region_bgr = image[roi_y:roi_y + roi_h, roi_x:roi_x + roi_w]
     region_lab = cv2.cvtColor(region_bgr, cv2.COLOR_BGR2LAB)
@@ -167,9 +193,11 @@ def main():
 
     occupied_f = (occupied_mask > 0).astype(np.float32)
 
-    best = None  # (score, region_local_x, region_local_y, angle)
+    best = None  # (score, region_local_x, region_local_y, angle, offset)
     for angle in range(0, 360, ROTATION_STEP_DEG):
-        rotated_template, rotated_mask = rotate_template_normalized(template_lab, template_mask, angle)
+        rotated_template, rotated_mask, offset = rotate_template_normalized(
+            template_lab, template_mask, angle, poly_local
+        )
         if rotated_template is None:
             continue
         rt_h, rt_w = rotated_template.shape[:2]
@@ -190,10 +218,17 @@ def main():
         overlap = overlap[: score_map.shape[0], : score_map.shape[1]]
         score_map[overlap > 0.5] = np.inf
 
+        # Masked TM_SQDIFF_NORMED can produce NaN (e.g. a pure-black patch
+        # under the mask). np.argmin would happily "select" a NaN, and
+        # NaN's comparisons are always False, so a NaN latched into `best`
+        # can never be beaten by a later, genuinely better score. Convert
+        # NaN to +inf so it's never selected as a minimum.
+        score_map = np.nan_to_num(score_map, nan=np.inf, posinf=np.inf)
+
         idx = np.unravel_index(np.argmin(score_map), score_map.shape)
         score = score_map[idx]
         if best is None or score < best[0]:
-            best = (score, idx[1], idx[0], angle)
+            best = (score, idx[1], idx[0], angle, offset)
 
     if best is None or not np.isfinite(best[0]) or best[0] > MAX_MATCH_DISTANCE:
         print(json.dumps({
@@ -202,11 +237,11 @@ def main():
         }))
         return
 
-    score, top_x, top_y, angle = best
+    score, top_x, top_y, angle, offset = best
     print(json.dumps({
         "match": {
-            "x": float(roi_x + top_x),
-            "y": float(roi_y + top_y),
+            "x": float(roi_x + top_x + offset[0]),
+            "y": float(roi_y + top_y + offset[1]),
             "rotation": angle,
             "score": float(score),
         }
