@@ -148,17 +148,30 @@ Algorithm:
 4. For each rotation angle in `0, 15, 30, ..., 345`:
    - Rotate the template and its mask.
    - For each of the 3 Lab channels, run
-     `cv2.matchTemplate(region_channel, rotated_template_channel, cv2.TM_CCOEFF_NORMED, mask=rotated_mask)`
-     — one call covers every translation at this rotation.
-   - Average the three channels' score maps into one score map.
-   - Zero out any candidate position whose footprint (rotated template's
-     mask, placed at that position) would overlap the occupied mask.
-   - Track the best remaining (position, score) at this rotation.
-5. Across all rotation angles, take the global best (position, rotation,
-   score).
-6. If no valid non-overlapping candidate exists, or the best score falls
-   below `MIN_MATCH_SCORE` (initial value 0.3 — unvalidated, see note
-   above), output `{"match": null, "reason": "..."}`.
+     `cv2.matchTemplate(region_channel, rotated_template_channel, cv2.TM_SQDIFF_NORMED, mask=rotated_mask)`
+     — one call covers every translation at this rotation. (Prototyped
+     against synthetic data before writing the implementation plan:
+     `TM_CCOEFF_NORMED` — the initial choice — turned out to silently
+     produce `NaN` with a mask, a known OpenCV limitation; masked matching
+     is only properly supported for `TM_SQDIFF`/`TM_SQDIFF_NORMED` and
+     `TM_CCORR_NORMED`. Of those two, `TM_CCORR_NORMED` discriminated
+     genuinely different color patches poorly in testing — 0.978 vs. 0.913
+     for a true match vs. an unrelated distractor, too thin a margin —
+     while `TM_SQDIFF_NORMED` gave 0.046 vs. 0.487, a ~10x gap. Lower is
+     better for `TM_SQDIFF_NORMED` — 0 is a perfect match.)
+   - Average the three channels' score maps into one score map (lower is
+     better — 0 is a perfect match).
+   - Set the score to `+infinity` (never selectable) at any candidate
+     position whose footprint (rotated template's mask, placed at that
+     position) would overlap the occupied mask.
+   - Track the best (lowest-scoring) remaining position at this rotation.
+5. Across all rotation angles, take the global best (lowest-scoring)
+   (position, rotation, score).
+6. If no valid non-overlapping candidate exists, or the best score is
+   above `MAX_MATCH_DISTANCE` (initial value 0.35 — grounded in the
+   synthetic prototype's true-match/distractor gap above, still
+   unvalidated against real blotch photos), output
+   `{"match": null, "reason": "..."}`.
 7. Otherwise output `{"match": {"x": ..., "y": ..., "rotation": ..., "score": ...}}`,
    `x`/`y` in the same natural-pixel convention as the input.
 
