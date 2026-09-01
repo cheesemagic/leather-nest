@@ -19,6 +19,7 @@ const BLOTCH_MATCH_SCRIPT = path.join(__dirname, 'scripts', 'blotch_match.py');
 
 const MIME_TYPES = {
   '.html': 'text/html',
+  '.css': 'text/css',
   '.js': 'text/javascript',
   '.json': 'application/json',
   '.svg': 'image/svg+xml',

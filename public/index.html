@@ -2,14 +2,189 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>leather-nest</title>
+    <title>leather-nest — nest your patterns onto the hide you actually have</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="/public/styles.css" />
+    <style>
+      .landing-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        padding: 16px var(--space-8);
+        border-bottom: 1px solid var(--color-divider);
+      }
+      .landing-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--font-heading);
+        font-size: 18px;
+        color: var(--color-text);
+        text-decoration: none;
+      }
+      .landing-ring {
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: var(--color-accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+      }
+      .landing-ring::after {
+        content: "";
+        width: 11px;
+        height: 11px;
+        border-radius: 999px;
+        background: var(--color-bg);
+      }
+      .landing-nav {
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        margin-left: auto;
+        font-size: 13px;
+        color: var(--color-neutral-700);
+      }
+      .landing-nav a { color: inherit; text-decoration: none; }
+      .landing-nav a:hover { color: var(--color-accent); }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.05fr .95fr;
+        gap: var(--space-8);
+        align-items: center;
+        padding: var(--space-8) var(--space-8) var(--space-6);
+      }
+      .hero h1 {
+        font-size: 58px;
+        line-height: 1.02;
+        text-wrap: pretty;
+        margin: 16px 0 18px;
+      }
+      .hero p {
+        font-size: 16px;
+        line-height: 1.65;
+        color: var(--color-neutral-800);
+        max-width: 46ch;
+        text-wrap: pretty;
+      }
+      .hero-actions { display: flex; align-items: center; gap: 11px; }
+      .hero-actions .btn { font-size: 15px; padding: 13px 26px; }
+
+      .hero-photo {
+        aspect-ratio: 1;
+        border-radius: 999px;
+        background: var(--color-accent-2-200);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .hero-photo-hatch {
+        position: absolute;
+        inset: 0;
+        background-image: repeating-linear-gradient(
+          45deg,
+          color-mix(in srgb, var(--color-accent-2-700) 22%, transparent) 0 2px,
+          transparent 2px 9px
+        );
+      }
+      .hero-photo svg { position: relative; width: 88%; }
+      .hero-outline { fill: none; stroke: var(--color-accent-900); stroke-width: 3; }
+      .hero-piece { fill: var(--color-accent-500); fill-opacity: 0.3; stroke: var(--color-accent-600); stroke-width: 3; }
+
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-4);
+        padding: 0 var(--space-8) var(--space-8);
+      }
+      .step { display: flex; gap: 14px; }
+      .step-num {
+        flex: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 999px;
+        background: var(--color-accent-200);
+        color: var(--color-accent-800);
+        font-family: var(--font-heading);
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .step h3 { font-size: 17px; margin: 0 0 6px; }
+      .step p { font-size: 13px; line-height: 1.55; color: var(--color-neutral-700); margin: 0; }
+
+      @media (max-width: 860px) {
+        .hero { grid-template-columns: 1fr; }
+        .hero-photo { max-width: 320px; margin: 0 auto; }
+        .steps { grid-template-columns: 1fr; }
+      }
+    </style>
   </head>
   <body>
-    <h1>leather-nest v0</h1>
-    <p><a href="/public/digitize.html">Digitize a pattern piece</a></p>
-    <div id="preview"></div>
-    <button id="export-btn">Export SVG</button>
-    <script src="/node_modules/clipper-lib/clipper.js"></script>
-    <script type="module" src="/src/app.js"></script>
+    <header class="landing-header">
+      <a class="landing-brand" href="/">
+        <span class="landing-ring" aria-hidden="true"></span>
+        leather-nest
+      </a>
+      <nav class="landing-nav">
+        <a href="#how-it-works">How it works</a>
+        <a href="https://lightburnsoftware.com" target="_blank" rel="noopener">LightBurn</a>
+        <a class="btn btn-secondary" href="https://github.com/cheesemagic/leather-nest" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div>
+        <span class="tag tag-accent-2">Open source · runs on your machine</span>
+        <h1>Nest your patterns onto the hide you actually have.</h1>
+        <p>
+          Photograph an exotic offcut, calibrate it against a ruler, and
+          leather-nest maps its true outline in millimetres — then packs
+          your pattern pieces around the scars and exports a cut file
+          straight to LightBurn.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/public/app.html">Get it running</a>
+        </div>
+      </div>
+      <div class="hero-photo">
+        <div class="hero-photo-hatch washed" aria-hidden="true"></div>
+        <svg viewBox="0 0 200 200" aria-hidden="true">
+          <path class="hero-outline" d="M30 60 Q20 120 60 160 Q120 190 160 140 Q185 90 150 50 Q100 15 30 60 Z" />
+          <rect class="hero-piece" x="70" y="70" width="42" height="30" rx="4" />
+          <rect class="hero-piece" x="95" y="105" width="34" height="46" rx="4" />
+        </svg>
+      </div>
+    </section>
+
+    <section class="steps" id="how-it-works">
+      <div class="step">
+        <span class="step-num">1</span>
+        <div>
+          <h3>Photograph</h3>
+          <p>Any phone shot with a ruler in frame. Two taps set the scale.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">2</span>
+        <div>
+          <h3>Nest</h3>
+          <p>Pieces pack around the real edges and the scars you flag, with kerf and grain honoured.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">3</span>
+        <div>
+          <h3>Cut</h3>
+          <p>Export a millimetre-true SVG that opens in LightBurn ready for the Nova 51.</p>
+        </div>
+      </div>
+    </section>
   </body>
 </html>
