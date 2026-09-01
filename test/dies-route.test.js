@@ -29,6 +29,13 @@ async function postDiePhoto(baseUrl, overrides = {}) {
   for (const [key, value] of Object.entries(calibration)) {
     formData.append(key, String(value));
   }
+  const roi =
+    'roi' in overrides
+      ? overrides.roi
+      : { roiX: 0, roiY: 0, roiWidth: 400, roiHeight: 300 };
+  for (const [key, value] of Object.entries(roi ?? {})) {
+    formData.append(key, String(value));
+  }
   return fetch(`${baseUrl}/dies`, { method: 'POST', body: formData });
 }
 
@@ -56,6 +63,15 @@ test('POST /dies via photo digitizes the die and creates a record', async () => 
     assert.ok(created.id);
     assert.ok(Array.isArray(created.polygon));
     assert.ok(created.polygon.length >= 3);
+  });
+});
+
+test('POST /dies via photo returns 400 when the region is missing', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postDiePhoto(baseUrl, { roi: null });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.match(body.error, /roiX, roiY, roiWidth, and roiHeight are required/);
   });
 });
 

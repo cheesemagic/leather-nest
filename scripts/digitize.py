@@ -12,12 +12,16 @@ def fail(message):
 
 
 def main():
-    if len(sys.argv) != 7:
-        fail("Usage: digitize.py <image_path> <p1x> <p1y> <p2x> <p2y> <real_distance_mm>")
+    if len(sys.argv) not in (7, 11):
+        fail(
+            "Usage: digitize.py <image_path> <p1x> <p1y> <p2x> <p2y> "
+            "<real_distance_mm> [<roi_x> <roi_y> <roi_w> <roi_h>]"
+        )
 
     image_path = sys.argv[1]
     try:
         p1x, p1y, p2x, p2y, real_distance_mm = (float(v) for v in sys.argv[2:7])
+        roi = tuple(float(v) for v in sys.argv[7:11]) if len(sys.argv) == 11 else None
     except ValueError:
         fail("Calibration points and distance must be numbers.")
 
@@ -37,6 +41,20 @@ def main():
     image = cv2.imread(image_path, cv2.IMREAD_IGNORE_ORIENTATION | cv2.IMREAD_COLOR)
     if image is None:
         fail("Could not read image file.")
+
+    # Cropping to a user-selected region before contour detection matters
+    # whenever the pattern piece doesn't dominate the frame (generous
+    # margins, multiple objects in one photo) — the largest-contour
+    # heuristic below can otherwise latch onto a fragment of the
+    # background instead of the actual piece.
+    if roi is not None:
+        roi_x, roi_y, roi_w, roi_h = (int(round(v)) for v in roi)
+        if roi_w <= 0 or roi_h <= 0:
+            fail("Selected region must have positive width and height.")
+        img_h, img_w = image.shape[:2]
+        if roi_x < 0 or roi_y < 0 or roi_x + roi_w > img_w or roi_y + roi_h > img_h:
+            fail("Selected region falls outside the photo bounds.")
+        image = image[roi_y:roi_y + roi_h, roi_x:roi_x + roi_w]
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     total_area = gray.shape[0] * gray.shape[1]

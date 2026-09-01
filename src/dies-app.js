@@ -1,4 +1,5 @@
 import { attachCalibration } from './calibration-ui.js';
+import { attachRegionSelect } from './region-select-ui.js';
 import { boundingBox, polygonToSVGPoints } from './nesting/geometry.js';
 
 const nameInput = document.getElementById('name-input');
@@ -8,12 +9,14 @@ const photoMode = document.getElementById('photo-mode');
 const svgInput = document.getElementById('svg-input');
 const photoInput = document.getElementById('photo-input');
 const calibrationContainer = document.getElementById('calibration-container');
+const regionContainer = document.getElementById('region-container');
 const submitButton = document.getElementById('submit-die');
 const addStatus = document.getElementById('add-status');
 const diesListEl = document.getElementById('dies-list');
 
 let selectedPhoto = null;
 let calibration = null;
+let region = null;
 
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -32,10 +35,15 @@ photoInput.addEventListener('change', () => {
   if (!file) return;
   selectedPhoto = file;
   calibration = null;
+  region = null;
+  regionContainer.innerHTML = '';
 
   const objectUrl = URL.createObjectURL(file);
-  attachCalibration(calibrationContainer, objectUrl, (result) => {
-    calibration = result;
+  attachCalibration(calibrationContainer, objectUrl, (calibrationResult) => {
+    calibration = calibrationResult;
+    attachRegionSelect(regionContainer, objectUrl, (regionResult) => {
+      region = regionResult;
+    });
   });
 });
 
@@ -58,8 +66,8 @@ submitButton.addEventListener('click', async () => {
     }
     formData.append('svg', file);
   } else {
-    if (!selectedPhoto || !calibration) {
-      addStatus.textContent = 'Upload a photo and complete calibration first.';
+    if (!selectedPhoto || !calibration || !region) {
+      addStatus.textContent = 'Upload a photo, complete calibration, and select the die region first.';
       return;
     }
     formData.append('photo', selectedPhoto);
@@ -68,6 +76,10 @@ submitButton.addEventListener('click', async () => {
     formData.append('p2x', calibration.p2x);
     formData.append('p2y', calibration.p2y);
     formData.append('realDistanceMm', calibration.realDistanceMm);
+    formData.append('roiX', region.roiX);
+    formData.append('roiY', region.roiY);
+    formData.append('roiWidth', region.roiWidth);
+    formData.append('roiHeight', region.roiHeight);
   }
 
   addStatus.textContent = 'Adding…';
@@ -84,8 +96,10 @@ submitButton.addEventListener('click', async () => {
     svgInput.value = '';
     photoInput.value = '';
     calibrationContainer.innerHTML = '';
+    regionContainer.innerHTML = '';
     selectedPhoto = null;
     calibration = null;
+    region = null;
     loadDies();
   } catch {
     addStatus.textContent = 'Error: could not reach the server. Please try again.';

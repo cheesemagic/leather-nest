@@ -243,6 +243,13 @@ function createDiesRoutes(dataDir) {
       return;
     }
 
+    const roiFields = ['roiX', 'roiY', 'roiWidth', 'roiHeight'];
+    if (roiFields.some((field) => !getField(field))) {
+      fs.unlink(photoFile.filepath, () => {});
+      sendJSON(res, 400, { error: 'roiX, roiY, roiWidth, and roiHeight are required when adding a die from a photo.' });
+      return;
+    }
+
     const args = [
       DIGITIZE_SCRIPT,
       photoFile.filepath,
@@ -251,6 +258,10 @@ function createDiesRoutes(dataDir) {
       getField('p2x'),
       getField('p2y'),
       getField('realDistanceMm'),
+      getField('roiX'),
+      getField('roiY'),
+      getField('roiWidth'),
+      getField('roiHeight'),
     ];
     execFile(PYTHON, args, (err, stdout, stderr) => {
       fs.unlink(photoFile.filepath, () => {});
