@@ -14,6 +14,18 @@ def fail(message):
     sys.exit(1)
 
 
+def rotate_points_deg(points, angle_deg):
+    """Rotate (N,2) points around origin using the same formula as
+    rotatePolygon() in src/nesting/geometry.js: x'=x*cos-y*sin, y'=x*sin+y*cos.
+    This is the single authoritative rotation formula; both rotate_template_normalized()
+    and stamp_occupied() use it to stay in lockstep.
+    """
+    theta = np.radians(angle_deg)
+    cos_a, sin_a = np.cos(theta), np.sin(theta)
+    rot2x2 = np.array([[cos_a, -sin_a], [sin_a, cos_a]], dtype=np.float32)
+    return points @ rot2x2.T
+
+
 def polygon_to_px(polygon_mm, mm_per_px):
     return np.array(
         [[p["x"] / mm_per_px, p["y"] / mm_per_px] for p in polygon_mm],
@@ -25,7 +37,7 @@ def rotate_template_normalized(template, mask, angle_deg):
     """Rotates template+mask around pixel (0,0), then shifts so the
     rotated shape's own bounding box starts at (0,0) -- i.e. this matches
     rotatePolygon()+normalizeToOrigin() in src/nesting/geometry.js exactly
-    (same x'=x*cos-y*sin, y'=x*sin+y*cos formula, not cv2's own rotation
+    (uses rotate_points_deg for the rotation formula, not cv2's own rotation
     sign convention). Output pixel (0,0) is always where the die's own
     normalized-rotated origin lands, so a found top-left position is
     directly usable as match.x/match.y for later rendering via the same
@@ -33,10 +45,7 @@ def rotate_template_normalized(template, mask, angle_deg):
     """
     h, w = template.shape[:2]
     corners = np.array([[0, 0], [w, 0], [w, h], [0, h]], dtype=np.float32)
-    theta = np.radians(angle_deg)
-    cos_a, sin_a = np.cos(theta), np.sin(theta)
-    rot2x2 = np.array([[cos_a, -sin_a], [sin_a, cos_a]], dtype=np.float32)
-    rotated_corners = corners @ rot2x2.T
+    rotated_corners = rotate_points_deg(corners, angle_deg)
     min_xy = rotated_corners.min(axis=0)
     max_xy = rotated_corners.max(axis=0)
     out_w = int(np.ceil(max_xy[0] - min_xy[0]))
@@ -44,6 +53,9 @@ def rotate_template_normalized(template, mask, angle_deg):
     if out_w <= 0 or out_h <= 0:
         return None, None
 
+    theta = np.radians(angle_deg)
+    cos_a, sin_a = np.cos(theta), np.sin(theta)
+    rot2x2 = np.array([[cos_a, -sin_a], [sin_a, cos_a]], dtype=np.float32)
     M = np.hstack([rot2x2, (-min_xy).reshape(2, 1)]).astype(np.float32)
     rotated_template = cv2.warpAffine(template, M, (out_w, out_h))
     rotated_mask = cv2.warpAffine(mask, M, (out_w, out_h))
@@ -81,24 +93,33 @@ def main():
         die_polygon = payload["diePolygon"]
         reference = payload["referencePlacement"]
         occupied_placements = payload.get("occupied", [])
+
+        # Extract nested fields with the same error handling
+        p1x, p1y = calibration["p1x"], calibration["p1y"]
+        p2x, p2y = calibration["p2x"], calibration["p2y"]
+        real_distance_mm = calibration["realDistanceMm"]
+
+        roi_x = int(round(search_region["roiX"]))
+        roi_y = int(round(search_region["roiY"]))
+        roi_w = int(round(search_region["roiWidth"]))
+        roi_h = int(round(search_region["roiHeight"]))
+
+        # Validate reference placement fields exist (will be used later)
+        _ = reference["x"], reference["y"], reference["rotation"]
+        # Validate occupied placement fields exist (will be used later)
+        for placement in occupied_placements:
+            _ = placement["polygon"], placement["x"], placement["y"], placement["rotation"]
     except KeyError as err:
         fail(f"Missing required field: {err}")
 
     if len(die_polygon) < 3:
         fail("diePolygon must have at least 3 points.")
 
-    p1x, p1y = calibration["p1x"], calibration["p1y"]
-    p2x, p2y = calibration["p2x"], calibration["p2y"]
-    real_distance_mm = calibration["realDistanceMm"]
     pixel_distance = math.hypot(p2x - p1x, p2y - p1y)
     if pixel_distance < 1e-6:
         fail("Calibration points must be distinct.")
     mm_per_px = real_distance_mm / pixel_distance
 
-    roi_x = int(round(search_region["roiX"]))
-    roi_y = int(round(search_region["roiY"]))
-    roi_w = int(round(search_region["roiWidth"]))
-    roi_h = int(round(search_region["roiHeight"]))
     if roi_w <= 0 or roi_h <= 0:
         fail("Search region must have positive width and height.")
 
@@ -134,10 +155,7 @@ def main():
             base_px = polygon_to_px(polygon_mm_or_none, mm_per_px)
         else:
             base_px = die_points_px
-        theta = np.radians(rotation)
-        cos_a, sin_a = np.cos(theta), np.sin(theta)
-        rot2x2 = np.array([[cos_a, -sin_a], [sin_a, cos_a]], dtype=np.float32)
-        rotated = base_px @ rot2x2.T
+        rotated = rotate_points_deg(base_px, rotation)
         normalized = rotated - rotated.min(axis=0)
         placed = normalized + [x, y]
         shifted = (placed - [roi_x, roi_y]).astype(np.int32)
