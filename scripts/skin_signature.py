@@ -8,7 +8,7 @@ import numpy as np
 MIN_SIDE_PX = 32
 MIN_R = 3
 STD_DEV_THRESHOLD = 3.0
-REF_WAVELENGTHS_MM = np.geomspace(0.5, 20, 40)
+REF_WAVELENGTHS_MM = np.geomspace(0.5, 30, 40)
 
 
 def fail(message):
@@ -96,6 +96,20 @@ def main():
     max_r = side // 2
     candidate_r = np.arange(MIN_R, max_r)
     peak_r = candidate_r[np.argmax(radial_profile[MIN_R:max_r])]
+
+    # A peak sitting right at the MIN_R boundary isn't a genuine texture
+    # frequency — it's near-DC energy leaking past the exclusion, the
+    # signature of a real periodic pattern too coarse for this window to
+    # resolve (verified against real crocodile photos: an all-pixel size
+    # check let plenty of regions through that were nowhere near large
+    # enough for their actual scale pattern, while this same check
+    # correctly leaves fine-textured, physically smaller regions alone).
+    if peak_r <= MIN_R + 1:
+        fail(
+            "Selected region doesn't show a clear enough periodic pattern to "
+            "measure reliably — try a larger region."
+        )
+
     dominant_wavelength_mm = (side / peak_r) * mm_per_px
 
     # Convert every non-DC bin's wavelength to mm, then resample onto a

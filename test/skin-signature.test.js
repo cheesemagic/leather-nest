@@ -9,6 +9,7 @@ const PYTHON = path.join(__dirname, '..', 'venv', 'bin', 'python3');
 const SCRIPT = path.join(__dirname, '..', 'scripts', 'skin_signature.py');
 const GRID_10 = path.join(__dirname, 'fixtures', 'test-grid-10px.png');
 const GRID_20 = path.join(__dirname, 'fixtures', 'test-grid-20px.png');
+const GRID_COARSE = path.join(__dirname, 'fixtures', 'test-grid-80px.png');
 const GRID_10_ROTATED = path.join(__dirname, 'fixtures', 'test-grid-10px-rotated.png');
 const BLANK_FIXTURE = path.join(__dirname, 'fixtures', 'test-blank.png');
 
@@ -62,6 +63,20 @@ test('skin_signature.py fails clearly on a too-small region', () => {
     () => execFileSync(PYTHON, [SCRIPT, GRID_10, '0', '0', '10', '10', '0', '0', '100', '0', '100'], { stdio: 'pipe' }),
     (err) => {
       assert.match(err.stderr.toString(), /too small/);
+      return true;
+    }
+  );
+});
+
+test('skin_signature.py fails clearly when the pattern is too coarse to resolve in the window', () => {
+  // test-grid-80px.png fits only ~3.2 periods in its 256px window — a
+  // genuine periodic pattern, but too coarse for this analysis window,
+  // deterministically reproducing the near-DC floor-clamping found
+  // against real crocodile photos (see skin_signature.py's MIN_R comment).
+  assert.throws(
+    () => execFileSync(PYTHON, [SCRIPT, GRID_COARSE, ...ARGS_1MM_PER_PX], { stdio: 'pipe' }),
+    (err) => {
+      assert.match(err.stderr.toString(), /doesn't show a clear enough periodic pattern/);
       return true;
     }
   );

@@ -33,5 +33,9 @@ def make_dot_grid(spacing_px, angle_deg, size=256, dot_radius=2):
 cv2.imwrite(os.path.join(fixtures_dir, "test-grid-10px.png"), make_dot_grid(10, 0))
 cv2.imwrite(os.path.join(fixtures_dir, "test-grid-20px.png"), make_dot_grid(20, 0))
 cv2.imwrite(os.path.join(fixtures_dir, "test-grid-10px-rotated.png"), make_dot_grid(10, 30))
+# Only ~3.2 periods fit in a 256px window at this spacing — deterministically
+# reproduces the near-DC floor-clamping found against real crocodile photos
+# (a genuine periodic pattern too coarse for the analysis window to resolve).
+cv2.imwrite(os.path.join(fixtures_dir, "test-grid-80px.png"), make_dot_grid(80, 0))
 
-print("wrote test-grid-10px.png, test-grid-20px.png, test-grid-10px-rotated.png")
+print("wrote test-grid-10px.png, test-grid-20px.png, test-grid-10px-rotated.png, test-grid-80px.png")
