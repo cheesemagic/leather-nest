@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>leather-nest — die library</title>
+  </head>
+  <body>
+    <h1>Die library</h1>
+
+    <section>
+      <h2>Add a die</h2>
+      <label>Name: <input type="text" id="name-input" /></label>
+      <div>
+        <label><input type="radio" name="add-mode" value="svg" checked /> Upload SVG</label>
+        <label><input type="radio" name="add-mode" value="photo" /> Photograph a die</label>
+      </div>
+
+      <div id="svg-mode">
+        <input type="file" id="svg-input" accept=".svg,image/svg+xml" />
+      </div>
+
+      <div id="photo-mode" style="display: none">
+        <input type="file" id="photo-input" accept="image/*" />
+        <div id="calibration-container"></div>
+      </div>
+
+      <button type="button" id="submit-die">Add to library</button>
+      <div id="add-status"></div>
+    </section>
+
+    <section>
+      <h2>Library</h2>
+      <button type="button" id="refresh-dies">Refresh</button>
+      <div id="dies-list"></div>
+    </section>
+
+    <script type="module" src="/src/dies-app.js"></script>
+  </body>
+</html>
