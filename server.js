@@ -137,6 +137,57 @@ function createSkinsRoutes(dataDir) {
       return;
     }
 
+    const captureType = getField('captureType') || 'signature';
+    const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
+
+    if (captureType === 'outline') {
+      const thicknessMmRaw = getField('thicknessMm');
+      if (!thicknessMmRaw) {
+        fs.unlink(photo.filepath, () => {});
+        sendJSON(res, 400, { error: 'thicknessMm is required.' });
+        return;
+      }
+
+      const roiFields = ['roiX', 'roiY', 'roiWidth', 'roiHeight'];
+      const hasROI = roiFields.every((field) => getField(field));
+      const args = [
+        DIGITIZE_SCRIPT,
+        photo.filepath,
+        getField('p1x'),
+        getField('p1y'),
+        getField('p2x'),
+        getField('p2y'),
+        getField('realDistanceMm'),
+        ...(hasROI ? roiFields.map(getField) : []),
+      ];
+
+      execFile(PYTHON, args, (err, stdout, stderr) => {
+        if (err) {
+          fs.unlink(photo.filepath, () => {});
+          sendJSON(res, 422, { error: stderr.trim() || 'Digitization failed.' });
+          return;
+        }
+        const { polygon } = JSON.parse(stdout);
+        const record = store.create({
+          label,
+          species,
+          thicknessMm: Number(thicknessMmRaw),
+          outlinePolygon: polygon,
+          photoPath: photo.filepath,
+          photoExt,
+        });
+        fs.unlink(photo.filepath, () => {});
+        sendJSON(res, 200, record);
+      });
+      return;
+    }
+
+    if (captureType !== 'signature') {
+      fs.unlink(photo.filepath, () => {});
+      sendJSON(res, 400, { error: 'captureType must be "signature" or "outline".' });
+      return;
+    }
+
     const args = [
       SKIN_SIGNATURE_SCRIPT,
       photo.filepath,
@@ -159,7 +210,6 @@ function createSkinsRoutes(dataDir) {
       }
 
       const { dominantWavelengthMm, radialSpectrum } = JSON.parse(stdout);
-      const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
       const record = store.create({
         label,
         species,

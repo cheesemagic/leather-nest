@@ -36,6 +36,33 @@ async function postSkin(baseUrl, overrides = {}) {
   return fetch(`${baseUrl}/skins`, { method: 'POST', body: formData });
 }
 
+async function postOutlineSkin(baseUrl, overrides = {}) {
+  const fileBuffer = await readFile(path.join(__dirname, 'fixtures', 'test-rectangle.png'));
+  const formData = new FormData();
+  formData.append('photo', new Blob([fileBuffer]), 'hide.png');
+  const fields = {
+    captureType: 'outline',
+    label: 'Test Hide',
+    species: 'cayman',
+    thicknessMm: 1.4,
+    p1x: 0,
+    p1y: 0,
+    p2x: 200,
+    p2y: 0,
+    realDistanceMm: 100,
+    roiX: 0,
+    roiY: 0,
+    roiWidth: 400,
+    roiHeight: 300,
+    ...overrides,
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    formData.append(key, String(value));
+  }
+  return fetch(`${baseUrl}/skins`, { method: 'POST', body: formData });
+}
+
 test('POST /skins creates a skin and GET /skins lists it', async () => {
   await withServer(async (baseUrl) => {
     const createResponse = await postSkin(baseUrl);
@@ -116,5 +143,45 @@ test('GET / still serves the static site (existing behavior preserved)', async (
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/`);
     assert.equal(response.status, 200);
+  });
+});
+
+test('POST /skins with captureType=outline creates a hide with outline/thickness and no signature fields', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postOutlineSkin(baseUrl);
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    assert.ok(Array.isArray(created.outlinePolygon));
+    assert.ok(created.outlinePolygon.length >= 3);
+    assert.equal(created.thicknessMm, 1.4);
+    assert.equal(created.remainingAreaPct, 100);
+    assert.equal(created.dominantWavelengthMm, null);
+  });
+});
+
+test('POST /skins with captureType omitted still creates a signature hide (default unchanged)', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postSkin(baseUrl)).json();
+    assert.ok(created.dominantWavelengthMm > 0);
+    assert.equal(created.outlinePolygon, null);
+    assert.equal(created.remainingAreaPct, 100);
+  });
+});
+
+test('POST /skins with captureType=outline returns 400 when thicknessMm is missing', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postOutlineSkin(baseUrl, { thicknessMm: undefined });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.match(body.error, /thicknessMm/);
+  });
+});
+
+test('POST /skins returns 400 for an unknown captureType', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postOutlineSkin(baseUrl, { captureType: 'bogus' });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.match(body.error, /captureType/);
   });
 });
