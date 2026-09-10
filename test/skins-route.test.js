@@ -185,3 +185,35 @@ test('POST /skins returns 400 for an unknown captureType', async () => {
     assert.match(body.error, /captureType/);
   });
 });
+
+test('POST /skins with captureType=outline and no ROI fields still succeeds (omits all four from args)', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postOutlineSkin(baseUrl, {
+      roiX: undefined,
+      roiY: undefined,
+      roiWidth: undefined,
+      roiHeight: undefined,
+    });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    assert.ok(Array.isArray(created.outlinePolygon));
+    assert.ok(created.outlinePolygon.length >= 3);
+    assert.equal(created.thicknessMm, 1.4);
+  });
+});
+
+test('POST /skins with captureType=outline and partial ROI fields behaves as no ROI (hasROI guard requires all four)', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postOutlineSkin(baseUrl, {
+      roiX: 10,
+      roiY: undefined,
+      roiWidth: undefined,
+      roiHeight: undefined,
+    });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    assert.ok(Array.isArray(created.outlinePolygon));
+    assert.ok(created.outlinePolygon.length >= 3);
+    assert.equal(created.thicknessMm, 1.4);
+  });
+});
