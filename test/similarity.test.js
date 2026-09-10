@@ -54,3 +54,22 @@ test('rankMatches never produces a cross-species pair', () => {
     assert.equal(group.pairs.length, 0);
   }
 });
+
+test('rankMatches skips signature-less skins entirely, producing no NaN', () => {
+  const skins = [
+    { id: 'a1', species: 'cayman', dominantWavelengthMm: 4.0, radialSpectrum: [1, 0, 0] },
+    { id: 'a2', species: 'cayman', dominantWavelengthMm: null, radialSpectrum: null },
+    { id: 'a3', species: 'cayman', dominantWavelengthMm: 4.5, radialSpectrum: [1, 0, 0] },
+  ];
+
+  const groups = rankMatches(skins);
+  const caymanGroup = groups.find((g) => g.species === 'cayman');
+
+  assert.equal(caymanGroup.pairs.length, 1);
+  assert.equal(caymanGroup.pairs[0].skinAId, 'a1');
+  assert.equal(caymanGroup.pairs[0].skinBId, 'a3');
+  for (const pair of caymanGroup.pairs) {
+    assert.ok(!Number.isNaN(pair.scaleDifferenceMm));
+    assert.ok(!Number.isNaN(pair.spectrumCorrelation));
+  }
+});

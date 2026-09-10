@@ -23,6 +23,8 @@ export function spectrumCorrelation(a, b) {
 }
 
 export function rankMatches(skins) {
+  skins = skins.filter((s) => s.dominantWavelengthMm != null);
+
   const groups = new Map();
   for (const skin of skins) {
     const key = skin.species.trim().toLowerCase();
