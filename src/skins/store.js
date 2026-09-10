@@ -31,15 +31,27 @@ export function createStore(dataDir) {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
-  function create({ label, species, dominantWavelengthMm, radialSpectrum, photoPath, photoExt }) {
+  function create({
+    label,
+    species,
+    dominantWavelengthMm,
+    radialSpectrum,
+    outlinePolygon,
+    thicknessMm,
+    photoPath,
+    photoExt,
+  }) {
     ensureDir();
     const id = crypto.randomUUID();
     const record = {
       id,
       label,
       species,
-      dominantWavelengthMm,
-      radialSpectrum,
+      dominantWavelengthMm: dominantWavelengthMm ?? null,
+      radialSpectrum: radialSpectrum ?? null,
+      outlinePolygon: outlinePolygon ?? null,
+      thicknessMm: thicknessMm ?? null,
+      remainingAreaPct: 100,
       photoExt,
       createdAt: new Date().toISOString(),
     };

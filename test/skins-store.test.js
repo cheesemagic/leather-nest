@@ -71,3 +71,49 @@ test('photoPath() and remove() reject ids shaped like path traversal', () => {
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+test('create() accepts outline/thickness fields, defaults remainingAreaPct, and round-trips omitted fields as null', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+  const photoPath = makeTmpPhoto(dataDir);
+
+  const outlineOnly = store.create({
+    label: 'Cayman #2',
+    species: 'cayman',
+    outlinePolygon: [
+      [0, 0],
+      [10, 0],
+      [10, 5],
+      [0, 5],
+    ],
+    thicknessMm: 1.2,
+    photoPath,
+    photoExt: '.jpg',
+  });
+
+  assert.deepEqual(outlineOnly.outlinePolygon, [
+    [0, 0],
+    [10, 0],
+    [10, 5],
+    [0, 5],
+  ]);
+  assert.equal(outlineOnly.thicknessMm, 1.2);
+  assert.equal(outlineOnly.remainingAreaPct, 100);
+  assert.equal(outlineOnly.dominantWavelengthMm, null);
+  assert.equal(outlineOnly.radialSpectrum, null);
+
+  const signatureOnly = store.create({
+    label: 'Cayman #3',
+    species: 'cayman',
+    dominantWavelengthMm: 4.2,
+    radialSpectrum: [0.1, 0.5],
+    photoPath,
+    photoExt: '.jpg',
+  });
+
+  assert.equal(signatureOnly.remainingAreaPct, 100);
+  assert.equal(signatureOnly.outlinePolygon, null);
+  assert.equal(signatureOnly.thicknessMm, null);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
