@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>leather-nest — hide library</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="/public/styles.css" />
+    <style>
+      .page { max-width: 1000px; margin: 0 auto; padding: var(--space-6) var(--space-4); }
+      .hides-header {
+        display: flex; flex-wrap: wrap; align-items: baseline;
+        justify-content: space-between; gap: var(--space-3);
+        margin-bottom: var(--space-4);
+      }
+      .hides-toolbar {
+        display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+        margin-bottom: var(--space-4);
+      }
+      .hides-toolbar .input { max-width: 260px; }
+      .species-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+      .species-tags .tag { cursor: pointer; border: 1px solid transparent; }
+      .species-tags .tag[aria-pressed='true'] { border-color: var(--color-accent); }
+      .hide-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: var(--space-4);
+      }
+      .hide-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-sm); }
+      .area-bar {
+        height: 6px; border-radius: 999px; background: var(--color-neutral-300);
+        overflow: hidden;
+      }
+      .area-bar-fill { height: 100%; background: var(--color-accent-2); }
+      .hide-card .card-title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+      #add-hide-dialog[hidden] { display: none; }
+      .form-grid { display: flex; flex-direction: column; gap: var(--space-3); }
+    </style>
+  </head>
+  <body>
+    <nav class="nav">
+      <span class="nav-brand">leather-nest</span>
+      <a href="/">Home</a>
+    </nav>
+
+    <main class="page">
+      <div class="hides-header">
+        <div>
+          <h1>Hides</h1>
+          <p class="text-muted" id="hides-summary">Loading…</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="open-add-hide">Add a hide</button>
+      </div>
+
+      <div class="hides-toolbar">
+        <input class="input" type="search" id="hide-search" placeholder="Search by label or species…" />
+        <div class="species-tags" id="species-tags"></div>
+      </div>
+
+      <div class="hide-grid" id="hide-grid"></div>
+    </main>
+
+    <div class="dialog-backdrop" id="add-hide-dialog" hidden>
+      <div class="dialog">
+        <h3 class="dialog-title">Add a hide</h3>
+        <div class="dialog-body">
+          <div class="form-grid">
+            <div class="field">
+              <label for="hide-label">Name</label>
+              <input class="input" type="text" id="hide-label" />
+            </div>
+            <div class="field">
+              <label for="hide-species">Species</label>
+              <input class="input" type="text" id="hide-species" />
+            </div>
+            <div class="field">
+              <label for="hide-thickness">Thickness (mm)</label>
+              <input class="input" type="number" step="0.1" min="0" id="hide-thickness" />
+            </div>
+            <div class="field">
+              <label for="hide-photo">Photo</label>
+              <input class="input" type="file" accept="image/*" id="hide-photo" />
+            </div>
+            <div id="hide-calibration-container"></div>
+            <div id="hide-region-container"></div>
+            <div id="add-hide-status" class="text-muted"></div>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-add-hide">Cancel</button>
+          <button type="button" class="btn btn-primary" id="submit-hide">Add to library</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/hides-app.js"></script>
+  </body>
+</html>
