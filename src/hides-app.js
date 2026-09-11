@@ -1,6 +1,6 @@
 import { attachCalibration } from './calibration-ui.js';
 import { attachRegionSelect } from './region-select-ui.js';
-import { boundingBox } from './nesting/geometry.js';
+import { boundingBox, polygonArea } from './nesting/geometry.js';
 
 const summaryEl = document.getElementById('hides-summary');
 const gridEl = document.getElementById('hide-grid');
@@ -39,8 +39,7 @@ function hideSizeLabel(hide) {
 
 function hideFootprintAreaMm2(hide) {
   if (!hide.outlinePolygon) return 0;
-  const b = boundingBox(hide.outlinePolygon);
-  return (b.maxX - b.minX) * (b.maxY - b.minY);
+  return polygonArea(hide.outlinePolygon);
 }
 
 function resetAddForm() {

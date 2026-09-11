@@ -12,6 +12,7 @@ const sessionPhoto = document.getElementById('session-photo');
 const placementsOverlay = document.getElementById('placements-overlay');
 const placementStatus = document.getElementById('placement-status');
 const sessionsListEl = document.getElementById('sessions-list');
+const hideSelect = document.getElementById('hide-select');
 
 let selectedPhoto = null;
 let calibration = null;
@@ -57,6 +58,7 @@ async function createSession() {
   formData.append('photo', selectedPhoto);
   for (const [key, value] of Object.entries(calibration)) formData.append(key, String(value));
   for (const [key, value] of Object.entries(region)) formData.append(key, String(value));
+  if (hideSelect.value) formData.append('hideId', hideSelect.value);
 
   try {
     const response = await fetch('/sessions', { method: 'POST', body: formData });
@@ -211,5 +213,16 @@ sessionsListEl.addEventListener('click', async (event) => {
 
 document.getElementById('refresh-sessions').addEventListener('click', loadSessions);
 
+async function loadHideOptions() {
+  const hides = await (await fetch('/skins')).json();
+  for (const hide of hides) {
+    const option = document.createElement('option');
+    option.value = hide.id;
+    option.textContent = `${hide.label} (${hide.species})`;
+    hideSelect.append(option);
+  }
+}
+
 loadDies();
 loadSessions();
+loadHideOptions();
