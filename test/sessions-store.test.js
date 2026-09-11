@@ -111,3 +111,63 @@ test('photoPath() and remove() reject ids shaped like path traversal', () => {
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+test('create() defaults the job fields, and accepts a hideId', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+  const photoPath = makeTmpPhoto(dataDir);
+
+  const unlinked = store.create({
+    calibration: CALIBRATION,
+    searchRegion: SEARCH_REGION,
+    photoPath,
+    photoExt: '.jpg',
+  });
+  assert.equal(unlinked.hideId, null);
+  assert.equal(unlinked.status, 'draft');
+  assert.equal(unlinked.cutAt, null);
+  assert.equal(unlinked.consumedAreaMm2, null);
+
+  const linked = store.create({
+    calibration: CALIBRATION,
+    searchRegion: SEARCH_REGION,
+    photoPath,
+    photoExt: '.jpg',
+    hideId: 'hide-123',
+  });
+  assert.equal(linked.hideId, 'hide-123');
+  assert.equal(store.list().find((r) => r.id === linked.id).hideId, 'hide-123');
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('setStatus() writes the transition fields together and persists them', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+  const photoPath = makeTmpPhoto(dataDir);
+  const record = store.create({
+    calibration: CALIBRATION,
+    searchRegion: SEARCH_REGION,
+    photoPath,
+    photoExt: '.jpg',
+  });
+
+  const cutAt = '2026-09-11T12:00:00.000Z';
+  const updated = store.setStatus(record.id, { status: 'cut', cutAt, consumedAreaMm2: 1234.5 });
+  assert.equal(updated.status, 'cut');
+  assert.equal(updated.cutAt, cutAt);
+  assert.equal(updated.consumedAreaMm2, 1234.5);
+
+  const reread = store.list().find((r) => r.id === record.id);
+  assert.equal(reread.status, 'cut');
+  assert.equal(reread.consumedAreaMm2, 1234.5);
+
+  const reverted = store.setStatus(record.id, { status: 'draft', cutAt: null, consumedAreaMm2: null });
+  assert.equal(reverted.status, 'draft');
+  assert.equal(reverted.cutAt, null);
+  assert.equal(reverted.consumedAreaMm2, null);
+
+  assert.equal(store.setStatus('does-not-exist', { status: 'cut', cutAt, consumedAreaMm2: 1 }), null);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});

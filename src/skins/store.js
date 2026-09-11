@@ -74,5 +74,15 @@ export function createStore(dataDir) {
     return record ? path.join(dataDir, `${id}${record.photoExt}`) : null;
   }
 
-  return { list, create, remove, photoPath };
+  // Clamped here rather than in the caller so no code path can persist a
+  // nonsensical percentage.
+  function setRemainingAreaPct(id, pct) {
+    const record = readRecord(id);
+    if (!record) return null;
+    record.remainingAreaPct = Math.min(100, Math.max(0, pct));
+    fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
+    return record;
+  }
+
+  return { list, create, setRemainingAreaPct, remove, photoPath };
 }

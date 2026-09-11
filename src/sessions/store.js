@@ -36,15 +36,19 @@ export function createStore(dataDir) {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
-  function create({ calibration, searchRegion, photoPath, photoExt }) {
+  function create({ calibration, searchRegion, photoPath, photoExt, hideId }) {
     ensureDir();
     const id = crypto.randomUUID();
     const record = {
       id,
+      hideId: hideId ?? null,
       calibration,
       searchRegion,
       photoExt,
       placements: [],
+      status: 'draft',
+      cutAt: null,
+      consumedAreaMm2: null,
       createdAt: new Date().toISOString(),
     };
     fs.copyFileSync(photoPath, path.join(dataDir, `${id}${photoExt}`));
@@ -75,5 +79,17 @@ export function createStore(dataDir) {
     return record ? path.join(dataDir, `${id}${record.photoExt}`) : null;
   }
 
-  return { list, create, addPlacement, remove, photoPath };
+  // The three transition fields only ever change together — a partial
+  // write is always a bug, so there is one method rather than three setters.
+  function setStatus(id, { status, cutAt, consumedAreaMm2 }) {
+    const record = readRecord(id);
+    if (!record) return null;
+    record.status = status;
+    record.cutAt = cutAt;
+    record.consumedAreaMm2 = consumedAreaMm2;
+    fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
+    return record;
+  }
+
+  return { list, create, addPlacement, setStatus, remove, photoPath };
 }
