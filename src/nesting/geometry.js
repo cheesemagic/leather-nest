@@ -46,6 +46,19 @@ export function boundingBox(polygon) {
   };
 }
 
+// Shoelace formula. Absolute value so winding order doesn't matter, and
+// rotation/translation preserve area — so a die's raw polygon area is
+// exact for every placement of it, no transform needed first.
+export function polygonArea(polygon) {
+  let sum = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(sum) / 2;
+}
+
 export function normalizeToOrigin(polygon) {
   const bounds = boundingBox(polygon);
   return translatePolygon(polygon, -bounds.minX, -bounds.minY);

@@ -14,6 +14,7 @@ import {
   toClipperPath,
   fromClipperPath,
   getClipperLib,
+  polygonArea,
 } from '../src/nesting/geometry.js';
 
 test('rotatePolygon rotates a point 90 degrees around the origin', () => {
@@ -59,4 +60,35 @@ test('getClipperLib throws a clear error when the global is missing', () => {
   delete globalThis.ClipperLib;
   assert.throws(() => getClipperLib(), /ClipperLib global not found/);
   globalThis.ClipperLib = original;
+});
+
+test('polygonArea returns the absolute area of a rectangle and a triangle', () => {
+  const rectangle = [
+    { x: 0, y: 0 },
+    { x: 40, y: 0 },
+    { x: 40, y: 20 },
+    { x: 0, y: 20 },
+  ];
+  assert.equal(polygonArea(rectangle), 800);
+
+  const triangle = [
+    { x: 0, y: 0 },
+    { x: 30, y: 0 },
+    { x: 0, y: 10 },
+  ];
+  assert.equal(polygonArea(triangle), 150);
+});
+
+test('polygonArea is unaffected by winding order, rotation, or translation', () => {
+  const rectangle = [
+    { x: 0, y: 0 },
+    { x: 40, y: 0 },
+    { x: 40, y: 20 },
+    { x: 0, y: 20 },
+  ];
+  const reversed = [...rectangle].reverse();
+  assert.equal(polygonArea(reversed), 800);
+
+  assert.ok(Math.abs(polygonArea(rotatePolygon(rectangle, 37)) - 800) < 1e-9);
+  assert.equal(polygonArea(translatePolygon(rectangle, -500, 250)), 800);
 });
