@@ -1,15 +1,38 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>leather-nest — digitize</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="/public/styles.css" />
+    <style>
+      .page { max-width: 640px; margin: 0 auto; padding: var(--space-6) var(--space-4); }
+      .digitize-result-svg { display: block; margin-top: var(--space-3); }
+    </style>
   </head>
   <body>
-    <h1>Digitize a pattern piece</h1>
-    <p>Upload a photo, click two points on a ruler (or anything with a known length) in the image, enter the real-world distance, then submit.</p>
-    <input type="file" id="photo-input" accept="image/*" />
-    <div id="calibration-container"></div>
-    <div id="result"></div>
+    <nav class="nav">
+      <span class="nav-brand">leather-nest</span>
+      <a href="/">Home</a>
+    </nav>
+
+    <main class="page">
+      <h1>Digitize a pattern piece</h1>
+      <p class="text-muted">
+        Upload a photo, click two points on a ruler (or anything with a known length) in the image, enter the
+        real-world distance, then submit.
+      </p>
+
+      <div class="field">
+        <label for="photo-input">Photo</label>
+        <input class="input" type="file" id="photo-input" accept="image/*" />
+      </div>
+
+      <div id="calibration-container"></div>
+      <div id="result"></div>
+    </main>
+
     <script type="module" src="/src/digitize-app.js"></script>
   </body>
 </html>

@@ -38,10 +38,12 @@ photoInput.addEventListener('change', () => {
       const width = bounds.maxX - bounds.minX;
       const height = bounds.maxY - bounds.minY;
       resultEl.innerHTML = `
-        <p>${width.toFixed(1)}mm &times; ${height.toFixed(1)}mm</p>
-        <svg width="300" height="${(300 * height) / width}" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}">
-          <polygon points="${polygonToSVGPoints(body.polygon)}" stroke="#FF0000" stroke-width="${width / 300}" fill="none" />
-        </svg>
+        <div class="card elev-sm">
+          <p class="card-body">${width.toFixed(1)}mm &times; ${height.toFixed(1)}mm</p>
+          <svg class="digitize-result-svg" width="300" height="${(300 * height) / width}" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}">
+            <polygon points="${polygonToSVGPoints(body.polygon)}" stroke="#FF0000" stroke-width="${width / 300}" fill="none" />
+          </svg>
+        </div>
       `;
     } catch {
       resultEl.textContent = 'Error: could not reach the server or the response was invalid. Please try again.';
