@@ -149,7 +149,7 @@ function renderSpeciesTags() {
 }
 
 function renderSummary(visible) {
-  const totalAreaMm2 = visible.reduce((sum, h) => sum + hideFootprintAreaMm2(h) * (h.remainingAreaPct / 100), 0);
+  const totalAreaMm2 = visible.reduce((sum, h) => sum + hideFootprintAreaMm2(h) * ((h.remainingAreaPct ?? 100) / 100), 0);
   const totalAreaCm2 = Math.round(totalAreaMm2 / 100);
   summaryEl.textContent = `${visible.length} hide${visible.length === 1 ? '' : 's'} · ${totalAreaCm2} cm² usable`;
 }

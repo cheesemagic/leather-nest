@@ -123,6 +123,32 @@ test('GET /skins/matches groups same-species pairs and excludes cross-species pa
   });
 });
 
+test('GET /skins and GET /skins/matches handle a mixed signature+outline store without error', async () => {
+  await withServer(async (baseUrl) => {
+    await postSkin(baseUrl, { label: 'Cayman A', species: 'cayman' });
+    await postOutlineSkin(baseUrl, { label: 'Outline Hide', species: 'cayman' });
+
+    const list = await (await fetch(`${baseUrl}/skins`)).json();
+    assert.equal(list.length, 2);
+    const signatureSkin = list.find((s) => s.dominantWavelengthMm != null);
+    const outlineHide = list.find((s) => s.dominantWavelengthMm == null);
+    assert.ok(signatureSkin);
+    assert.equal(outlineHide.dominantWavelengthMm, null);
+
+    const matchesResponse = await fetch(`${baseUrl}/skins/matches`);
+    assert.equal(matchesResponse.status, 200);
+    const matches = await matchesResponse.json();
+    const matchesText = JSON.stringify(matches);
+    assert.ok(!matchesText.includes('NaN'));
+    for (const group of matches) {
+      for (const pair of group.pairs) {
+        assert.notEqual(pair.skinAId, outlineHide.id);
+        assert.notEqual(pair.skinBId, outlineHide.id);
+      }
+    }
+  });
+});
+
 test('POST /skins returns 422 with a clear error when the region is too small', async () => {
   await withServer(async (baseUrl) => {
     const response = await postSkin(baseUrl, { roiWidth: 5, roiHeight: 5 });

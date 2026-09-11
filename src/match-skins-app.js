@@ -90,7 +90,7 @@ async function loadInventory() {
       (skin) => `
     <div>
       <img src="/skins/${skin.id}/photo" width="80" height="80" style="object-fit: cover" />
-      <strong>${escapeHtml(skin.label)}</strong> (${escapeHtml(skin.species)}) — ${skin.dominantWavelengthMm.toFixed(2)}mm
+      <strong>${escapeHtml(skin.label)}</strong> (${escapeHtml(skin.species)})${skin.dominantWavelengthMm != null ? ` — ${skin.dominantWavelengthMm.toFixed(2)}mm` : ' — outline only'}
       <button type="button" data-delete-id="${skin.id}">Delete</button>
     </div>
   `
