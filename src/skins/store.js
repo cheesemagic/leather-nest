@@ -74,12 +74,14 @@ export function createStore(dataDir) {
     return record ? path.join(dataDir, `${id}${record.photoExt}`) : null;
   }
 
-  // Clamped here rather than in the caller so no code path can persist a
-  // nonsensical percentage.
+  // Persists the true value, including negative (over-committed) or
+  // above-100 results, rather than clamping — the stored value is a real
+  // quantity, and clamping it would hide over-commitment instead of
+  // measuring it. Callers clamp only where the value is displayed.
   function setRemainingAreaPct(id, pct) {
     const record = readRecord(id);
     if (!record) return null;
-    record.remainingAreaPct = Math.min(100, Math.max(0, pct));
+    record.remainingAreaPct = pct;
     fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
     return record;
   }

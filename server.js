@@ -359,20 +359,17 @@ function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
     );
   }
 
-  // Returns true when the hide was adjusted, null when the arithmetic
-  // can't be done (no hide linked, hide deleted, or a signature-only hide
-  // with no outline to measure). Callers treat null as "skip the
-  // decrement" — never as an error, since an operator must still be able
-  // to record work they actually did.
+  // Skips the adjustment (no hide linked, hide deleted, or a
+  // signature-only hide with no outline to measure) rather than erroring —
+  // an operator must still be able to record work they actually did.
   function applyAreaDelta(hideId, deltaMm2) {
-    if (!hideId) return null;
+    if (!hideId) return;
     const hide = skinStore.list().find((h) => h.id === hideId);
-    if (!hide || !hide.outlinePolygon) return null;
+    if (!hide || !hide.outlinePolygon) return;
     const hideArea = polygonArea(hide.outlinePolygon);
-    if (hideArea <= 0) return null;
+    if (hideArea <= 0) return;
     const current = hide.remainingAreaPct ?? 100;
     skinStore.setRemainingAreaPct(hideId, current + (deltaMm2 / hideArea) * 100);
-    return true;
   }
 
   async function handleCreateSession(req, res) {
@@ -433,24 +430,18 @@ function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
 
   function handleDeleteSession(req, res, id) {
     const session = store.list().find((s) => s.id === id);
-    if (session && session.status === 'cut') {
-      applyAreaDelta(session.hideId, session.consumedAreaMm2 ?? 0);
-    }
     if (!store.remove(id)) {
       sendJSON(res, 404, { error: 'Session not found.' });
       return;
+    }
+    if (session.status === 'cut') {
+      applyAreaDelta(session.hideId, session.consumedAreaMm2 ?? 0);
     }
     res.writeHead(204);
     res.end();
   }
 
   async function handleSetSessionStatus(req, res, id) {
-    const session = store.list().find((s) => s.id === id);
-    if (!session) {
-      sendJSON(res, 404, { error: 'Session not found.' });
-      return;
-    }
-
     let body = '';
     for await (const chunk of req) body += chunk;
     let payload;
@@ -458,6 +449,12 @@ function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
       payload = JSON.parse(body);
     } catch {
       sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+
+    const session = store.list().find((s) => s.id === id);
+    if (!session) {
+      sendJSON(res, 404, { error: 'Session not found.' });
       return;
     }
 

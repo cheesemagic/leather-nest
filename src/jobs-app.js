@@ -59,19 +59,45 @@ async function load() {
 gridEl.addEventListener('click', async (event) => {
   const statusId = event.target.dataset.statusId;
   if (statusId) {
-    await fetch(`/sessions/${statusId}/status`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: event.target.dataset.next }),
-    });
-    await load();
+    const button = event.target;
+    button.disabled = true;
+    try {
+      const response = await fetch(`/sessions/${statusId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: button.dataset.next }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        summaryEl.textContent = `Error: ${body.error}`;
+        button.disabled = false;
+        return;
+      }
+      await load();
+    } catch {
+      summaryEl.textContent = 'Error: could not reach the server. Please try again.';
+      button.disabled = false;
+    }
     return;
   }
 
   const deleteId = event.target.dataset.deleteId;
   if (deleteId) {
-    await fetch(`/sessions/${deleteId}`, { method: 'DELETE' });
-    await load();
+    const button = event.target;
+    button.disabled = true;
+    try {
+      const response = await fetch(`/sessions/${deleteId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const body = await response.json();
+        summaryEl.textContent = `Error: ${body.error}`;
+        button.disabled = false;
+        return;
+      }
+      await load();
+    } catch {
+      summaryEl.textContent = 'Error: could not reach the server. Please try again.';
+      button.disabled = false;
+    }
   }
 });
 

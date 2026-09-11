@@ -118,7 +118,7 @@ test('create() accepts outline/thickness fields, defaults remainingAreaPct, and 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
-test('setRemainingAreaPct() persists, clamps to 0-100, and returns null for an unknown id', () => {
+test('setRemainingAreaPct() persists the true value without clamping, and returns null for an unknown id', () => {
   const dataDir = makeTmpDir();
   const store = createStore(dataDir);
   const photoPath = makeTmpPhoto(dataDir);
@@ -132,8 +132,8 @@ test('setRemainingAreaPct() persists, clamps to 0-100, and returns null for an u
   assert.equal(store.setRemainingAreaPct(record.id, 62.5).remainingAreaPct, 62.5);
   assert.equal(store.list().find((r) => r.id === record.id).remainingAreaPct, 62.5);
 
-  assert.equal(store.setRemainingAreaPct(record.id, 140).remainingAreaPct, 100);
-  assert.equal(store.setRemainingAreaPct(record.id, -20).remainingAreaPct, 0);
+  assert.equal(store.setRemainingAreaPct(record.id, 140).remainingAreaPct, 140);
+  assert.equal(store.setRemainingAreaPct(record.id, -20).remainingAreaPct, -20);
 
   assert.equal(store.setRemainingAreaPct('does-not-exist', 50), null);
 

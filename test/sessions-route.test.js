@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { withServer as withServerBase } from './helpers/with-server.js';
+import { polygonArea } from '../src/nesting/geometry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CANVAS = path.join(__dirname, 'fixtures', 'test-blotch-canvas.png');
@@ -62,6 +64,42 @@ function setStatus(baseUrl, id, status) {
 async function getHide(baseUrl, id) {
   const list = await (await fetch(`${baseUrl}/skins`)).json();
   return list.find((h) => h.id === id);
+}
+
+// Sends a status POST with the JSON body split into two writes with a delay
+// between them, so the request handler's `for await` body-read genuinely
+// suspends before either request's session lookup runs — reproducing the
+// interleaving a double-click plus normal TCP chunking produces. Uses
+// node:http directly because fetch won't let the body be split like this.
+function postStatusSplit(baseUrl, id, status) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${baseUrl}/sessions/${id}/status`);
+    const body = JSON.stringify({ status });
+    const mid = Math.ceil(body.length / 2);
+    const req = http.request(
+      {
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => (data += chunk));
+        res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(data) }));
+      }
+    );
+    req.on('error', reject);
+    req.write(body.slice(0, mid));
+    setTimeout(() => {
+      req.write(body.slice(mid));
+      req.end();
+    }, 20);
+  });
 }
 
 async function postDie(baseUrl) {
@@ -188,7 +226,14 @@ test('cutting a job decrements the linked hide, un-cutting restores it exactly',
     assert.ok(cut.consumedAreaMm2 > 0);
 
     const afterCut = (await getHide(baseUrl, hide.id)).remainingAreaPct;
-    assert.ok(afterCut < 100, `expected a decrement, got ${afterCut}`);
+    // 60x40 die (2400 mm²) with a matched twin -> 4800 mm² consumed, computed
+    // independently of consumedAreaMm2 so a units regression can't hide.
+    const hideArea = polygonArea(hide.outlinePolygon);
+    const expected = 100 - (4800 / hideArea) * 100;
+    assert.ok(
+      Math.abs(afterCut - expected) < 0.01,
+      `expected ~${expected}, got ${afterCut}`
+    );
 
     const uncutResponse = await setStatus(baseUrl, session.id, 'draft');
     assert.equal(uncutResponse.status, 200);
@@ -235,6 +280,36 @@ test('invalid status transitions return 400 and leave the hide untouched', async
     assert.equal((await getHide(baseUrl, hide.id)).remainingAreaPct, afterCut);
 
     assert.equal((await setStatus(baseUrl, session.id, 'bogus')).status, 400);
+  });
+});
+
+test('concurrent cut requests with the body split across chunks apply the decrement exactly once', async () => {
+  await withServer(async (baseUrl) => {
+    const hide = await postOutlineHide(baseUrl);
+    const session = await (await postSession(baseUrl, { hideId: hide.id })).json();
+    const die = await postDie(baseUrl);
+    await fetch(`${baseUrl}/sessions/${session.id}/placements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dieId: die.id, x: 100, y: 100, rotation: 0 }),
+    });
+
+    const [r1, r2] = await Promise.all([
+      postStatusSplit(baseUrl, session.id, 'cut'),
+      postStatusSplit(baseUrl, session.id, 'cut'),
+    ]);
+
+    const statuses = [r1.status, r2.status].sort((a, b) => a - b);
+    assert.deepEqual(statuses, [200, 400], `expected one 200 and one 400, got ${statuses}`);
+
+    const winner = r1.status === 200 ? r1.body : r2.body;
+    const afterCut = (await getHide(baseUrl, hide.id)).remainingAreaPct;
+    const hideArea = polygonArea(hide.outlinePolygon);
+    const expected = 100 - (winner.consumedAreaMm2 / hideArea) * 100;
+    assert.ok(
+      Math.abs(afterCut - expected) < 1e-6,
+      `expected a single decrement (${expected}), got ${afterCut} — looks like a double-subtract`
+    );
   });
 });
 

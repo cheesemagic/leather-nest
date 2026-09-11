@@ -144,10 +144,12 @@ fields only ever change together and a partial write is always a bug.
 
 ### `src/skins/store.js` (modified)
 
-`setRemainingAreaPct(id, pct)` — clamps to `[0, 100]`, persists, returns
-the updated record or `null` for an unknown id. The clamp lives here
-rather than in the caller so no code path can persist a nonsensical
-percentage.
+`setRemainingAreaPct(id, pct)` — persists `pct` as given, including above
+100 or negative, and returns the updated record or `null` for an unknown
+id. No clamp here: the stored value is a real quantity, and clamping it
+would discard over-commitment instead of measuring it — the same reasoning
+that rejected rounding the stored value elsewhere in this feature.
+Clamping (and rounding) happen only at display sites.
 
 ### `server.js` (modified)
 
@@ -188,9 +190,11 @@ one).
 
 The percentage subtracted is
 `consumedAreaMm2 / polygonArea(hide.outlinePolygon) × 100`, applied
-against the hide's current `remainingAreaPct` and clamped to `[0, 100]`.
-Restoring adds the same figure back, recomputed from the stored
-`consumedAreaMm2` against the same hide outline.
+against the hide's current `remainingAreaPct` and persisted as-is, even
+past 0 or 100 — an honest record of over-commitment. Restoring adds the
+same figure back, recomputed from the stored `consumedAreaMm2` against the
+same hide outline. Display sites (`hides-app.js`) clamp to `[0, 100]` when
+rendering the area bar.
 
 Every case where the arithmetic cannot be performed degrades quietly —
 the status transition still succeeds, only the decrement is skipped:
@@ -250,8 +254,9 @@ the project.
   `"draft"` and the other new fields to `null`; `hideId` round-trips when
   given; `setStatus()` writes all three transition fields and returns
   `null` for an unknown id.
-- `test/skins-store.test.js` — `setRemainingAreaPct()` persists, clamps
-  above 100 and below 0, returns `null` for an unknown id.
+- `test/skins-store.test.js` — `setRemainingAreaPct()` persists the true
+  value unclamped (including above 100 and below 0), returns `null` for an
+  unknown id.
 - `test/sessions-route.test.js` — the lifecycle, against real records:
   cutting a job with placements decrements the linked hide by the expected
   percentage; un-cutting restores it to exactly its prior value; deleting

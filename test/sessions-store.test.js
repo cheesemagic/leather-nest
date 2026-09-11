@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { createStore } from '../src/sessions/store.js';
 
 function makeTmpDir() {
@@ -168,6 +169,39 @@ test('setStatus() writes the transition fields together and persists them', () =
   assert.equal(reverted.consumedAreaMm2, null);
 
   assert.equal(store.setStatus('does-not-exist', { status: 'cut', cutAt, consumedAreaMm2: 1 }), null);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('a legacy record predating the job fields reads back through list() and still transitions via setStatus()', () => {
+  const dataDir = makeTmpDir();
+  fs.mkdirSync(dataDir, { recursive: true });
+  const store = createStore(dataDir);
+
+  const id = crypto.randomUUID();
+  const legacyRecord = {
+    id,
+    calibration: CALIBRATION,
+    searchRegion: SEARCH_REGION,
+    photoExt: '.jpg',
+    placements: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+  fs.writeFileSync(path.join(dataDir, `${id}.json`), JSON.stringify(legacyRecord, null, 2));
+
+  const listed = store.list().find((r) => r.id === id);
+  assert.ok(listed);
+  assert.equal(listed.status, undefined);
+  assert.equal(listed.hideId, undefined);
+  assert.equal(listed.cutAt, undefined);
+  assert.equal(listed.consumedAreaMm2, undefined);
+
+  const cutAt = '2026-09-11T12:00:00.000Z';
+  const updated = store.setStatus(id, { status: 'cut', cutAt, consumedAreaMm2: 500 });
+  assert.equal(updated.status, 'cut');
+  assert.equal(updated.cutAt, cutAt);
+  assert.equal(updated.consumedAreaMm2, 500);
+  assert.equal(store.list().find((r) => r.id === id).status, 'cut');
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });

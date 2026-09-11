@@ -171,8 +171,8 @@ function renderGrid() {
         <span class="tag tag-outline">${hide.id.slice(0, 8)}</span>
       </div>
       <p class="card-body">${escapeHtml(hide.label)} · ${hideSizeLabel(hide)}${hide.thicknessMm != null ? ` · ${hide.thicknessMm} mm thick` : ''}</p>
-      <div class="area-bar"><div class="area-bar-fill" style="width: ${remaining}%"></div></div>
-      <div class="card-meta">${remaining}% remaining · captured ${date}</div>
+      <div class="area-bar"><div class="area-bar-fill" style="width: ${Math.max(0, Math.min(100, remaining))}%"></div></div>
+      <div class="card-meta">${Math.round(remaining)}% remaining · captured ${date}</div>
     </div>
   `;
     })
