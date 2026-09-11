@@ -9,6 +9,7 @@ import { rankMatches } from './src/skins/similarity.js';
 import { createStore as createDieStore } from './src/dies/store.js';
 import { parseSVGPolygon } from './src/svg/parse.js';
 import { createStore as createSessionStore } from './src/sessions/store.js';
+import { polygonArea } from './src/nesting/geometry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 8080;
@@ -343,9 +344,36 @@ function createDiesRoutes(dataDir) {
   return { handleCreateDie, handleListDies, handleDeleteDie };
 }
 
-function createSessionsRoutes(dataDir, diesDataDir) {
+function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
   const store = createSessionStore(dataDir);
   const dieStore = createDieStore(diesDataDir);
+  const skinStore = createStore(skinsDataDir);
+
+  // Rotation and translation preserve area, so the raw die polygon is
+  // exact for every placement of it. A placement is one instance, plus a
+  // second when the blotch search found a matching twin.
+  function consumedAreaMm2(session) {
+    return session.placements.reduce(
+      (sum, p) => sum + polygonArea(p.polygon) * (p.match ? 2 : 1),
+      0
+    );
+  }
+
+  // Returns true when the hide was adjusted, null when the arithmetic
+  // can't be done (no hide linked, hide deleted, or a signature-only hide
+  // with no outline to measure). Callers treat null as "skip the
+  // decrement" — never as an error, since an operator must still be able
+  // to record work they actually did.
+  function applyAreaDelta(hideId, deltaMm2) {
+    if (!hideId) return null;
+    const hide = skinStore.list().find((h) => h.id === hideId);
+    if (!hide || !hide.outlinePolygon) return null;
+    const hideArea = polygonArea(hide.outlinePolygon);
+    if (hideArea <= 0) return null;
+    const current = hide.remainingAreaPct ?? 100;
+    skinStore.setRemainingAreaPct(hideId, current + (deltaMm2 / hideArea) * 100);
+    return true;
+  }
 
   async function handleCreateSession(req, res) {
     let fields, files;
@@ -379,7 +407,13 @@ function createSessionsRoutes(dataDir, diesDataDir) {
     };
 
     const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
-    const record = store.create({ calibration, searchRegion, photoPath: photo.filepath, photoExt });
+    const record = store.create({
+      hideId: getField('hideId') || null,
+      calibration,
+      searchRegion,
+      photoPath: photo.filepath,
+      photoExt,
+    });
     fs.unlink(photo.filepath, () => {});
     sendJSON(res, 200, record);
   }
@@ -398,12 +432,62 @@ function createSessionsRoutes(dataDir, diesDataDir) {
   }
 
   function handleDeleteSession(req, res, id) {
+    const session = store.list().find((s) => s.id === id);
+    if (session && session.status === 'cut') {
+      applyAreaDelta(session.hideId, session.consumedAreaMm2 ?? 0);
+    }
     if (!store.remove(id)) {
       sendJSON(res, 404, { error: 'Session not found.' });
       return;
     }
     res.writeHead(204);
     res.end();
+  }
+
+  async function handleSetSessionStatus(req, res, id) {
+    const session = store.list().find((s) => s.id === id);
+    if (!session) {
+      sendJSON(res, 404, { error: 'Session not found.' });
+      return;
+    }
+
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+
+    const status = payload && payload.status;
+    if (status !== 'cut' && status !== 'draft') {
+      sendJSON(res, 400, { error: 'status must be "cut" or "draft".' });
+      return;
+    }
+
+    const current = session.status || 'draft';
+    if (status === current) {
+      sendJSON(res, 400, { error: `Job is already ${current}.` });
+      return;
+    }
+
+    if (status === 'cut') {
+      const consumed = consumedAreaMm2(session);
+      applyAreaDelta(session.hideId, -consumed);
+      sendJSON(res, 200, store.setStatus(id, {
+        status: 'cut',
+        cutAt: new Date().toISOString(),
+        consumedAreaMm2: consumed,
+      }));
+      return;
+    }
+
+    // Restoring the amount actually subtracted, rather than recomputing
+    // it, keeps un-cut exact even if the hide or placements changed since.
+    applyAreaDelta(session.hideId, session.consumedAreaMm2 ?? 0);
+    sendJSON(res, 200, store.setStatus(id, { status: 'draft', cutAt: null, consumedAreaMm2: null }));
   }
 
   function handleSessionPhoto(req, res, id) {
@@ -498,6 +582,7 @@ function createSessionsRoutes(dataDir, diesDataDir) {
     handleDeleteSession,
     handleSessionPhoto,
     handleCreatePlacement,
+    handleSetSessionStatus,
   };
 }
 
@@ -508,7 +593,7 @@ export function createServer({
 } = {}) {
   const skins = createSkinsRoutes(dataDir);
   const dies = createDiesRoutes(diesDataDir);
-  const sessions = createSessionsRoutes(sessionsDataDir, diesDataDir);
+  const sessions = createSessionsRoutes(sessionsDataDir, diesDataDir, dataDir);
 
   return http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/digitize') {
@@ -566,6 +651,11 @@ export function createServer({
     const placementMatch = req.method === 'POST' && req.url.match(/^\/sessions\/([^/]+)\/placements$/);
     if (placementMatch) {
       sessions.handleCreatePlacement(req, res, placementMatch[1]);
+      return;
+    }
+    const statusMatch = req.method === 'POST' && req.url.match(/^\/sessions\/([^/]+)\/status$/);
+    if (statusMatch) {
+      sessions.handleSetSessionStatus(req, res, statusMatch[1]);
       return;
     }
     const sessionGetMatch = req.method === 'GET' && req.url.match(/^\/sessions\/([^/]+)$/);

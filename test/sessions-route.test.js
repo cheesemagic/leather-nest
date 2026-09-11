@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CANVAS = path.join(__dirname, 'fixtures', 'test-blotch-canvas.png');
 
 function withServer(fn) {
-  return withServerBase(fn, { withDiesDataDir: true, withSessionsDataDir: true });
+  return withServerBase(fn, { withDataDir: true, withDiesDataDir: true, withSessionsDataDir: true });
 }
 
 async function postSession(baseUrl, overrides = {}) {
@@ -20,7 +20,48 @@ async function postSession(baseUrl, overrides = {}) {
   for (const [key, value] of Object.entries(calibration)) formData.append(key, String(value));
   const roi = { roiX: 0, roiY: 0, roiWidth: 500, roiHeight: 500, ...overrides.roi };
   for (const [key, value] of Object.entries(roi)) formData.append(key, String(value));
+  if (overrides.hideId) formData.append('hideId', overrides.hideId);
   return fetch(`${baseUrl}/sessions`, { method: 'POST', body: formData });
+}
+
+async function postOutlineHide(baseUrl, overrides = {}) {
+  const fileBuffer = await readFile(path.join(__dirname, 'fixtures', 'test-rectangle.png'));
+  const formData = new FormData();
+  formData.append('photo', new Blob([fileBuffer]), 'hide.png');
+  const fields = {
+    captureType: 'outline',
+    label: 'Test Hide',
+    species: 'cayman',
+    thicknessMm: 1.4,
+    p1x: 0,
+    p1y: 0,
+    p2x: 200,
+    p2y: 0,
+    realDistanceMm: 100,
+    roiX: 0,
+    roiY: 0,
+    roiWidth: 400,
+    roiHeight: 300,
+    ...overrides,
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    formData.append(key, String(value));
+  }
+  return (await fetch(`${baseUrl}/skins`, { method: 'POST', body: formData })).json();
+}
+
+function setStatus(baseUrl, id, status) {
+  return fetch(`${baseUrl}/sessions/${id}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+}
+
+async function getHide(baseUrl, id) {
+  const list = await (await fetch(`${baseUrl}/skins`)).json();
+  return list.find((h) => h.id === id);
 }
 
 async function postDie(baseUrl) {
@@ -123,5 +164,113 @@ test('DELETE /sessions/:id returns 404 for an unknown id', async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/sessions/does-not-exist`, { method: 'DELETE' });
     assert.equal(response.status, 404);
+  });
+});
+
+test('cutting a job decrements the linked hide, un-cutting restores it exactly', async () => {
+  await withServer(async (baseUrl) => {
+    const hide = await postOutlineHide(baseUrl);
+    const session = await (await postSession(baseUrl, { hideId: hide.id })).json();
+    const die = await postDie(baseUrl);
+    await fetch(`${baseUrl}/sessions/${session.id}/placements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dieId: die.id, x: 100, y: 100, rotation: 0 }),
+    });
+
+    assert.equal((await getHide(baseUrl, hide.id)).remainingAreaPct, 100);
+
+    const cutResponse = await setStatus(baseUrl, session.id, 'cut');
+    assert.equal(cutResponse.status, 200);
+    const cut = await cutResponse.json();
+    assert.equal(cut.status, 'cut');
+    assert.ok(cut.cutAt);
+    assert.ok(cut.consumedAreaMm2 > 0);
+
+    const afterCut = (await getHide(baseUrl, hide.id)).remainingAreaPct;
+    assert.ok(afterCut < 100, `expected a decrement, got ${afterCut}`);
+
+    const uncutResponse = await setStatus(baseUrl, session.id, 'draft');
+    assert.equal(uncutResponse.status, 200);
+    const uncut = await uncutResponse.json();
+    assert.equal(uncut.status, 'draft');
+    assert.equal(uncut.cutAt, null);
+    assert.equal(uncut.consumedAreaMm2, null);
+
+    assert.ok(Math.abs((await getHide(baseUrl, hide.id)).remainingAreaPct - 100) < 1e-9);
+  });
+});
+
+test('deleting a cut job restores the hide area', async () => {
+  await withServer(async (baseUrl) => {
+    const hide = await postOutlineHide(baseUrl);
+    const session = await (await postSession(baseUrl, { hideId: hide.id })).json();
+    const die = await postDie(baseUrl);
+    await fetch(`${baseUrl}/sessions/${session.id}/placements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dieId: die.id, x: 100, y: 100, rotation: 0 }),
+    });
+    await setStatus(baseUrl, session.id, 'cut');
+    assert.ok((await getHide(baseUrl, hide.id)).remainingAreaPct < 100);
+
+    const deleteResponse = await fetch(`${baseUrl}/sessions/${session.id}`, { method: 'DELETE' });
+    assert.equal(deleteResponse.status, 204);
+    assert.ok(Math.abs((await getHide(baseUrl, hide.id)).remainingAreaPct - 100) < 1e-9);
+  });
+});
+
+test('invalid status transitions return 400 and leave the hide untouched', async () => {
+  await withServer(async (baseUrl) => {
+    const hide = await postOutlineHide(baseUrl);
+    const session = await (await postSession(baseUrl, { hideId: hide.id })).json();
+
+    assert.equal((await setStatus(baseUrl, session.id, 'draft')).status, 400);
+
+    assert.equal((await setStatus(baseUrl, session.id, 'cut')).status, 200);
+    const afterCut = (await getHide(baseUrl, hide.id)).remainingAreaPct;
+
+    const doubleCut = await setStatus(baseUrl, session.id, 'cut');
+    assert.equal(doubleCut.status, 400);
+    assert.equal((await getHide(baseUrl, hide.id)).remainingAreaPct, afterCut);
+
+    assert.equal((await setStatus(baseUrl, session.id, 'bogus')).status, 400);
+  });
+});
+
+test('POST /sessions/:id/status returns 404 for an unknown session', async () => {
+  await withServer(async (baseUrl) => {
+    assert.equal((await setStatus(baseUrl, 'does-not-exist', 'cut')).status, 404);
+  });
+});
+
+test('a job with no hideId cuts cleanly with no decrement', async () => {
+  await withServer(async (baseUrl) => {
+    const session = await (await postSession(baseUrl)).json();
+    assert.equal(session.hideId, null);
+    const response = await setStatus(baseUrl, session.id, 'cut');
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).status, 'cut');
+  });
+});
+
+test('a job on a signature-only hide cuts cleanly with no decrement', async () => {
+  await withServer(async (baseUrl) => {
+    const fileBuffer = await readFile(path.join(__dirname, 'fixtures', 'test-grid-10px.png'));
+    const formData = new FormData();
+    formData.append('photo', new Blob([fileBuffer]), 'skin.png');
+    for (const [key, value] of Object.entries({
+      label: 'Signature Only',
+      species: 'cayman',
+      roiX: 0, roiY: 0, roiWidth: 256, roiHeight: 256,
+      p1x: 0, p1y: 0, p2x: 100, p2y: 0, realDistanceMm: 100,
+    })) formData.append(key, String(value));
+    const hide = await (await fetch(`${baseUrl}/skins`, { method: 'POST', body: formData })).json();
+    assert.equal(hide.outlinePolygon, null);
+
+    const session = await (await postSession(baseUrl, { hideId: hide.id })).json();
+    const response = await setStatus(baseUrl, session.id, 'cut');
+    assert.equal(response.status, 200);
+    assert.equal((await getHide(baseUrl, hide.id)).remainingAreaPct, 100);
   });
 });
