@@ -53,3 +53,99 @@ test('remove() rejects ids shaped like path traversal', () => {
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+const SQUARE = [
+  { x: 0, y: 0 },
+  { x: 10, y: 0 },
+  { x: 10, y: 10 },
+  { x: 0, y: 10 },
+];
+
+test('create() defaults the component metadata fields', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+
+  const record = store.create({ name: 'Belt keeper 35mm', polygon: SQUARE });
+
+  assert.equal(record.valuePerPiece, null);
+  assert.equal(record.productFamily, null);
+  assert.equal(record.allowedSpecies, null);
+  assert.equal(record.thicknessMinMm, null);
+  assert.equal(record.thicknessMaxMm, null);
+  assert.deepEqual(record.allowedRotations, [0, 90, 180, 270]);
+  assert.equal(record.demand, 0);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('create() round-trips given metadata through list()', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+
+  const record = store.create({
+    name: 'Sneaker heel patch',
+    polygon: SQUARE,
+    valuePerPiece: 3.5,
+    productFamily: 'sneaker',
+    allowedSpecies: ['cayman', 'crocodile'],
+    thicknessMinMm: 1.0,
+    thicknessMaxMm: 1.8,
+    allowedRotations: [0, 180],
+    demand: 24,
+  });
+
+  const listed = store.list().find((r) => r.id === record.id);
+  assert.equal(listed.valuePerPiece, 3.5);
+  assert.equal(listed.productFamily, 'sneaker');
+  assert.deepEqual(listed.allowedSpecies, ['cayman', 'crocodile']);
+  assert.equal(listed.thicknessMinMm, 1.0);
+  assert.equal(listed.thicknessMaxMm, 1.8);
+  assert.deepEqual(listed.allowedRotations, [0, 180]);
+  assert.equal(listed.demand, 24);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('update() changes metadata, never geometry or identity', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+  const record = store.create({ name: 'Keeper', polygon: SQUARE, demand: 5 });
+
+  const updated = store.update(record.id, {
+    name: 'Belt keeper 35mm',
+    valuePerPiece: 1.25,
+    demand: 100,
+    polygon: [{ x: 0, y: 0 }],
+    id: 'hacked',
+    createdAt: '1999-01-01T00:00:00.000Z',
+  });
+
+  assert.equal(updated.name, 'Belt keeper 35mm');
+  assert.equal(updated.valuePerPiece, 1.25);
+  assert.equal(updated.demand, 100);
+  assert.deepEqual(updated.polygon, SQUARE);
+  assert.equal(updated.id, record.id);
+  assert.equal(updated.createdAt, record.createdAt);
+
+  const reread = store.list().find((r) => r.id === record.id);
+  assert.equal(reread.valuePerPiece, 1.25);
+  assert.deepEqual(reread.polygon, SQUARE);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('update() leaves omitted fields alone and returns null for an unknown id', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+  const record = store.create({ name: 'Keeper', polygon: SQUARE, demand: 5, valuePerPiece: 2 });
+
+  const updated = store.update(record.id, { demand: 9 });
+  assert.equal(updated.demand, 9);
+  assert.equal(updated.valuePerPiece, 2);
+  assert.equal(updated.name, 'Keeper');
+
+  assert.equal(store.update('does-not-exist', { demand: 1 }), null);
+  assert.equal(store.update('../../etc/passwd', { demand: 1 }), null);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});

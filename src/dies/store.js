@@ -4,6 +4,20 @@ import crypto from 'node:crypto';
 
 const SAFE_ID = /^[0-9a-f-]+$/i;
 
+// Only these are writable after creation. A component's polygon is its
+// identity — a changed shape would invalidate any layout already computed
+// against it — so a new shape means a new component.
+const METADATA_FIELDS = [
+  'name',
+  'valuePerPiece',
+  'productFamily',
+  'allowedSpecies',
+  'thicknessMinMm',
+  'thicknessMaxMm',
+  'allowedRotations',
+  'demand',
+];
+
 export function createStore(dataDir) {
   function ensureDir() {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -11,6 +25,15 @@ export function createStore(dataDir) {
 
   function recordPath(id) {
     return path.join(dataDir, `${id}.json`);
+  }
+
+  function readRecord(id) {
+    if (!SAFE_ID.test(id)) return null;
+    try {
+      return JSON.parse(fs.readFileSync(recordPath(id), 'utf8'));
+    } catch {
+      return null;
+    }
   }
 
   function list() {
@@ -22,10 +45,42 @@ export function createStore(dataDir) {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
-  function create({ name, polygon }) {
+  function create({
+    name,
+    polygon,
+    valuePerPiece,
+    productFamily,
+    allowedSpecies,
+    thicknessMinMm,
+    thicknessMaxMm,
+    allowedRotations,
+    demand,
+  }) {
     ensureDir();
     const id = crypto.randomUUID();
-    const record = { id, name, polygon, createdAt: new Date().toISOString() };
+    const record = {
+      id,
+      name,
+      polygon,
+      valuePerPiece: valuePerPiece ?? null,
+      productFamily: productFamily ?? null,
+      allowedSpecies: allowedSpecies ?? null,
+      thicknessMinMm: thicknessMinMm ?? null,
+      thicknessMaxMm: thicknessMaxMm ?? null,
+      allowedRotations: allowedRotations ?? [0, 90, 180, 270],
+      demand: demand ?? 0,
+      createdAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
+    return record;
+  }
+
+  function update(id, fields) {
+    const record = readRecord(id);
+    if (!record) return null;
+    for (const key of METADATA_FIELDS) {
+      if (fields[key] !== undefined) record[key] = fields[key];
+    }
     fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
     return record;
   }
@@ -38,5 +93,5 @@ export function createStore(dataDir) {
     return true;
   }
 
-  return { list, create, remove };
+  return { list, create, update, remove };
 }
