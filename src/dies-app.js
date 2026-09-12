@@ -12,7 +12,14 @@ const calibrationContainer = document.getElementById('calibration-container');
 const regionContainer = document.getElementById('region-container');
 const submitButton = document.getElementById('submit-die');
 const addStatus = document.getElementById('add-status');
-const diesListEl = document.getElementById('dies-list');
+const summaryEl = document.getElementById('components-summary');
+const gridEl = document.getElementById('component-grid');
+const searchInput = document.getElementById('component-search');
+const familyTagsEl = document.getElementById('family-tags');
+const addPanel = document.getElementById('add-panel');
+
+let components = [];
+let selectedFamily = null;
 
 let selectedPhoto = null;
 let calibration = null;
@@ -106,34 +113,99 @@ submitButton.addEventListener('click', async () => {
   }
 });
 
-async function loadDies() {
-  const response = await fetch('/dies');
-  const dies = await response.json();
-  diesListEl.innerHTML = dies
-    .map((die) => {
-      const bounds = boundingBox(die.polygon);
-      const width = bounds.maxX - bounds.minX;
-      const height = bounds.maxY - bounds.minY;
-      return `
-    <div>
-      <svg width="80" height="${(80 * height) / width}" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}">
-        <polygon points="${polygonToSVGPoints(die.polygon)}" stroke="#FF0000" stroke-width="${width / 80}" fill="none" />
-      </svg>
-      <strong>${escapeHtml(die.name)}</strong>
-      <button type="button" data-delete-id="${die.id}">Delete</button>
-    </div>
-  `;
-    })
+function familyOf(component) {
+  return (component.productFamily || '').trim().toLowerCase();
+}
+
+function sizeLabel(component) {
+  const b = boundingBox(component.polygon);
+  return `${Math.round(b.maxX - b.minX)} × ${Math.round(b.maxY - b.minY)} mm`;
+}
+
+function shapeSVG(component) {
+  const bounds = boundingBox(component.polygon);
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+  if (width <= 0 || height <= 0) return '';
+  return `
+    <svg width="80" height="${Math.max(1, (80 * height) / width)}" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}">
+      <polygon points="${polygonToSVGPoints(component.polygon)}" stroke="var(--color-accent)" stroke-width="${width / 80}" fill="none" />
+    </svg>`;
+}
+
+function matchesFilters(component, query, family) {
+  if (family && familyOf(component) !== family) return false;
+  if (!query) return true;
+  return `${component.name} ${component.productFamily || ''} ${component.id}`.toLowerCase().includes(query);
+}
+
+function renderFamilyTags() {
+  const families = [...new Set(components.map(familyOf).filter(Boolean))].sort();
+  familyTagsEl.innerHTML = families
+    .map(
+      (f) =>
+        `<button type="button" class="tag ${f === selectedFamily ? 'tag-accent' : 'tag-neutral'}" aria-pressed="${f === selectedFamily}" data-family="${escapeHtml(f)}">${escapeHtml(f)}</button>`
+    )
     .join('');
 }
 
-diesListEl.addEventListener('click', async (event) => {
+function renderGrid() {
+  const query = searchInput.value.trim().toLowerCase();
+  const visible = components.filter((c) => matchesFilters(c, query, selectedFamily));
+
+  summaryEl.textContent = `${visible.length} component${visible.length === 1 ? '' : 's'}`;
+
+  gridEl.innerHTML = visible
+    .map(
+      (component) => `
+    <div class="card component-card elev-sm">
+      <div class="shape">${shapeSVG(component)}</div>
+      <div class="card-title">
+        <span>${escapeHtml(component.name)}</span>
+        ${component.productFamily ? `<span class="tag tag-neutral">${escapeHtml(component.productFamily)}</span>` : ''}
+      </div>
+      <p class="card-body">
+        ${sizeLabel(component)}${component.valuePerPiece != null ? ` · $${component.valuePerPiece.toFixed(2)} each` : ''}
+      </p>
+      <div class="card-meta">${component.demand ? `demand ${component.demand}` : 'no current demand'}</div>
+      <div class="component-actions">
+        <button type="button" class="btn btn-secondary" data-delete-id="${component.id}">Delete</button>
+      </div>
+    </div>
+  `
+    )
+    .join('');
+}
+
+async function loadDies() {
+  const response = await fetch('/dies');
+  components = await response.json();
+  renderFamilyTags();
+  renderGrid();
+}
+
+familyTagsEl.addEventListener('click', (event) => {
+  const family = event.target.dataset.family;
+  if (!family) return;
+  selectedFamily = selectedFamily === family ? null : family;
+  renderFamilyTags();
+  renderGrid();
+});
+
+searchInput.addEventListener('input', renderGrid);
+
+gridEl.addEventListener('click', async (event) => {
   const id = event.target.dataset.deleteId;
   if (!id) return;
   await fetch(`/dies/${id}`, { method: 'DELETE' });
   loadDies();
 });
 
-document.getElementById('refresh-dies').addEventListener('click', loadDies);
+document.getElementById('open-add').addEventListener('click', () => {
+  addPanel.hidden = false;
+});
+document.getElementById('cancel-add').addEventListener('click', () => {
+  addPanel.hidden = true;
+});
 
 loadDies();
