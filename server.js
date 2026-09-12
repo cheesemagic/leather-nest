@@ -70,6 +70,29 @@ function cleanupFiles(files) {
   }
 }
 
+function numberOrNull(raw) {
+  if (raw === undefined || raw === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+// Comma-separated is friendlier to type than JSON in a multipart form.
+// An empty value means "any species", stored as null rather than [] so
+// "unconstrained" stays distinguishable from "constrained to nothing".
+function speciesOrNull(raw) {
+  if (!raw) return null;
+  const list = raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  return list.length ? list : null;
+}
+
+// undefined lets the store apply its own default rather than overwriting
+// it with an empty list.
+function rotationsOrUndefined(raw) {
+  if (!raw) return undefined;
+  const list = raw.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
+  return list.length ? list : undefined;
+}
+
 async function handleDigitize(req, res) {
   let fields, files;
   try {
@@ -278,22 +301,55 @@ function createDiesRoutes(dataDir) {
     const name = getField('name');
     const svgFile = files.svg && files.svg[0];
     const photoFile = files.photo && files.photo[0];
+    const widthRaw = getField('widthMm');
+    const heightRaw = getField('heightMm');
+    const hasDimensions = widthRaw !== undefined || heightRaw !== undefined;
 
-    if (!name || (!svgFile && !photoFile)) {
+    if (!name || (!svgFile && !photoFile && !hasDimensions)) {
       cleanupFiles(files);
-      sendJSON(res, 400, { error: 'name and either an svg file or a photo with calibration are required.' });
+      sendJSON(res, 400, {
+        error:
+          'name and either an svg file, a photo with calibration, or widthMm and heightMm are required.',
+      });
       return;
     }
+
+    const metadata = {
+      valuePerPiece: numberOrNull(getField('valuePerPiece')),
+      productFamily: getField('productFamily') || null,
+      allowedSpecies: speciesOrNull(getField('allowedSpecies')),
+      thicknessMinMm: numberOrNull(getField('thicknessMinMm')),
+      thicknessMaxMm: numberOrNull(getField('thicknessMaxMm')),
+      allowedRotations: rotationsOrUndefined(getField('allowedRotations')),
+      demand: numberOrNull(getField('demand')) ?? 0,
+    };
 
     if (svgFile) {
       const svgContent = fs.readFileSync(svgFile.filepath, 'utf8');
       fs.unlink(svgFile.filepath, () => {});
       try {
         const polygon = parseSVGPolygon(svgContent);
-        sendJSON(res, 200, store.create({ name, polygon }));
+        sendJSON(res, 200, store.create({ name, polygon, ...metadata }));
       } catch (err) {
         sendJSON(res, 422, { error: err.message });
       }
+      return;
+    }
+
+    if (!photoFile) {
+      const widthMm = Number(widthRaw);
+      const heightMm = Number(heightRaw);
+      if (!Number.isFinite(widthMm) || widthMm <= 0 || !Number.isFinite(heightMm) || heightMm <= 0) {
+        sendJSON(res, 400, { error: 'widthMm and heightMm must both be positive numbers.' });
+        return;
+      }
+      const polygon = [
+        { x: 0, y: 0 },
+        { x: widthMm, y: 0 },
+        { x: widthMm, y: heightMm },
+        { x: 0, y: heightMm },
+      ];
+      sendJSON(res, 200, store.create({ name, polygon, ...metadata }));
       return;
     }
 
@@ -324,7 +380,7 @@ function createDiesRoutes(dataDir) {
         return;
       }
       const { polygon } = JSON.parse(stdout);
-      sendJSON(res, 200, store.create({ name, polygon }));
+      sendJSON(res, 200, store.create({ name, polygon, ...metadata }));
     });
   }
 
@@ -341,7 +397,33 @@ function createDiesRoutes(dataDir) {
     res.end();
   }
 
-  return { handleCreateDie, handleListDies, handleDeleteDie };
+  async function handleUpdateDie(req, res, id) {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+    if (!payload || typeof payload !== 'object') {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+
+    // store.update() reads the record and writes it synchronously, after
+    // this await — so there is no read-before-await window of the kind the
+    // jobs status route had to close.
+    const updated = store.update(id, payload);
+    if (!updated) {
+      sendJSON(res, 404, { error: 'Die not found.' });
+      return;
+    }
+    sendJSON(res, 200, updated);
+  }
+
+  return { handleCreateDie, handleListDies, handleDeleteDie, handleUpdateDie };
 }
 
 function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
@@ -625,6 +707,11 @@ export function createServer({
     }
     if (req.method === 'GET' && req.url === '/dies') {
       dies.handleListDies(req, res);
+      return;
+    }
+    const dieUpdateMatch = req.method === 'POST' && req.url.match(/^\/dies\/([^/]+)$/);
+    if (dieUpdateMatch) {
+      dies.handleUpdateDie(req, res, dieUpdateMatch[1]);
       return;
     }
     const dieDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/dies\/([^/]+)$/);

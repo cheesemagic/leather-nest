@@ -39,6 +39,25 @@ async function postDiePhoto(baseUrl, overrides = {}) {
   return fetch(`${baseUrl}/dies`, { method: 'POST', body: formData });
 }
 
+async function postDieDimensions(baseUrl, overrides = {}) {
+  const formData = new FormData();
+  formData.append('name', overrides.name ?? 'Belt keeper 35mm');
+  const fields = { widthMm: 35, heightMm: 12, ...overrides.fields };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    formData.append(key, String(value));
+  }
+  return fetch(`${baseUrl}/dies`, { method: 'POST', body: formData });
+}
+
+function updateDie(baseUrl, id, body) {
+  return fetch(`${baseUrl}/dies/${id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 test('POST /dies via SVG upload creates a die and GET /dies lists it', async () => {
   await withServer(async (baseUrl) => {
     const createResponse = await postDieSvg(baseUrl);
@@ -115,5 +134,100 @@ test('DELETE /dies/:id returns 404 for an unknown id', async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/dies/does-not-exist`, { method: 'DELETE' });
     assert.equal(response.status, 404);
+  });
+});
+
+test('POST /dies via dimensions creates a rectangle of the requested size', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postDieDimensions(baseUrl);
+    assert.equal(response.status, 200);
+    const created = await response.json();
+
+    const xs = created.polygon.map((p) => p.x);
+    const ys = created.polygon.map((p) => p.y);
+    assert.equal(Math.max(...xs) - Math.min(...xs), 35);
+    assert.equal(Math.max(...ys) - Math.min(...ys), 12);
+    assert.equal(created.polygon.length, 4);
+  });
+});
+
+test('POST /dies carries the component metadata through on every creation mode', async () => {
+  await withServer(async (baseUrl) => {
+    const metadata = {
+      valuePerPiece: 1.25,
+      productFamily: 'belt',
+      allowedSpecies: 'Cayman, crocodile ',
+      thicknessMinMm: 1.2,
+      thicknessMaxMm: 2.4,
+      allowedRotations: '0, 180',
+      demand: 100,
+    };
+
+    const fromDimensions = await (await postDieDimensions(baseUrl, { fields: { widthMm: 35, heightMm: 12, ...metadata } })).json();
+    assert.equal(fromDimensions.valuePerPiece, 1.25);
+    assert.equal(fromDimensions.productFamily, 'belt');
+    assert.deepEqual(fromDimensions.allowedSpecies, ['cayman', 'crocodile']);
+    assert.equal(fromDimensions.thicknessMinMm, 1.2);
+    assert.equal(fromDimensions.thicknessMaxMm, 2.4);
+    assert.deepEqual(fromDimensions.allowedRotations, [0, 180]);
+    assert.equal(fromDimensions.demand, 100);
+
+    const svgFormData = new FormData();
+    svgFormData.append('name', 'Tip accent');
+    svgFormData.append('svg', new Blob([SVG_CONTENT]), 'die.svg');
+    for (const [key, value] of Object.entries(metadata)) svgFormData.append(key, String(value));
+    const fromSvg = await (await fetch(`${baseUrl}/dies`, { method: 'POST', body: svgFormData })).json();
+    assert.equal(fromSvg.valuePerPiece, 1.25);
+    assert.deepEqual(fromSvg.allowedSpecies, ['cayman', 'crocodile']);
+  });
+});
+
+test('POST /dies defaults metadata when none is sent (existing callers unchanged)', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieSvg(baseUrl)).json();
+    assert.equal(created.valuePerPiece, null);
+    assert.equal(created.allowedSpecies, null);
+    assert.deepEqual(created.allowedRotations, [0, 90, 180, 270]);
+    assert.equal(created.demand, 0);
+  });
+});
+
+test('POST /dies returns 400 for a non-positive dimension', async () => {
+  await withServer(async (baseUrl) => {
+    const zero = await postDieDimensions(baseUrl, { fields: { widthMm: 0, heightMm: 12 } });
+    assert.equal(zero.status, 400);
+    assert.match((await zero.json()).error, /widthMm/);
+
+    const negative = await postDieDimensions(baseUrl, { fields: { widthMm: 35, heightMm: -4 } });
+    assert.equal(negative.status, 400);
+
+    const missing = await postDieDimensions(baseUrl, { fields: { widthMm: 35, heightMm: undefined } });
+    assert.equal(missing.status, 400);
+  });
+});
+
+test('POST /dies/:id updates metadata but not geometry', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl)).json();
+
+    const response = await updateDie(baseUrl, created.id, {
+      valuePerPiece: 2.5,
+      demand: 40,
+      polygon: [{ x: 0, y: 0 }],
+    });
+    assert.equal(response.status, 200);
+    const updated = await response.json();
+    assert.equal(updated.valuePerPiece, 2.5);
+    assert.equal(updated.demand, 40);
+    assert.deepEqual(updated.polygon, created.polygon);
+
+    const listed = (await (await fetch(`${baseUrl}/dies`)).json()).find((d) => d.id === created.id);
+    assert.equal(listed.valuePerPiece, 2.5);
+  });
+});
+
+test('POST /dies/:id returns 404 for an unknown id', async () => {
+  await withServer(async (baseUrl) => {
+    assert.equal((await updateDie(baseUrl, 'does-not-exist', { demand: 1 })).status, 404);
   });
 });
