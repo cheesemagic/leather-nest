@@ -78,3 +78,17 @@ test('an oversized part produces noFit instead of throwing', () => {
   assert.deepEqual(result.noFit, ['C']);
   assert.equal(result.placements.length, 0);
 });
+
+test('a part with no allowedRotations (legacy record) still places instead of throwing', () => {
+  const sheet = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }];
+  const legacyPart = {
+    id: 'D',
+    polygon: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 20 }, { x: 0, y: 20 }],
+    // no allowedRotations key, as on records predating the metadata feature
+  };
+
+  const result = nest(sheet, [legacyPart]);
+
+  assert.equal(result.noFit.length, 0);
+  assert.equal(result.placements.length, 1);
+});

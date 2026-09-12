@@ -231,3 +231,90 @@ test('POST /dies/:id returns 404 for an unknown id', async () => {
     assert.equal((await updateDie(baseUrl, 'does-not-exist', { demand: 1 })).status, 404);
   });
 });
+
+test('POST /dies/:id returns 400 for a blank name', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl)).json();
+    const response = await updateDie(baseUrl, created.id, { name: '   ' });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /name/);
+  });
+});
+
+test('POST /dies/:id returns 400 for a string valuePerPiece', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl)).json();
+    const response = await updateDie(baseUrl, created.id, { valuePerPiece: '12.50' });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /valuePerPiece/);
+  });
+});
+
+test('POST /dies/:id accepts a null valuePerPiece to clear it', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl, { fields: { widthMm: 35, heightMm: 12, valuePerPiece: 5 } })).json();
+    assert.equal(created.valuePerPiece, 5);
+
+    const response = await updateDie(baseUrl, created.id, { valuePerPiece: null });
+    assert.equal(response.status, 200);
+    const updated = await response.json();
+    assert.equal(updated.valuePerPiece, null);
+  });
+});
+
+test('POST /dies/:id returns 400 for an empty allowedRotations array', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl)).json();
+    const response = await updateDie(baseUrl, created.id, { allowedRotations: [] });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /allowedRotations/);
+  });
+});
+
+test('POST /dies/:id returns 400 for an inverted thickness range', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl)).json();
+
+    const bothAtOnce = await updateDie(baseUrl, created.id, { thicknessMinMm: 3, thicknessMaxMm: 1 });
+    assert.equal(bothAtOnce.status, 400);
+    assert.match((await bothAtOnce.json()).error, /thicknessMinMm/);
+
+    // Partial update: raising the stored min above the stored max should
+    // also be rejected, not just an inversion sent in one request.
+    const seeded = await (await postDieDimensions(baseUrl, {
+      fields: { widthMm: 35, heightMm: 12, thicknessMinMm: 1, thicknessMaxMm: 2 },
+    })).json();
+    const partial = await updateDie(baseUrl, seeded.id, { thicknessMinMm: 5 });
+    assert.equal(partial.status, 400);
+  });
+});
+
+test('POST /dies/:id accepts a valid update end to end', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl)).json();
+
+    const response = await updateDie(baseUrl, created.id, {
+      name: 'Belt keeper 35mm v2',
+      productFamily: 'belt',
+      valuePerPiece: 1.5,
+      demand: 10,
+      allowedSpecies: ['Cayman', ' crocodile '],
+      thicknessMinMm: 1,
+      thicknessMaxMm: 2,
+      allowedRotations: [0, 90],
+    });
+    assert.equal(response.status, 200);
+    const updated = await response.json();
+    assert.equal(updated.name, 'Belt keeper 35mm v2');
+    assert.equal(updated.productFamily, 'belt');
+    assert.equal(updated.valuePerPiece, 1.5);
+    assert.equal(updated.demand, 10);
+    assert.deepEqual(updated.allowedSpecies, ['cayman', 'crocodile']);
+    assert.equal(updated.thicknessMinMm, 1);
+    assert.equal(updated.thicknessMaxMm, 2);
+    assert.deepEqual(updated.allowedRotations, [0, 90]);
+
+    const listed = (await (await fetch(`${baseUrl}/dies`)).json()).find((d) => d.id === created.id);
+    assert.equal(listed.name, 'Belt keeper 35mm v2');
+  });
+});

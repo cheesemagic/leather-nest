@@ -238,6 +238,10 @@ function openEdit(component) {
   document.getElementById('edit-family').value = component.productFamily || '';
   document.getElementById('edit-value').value = component.valuePerPiece ?? '';
   document.getElementById('edit-demand').value = component.demand ?? 0;
+  document.getElementById('edit-species').value = (component.allowedSpecies || []).join(', ');
+  document.getElementById('edit-thickness-min').value = component.thicknessMinMm ?? '';
+  document.getElementById('edit-thickness-max').value = component.thicknessMaxMm ?? '';
+  document.getElementById('edit-rotations').value = (component.allowedRotations || []).join(', ');
   editStatus.textContent = '';
   editDialog.hidden = false;
 }
@@ -251,17 +255,37 @@ document.getElementById('save-edit').addEventListener('click', async () => {
   if (!editingId) return;
   const value = document.getElementById('edit-value').value;
   const demand = document.getElementById('edit-demand').value;
+  const thicknessMin = document.getElementById('edit-thickness-min').value;
+  const thicknessMax = document.getElementById('edit-thickness-max').value;
+  const speciesRaw = document.getElementById('edit-species').value.trim();
+  const rotationsRaw = document.getElementById('edit-rotations').value.trim();
+
+  const speciesList = speciesRaw
+    ? speciesRaw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+    : [];
+  const rotationsList = rotationsRaw
+    ? rotationsRaw.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n))
+    : [];
+
+  const payload = {
+    name: document.getElementById('edit-name').value.trim(),
+    productFamily: document.getElementById('edit-family').value.trim() || null,
+    valuePerPiece: value === '' ? null : Number(value),
+    demand: demand === '' ? 0 : Number(demand),
+    thicknessMinMm: thicknessMin === '' ? null : Number(thicknessMin),
+    thicknessMaxMm: thicknessMax === '' ? null : Number(thicknessMax),
+    allowedSpecies: speciesList.length ? speciesList : null,
+  };
+  // An empty array is invalid per the update route's rules — omit the key
+  // entirely rather than send [] or null when the field was left blank.
+  if (rotationsList.length) payload.allowedRotations = rotationsList;
+
   editStatus.textContent = 'Saving…';
   try {
     const response = await fetch(`/dies/${editingId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: document.getElementById('edit-name').value.trim(),
-        productFamily: document.getElementById('edit-family').value.trim() || null,
-        valuePerPiece: value === '' ? null : Number(value),
-        demand: demand === '' ? 0 : Number(demand),
-      }),
+      body: JSON.stringify(payload),
     });
     const body = await response.json();
     if (!response.ok) {

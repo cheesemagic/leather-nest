@@ -27,7 +27,10 @@ export function place(sheetPolygon, parts) {
   for (const part of parts) {
     let accepted = null;
 
-    for (const rotation of part.allowedRotations) {
+    // Records predating the component metadata feature have no
+    // allowedRotations key at all; default to full rotation freedom rather
+    // than throwing on `for...of undefined`.
+    for (const rotation of part.allowedRotations ?? [0, 90, 180, 270]) {
       const normalized = normalizeToOrigin(rotatePolygon(part.polygon, rotation));
       const partBounds = boundingBox(normalized);
       const width = partBounds.maxX;

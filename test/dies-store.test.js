@@ -149,3 +149,34 @@ test('update() leaves omitted fields alone and returns null for an unknown id', 
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+test('list() and update() handle a legacy record with none of the metadata fields', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+  const id = 'aaaaaaaa-0000-0000-0000-000000000009';
+  const legacy = {
+    id,
+    name: 'Legacy vamp',
+    polygon: SQUARE,
+    createdAt: '2020-01-01T00:00:00.000Z',
+  };
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, `${id}.json`), JSON.stringify(legacy, null, 2));
+
+  const listed = store.list().find((r) => r.id === id);
+  assert.ok(listed);
+  assert.equal(listed.name, 'Legacy vamp');
+  assert.equal(listed.valuePerPiece, undefined);
+  assert.equal(listed.allowedRotations, undefined);
+
+  const updated = store.update(id, { demand: 5 });
+  assert.equal(updated.demand, 5);
+  assert.equal(updated.name, 'Legacy vamp');
+  // Fields absent on the legacy record and not part of this update stay
+  // absent — update() merges in whitelisted keys, it doesn't backfill.
+  assert.equal(updated.valuePerPiece, undefined);
+  assert.equal(updated.allowedRotations, undefined);
+  assert.deepEqual(updated.polygon, SQUARE);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});

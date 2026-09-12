@@ -93,6 +93,94 @@ function rotationsOrUndefined(raw) {
   return list.length ? list : undefined;
 }
 
+// POST /dies/:id is the trust boundary for JSON updates — validate here so
+// every caller inherits the check, store.update() stays a dumb writer.
+//
+// Do NOT reuse numberOrNull/speciesOrNull/rotationsOrUndefined above: they're
+// built for multipart *strings* and misbehave on real JSON values.
+// numberOrNull(null) returns 0 (Number(null) === 0), which would silently
+// turn a deliberate "clear this value" into a stored 0. speciesOrNull calls
+// .split() on its argument, which throws on an actual array.
+function validateDieUpdate(payload, existing) {
+  const result = {};
+
+  if ('name' in payload) {
+    const { name } = payload;
+    if (typeof name !== 'string' || name.trim() === '') {
+      return { error: 'name must be a non-empty string.' };
+    }
+    result.name = name.trim();
+  }
+
+  if ('productFamily' in payload) {
+    const { productFamily } = payload;
+    if (productFamily !== null && typeof productFamily !== 'string') {
+      return { error: 'productFamily must be a string or null.' };
+    }
+    const trimmed = productFamily === null ? null : productFamily.trim();
+    result.productFamily = trimmed === '' ? null : trimmed;
+  }
+
+  for (const field of ['valuePerPiece', 'thicknessMinMm', 'thicknessMaxMm']) {
+    if (field in payload) {
+      const value = payload[field];
+      if (value !== null && !(typeof value === 'number' && Number.isFinite(value))) {
+        return { error: `${field} must be a number or null.` };
+      }
+      if (field === 'valuePerPiece' && value !== null && value < 0) {
+        return { error: 'valuePerPiece must not be negative.' };
+      }
+      result[field] = value;
+    }
+  }
+
+  if ('demand' in payload) {
+    const { demand } = payload;
+    if (!(typeof demand === 'number' && Number.isFinite(demand)) || demand < 0) {
+      return { error: 'demand must be a finite number >= 0.' };
+    }
+    result.demand = demand;
+  }
+
+  if ('allowedSpecies' in payload) {
+    const { allowedSpecies } = payload;
+    if (allowedSpecies !== null && !Array.isArray(allowedSpecies)) {
+      return { error: 'allowedSpecies must be an array of strings or null.' };
+    }
+    if (allowedSpecies === null) {
+      result.allowedSpecies = null;
+    } else {
+      if (!allowedSpecies.every((s) => typeof s === 'string')) {
+        return { error: 'allowedSpecies must be an array of strings or null.' };
+      }
+      const normalized = allowedSpecies.map((s) => s.trim().toLowerCase()).filter(Boolean);
+      result.allowedSpecies = normalized.length ? normalized : null;
+    }
+  }
+
+  if ('allowedRotations' in payload) {
+    const { allowedRotations } = payload;
+    const valid =
+      Array.isArray(allowedRotations) &&
+      allowedRotations.length > 0 &&
+      allowedRotations.every((n) => typeof n === 'number' && Number.isFinite(n));
+    if (!valid) {
+      return { error: 'allowedRotations must be a non-empty array of numbers.' };
+    }
+    result.allowedRotations = allowedRotations;
+  }
+
+  // Compare against the stored values for whichever side isn't being
+  // updated, so a partial update can't create an inverted range.
+  const minMm = 'thicknessMinMm' in result ? result.thicknessMinMm : existing.thicknessMinMm;
+  const maxMm = 'thicknessMaxMm' in result ? result.thicknessMaxMm : existing.thicknessMaxMm;
+  if (minMm != null && maxMm != null && minMm > maxMm) {
+    return { error: 'thicknessMinMm must not be greater than thicknessMaxMm.' };
+  }
+
+  return { value: result };
+}
+
 async function handleDigitize(req, res) {
   let fields, files;
   try {
@@ -412,10 +500,22 @@ function createDiesRoutes(dataDir) {
       return;
     }
 
+    const existing = store.list().find((d) => d.id === id);
+    if (!existing) {
+      sendJSON(res, 404, { error: 'Die not found.' });
+      return;
+    }
+
+    const { error, value } = validateDieUpdate(payload, existing);
+    if (error) {
+      sendJSON(res, 400, { error });
+      return;
+    }
+
     // store.update() reads the record and writes it synchronously, after
     // this await — so there is no read-before-await window of the kind the
     // jobs status route had to close.
-    const updated = store.update(id, payload);
+    const updated = store.update(id, value);
     if (!updated) {
       sendJSON(res, 404, { error: 'Die not found.' });
       return;
