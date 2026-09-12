@@ -6,6 +6,7 @@ const nameInput = document.getElementById('name-input');
 const modeRadios = document.querySelectorAll('input[name="add-mode"]');
 const svgMode = document.getElementById('svg-mode');
 const photoMode = document.getElementById('photo-mode');
+const dimensionsMode = document.getElementById('dimensions-mode');
 const svgInput = document.getElementById('svg-input');
 const photoInput = document.getElementById('photo-input');
 const calibrationContainer = document.getElementById('calibration-container');
@@ -34,6 +35,7 @@ for (const radio of modeRadios) {
     if (!radio.checked) return;
     svgMode.style.display = radio.value === 'svg' ? 'block' : 'none';
     photoMode.style.display = radio.value === 'photo' ? 'block' : 'none';
+    dimensionsMode.style.display = radio.value === 'dimensions' ? 'block' : 'none';
   });
 }
 
@@ -65,6 +67,19 @@ submitButton.addEventListener('click', async () => {
   const formData = new FormData();
   formData.append('name', name);
 
+  const metadata = {
+    productFamily: document.getElementById('family-input').value.trim(),
+    valuePerPiece: document.getElementById('value-input').value,
+    demand: document.getElementById('demand-input').value,
+    allowedSpecies: document.getElementById('species-input').value.trim(),
+    thicknessMinMm: document.getElementById('thickness-min-input').value,
+    thicknessMaxMm: document.getElementById('thickness-max-input').value,
+    allowedRotations: document.getElementById('rotations-input').value.trim(),
+  };
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value !== '') formData.append(key, value);
+  }
+
   if (mode === 'svg') {
     const file = svgInput.files[0];
     if (!file) {
@@ -72,7 +87,7 @@ submitButton.addEventListener('click', async () => {
       return;
     }
     formData.append('svg', file);
-  } else {
+  } else if (mode === 'photo') {
     if (!selectedPhoto || !calibration || !region) {
       addStatus.textContent = 'Upload a photo, complete calibration, and select the die region first.';
       return;
@@ -87,6 +102,15 @@ submitButton.addEventListener('click', async () => {
     formData.append('roiY', region.roiY);
     formData.append('roiWidth', region.roiWidth);
     formData.append('roiHeight', region.roiHeight);
+  } else if (mode === 'dimensions') {
+    const widthMm = document.getElementById('width-input').value;
+    const heightMm = document.getElementById('height-input').value;
+    if (!widthMm || !heightMm) {
+      addStatus.textContent = 'Enter both a width and a height.';
+      return;
+    }
+    formData.append('widthMm', widthMm);
+    formData.append('heightMm', heightMm);
   }
 
   addStatus.textContent = 'Adding…';
@@ -107,6 +131,15 @@ submitButton.addEventListener('click', async () => {
     selectedPhoto = null;
     calibration = null;
     region = null;
+    document.getElementById('width-input').value = '';
+    document.getElementById('height-input').value = '';
+    document.getElementById('family-input').value = '';
+    document.getElementById('value-input').value = '';
+    document.getElementById('demand-input').value = '';
+    document.getElementById('species-input').value = '';
+    document.getElementById('thickness-min-input').value = '';
+    document.getElementById('thickness-max-input').value = '';
+    document.getElementById('rotations-input').value = '';
     loadDies();
   } catch {
     addStatus.textContent = 'Error: could not reach the server. Please try again.';
@@ -169,6 +202,7 @@ function renderGrid() {
       </p>
       <div class="card-meta">${component.demand ? `demand ${component.demand}` : 'no current demand'}</div>
       <div class="component-actions">
+        <button type="button" class="btn btn-secondary" data-edit-id="${component.id}">Edit</button>
         <button type="button" class="btn btn-secondary" data-delete-id="${component.id}">Delete</button>
       </div>
     </div>
@@ -194,10 +228,64 @@ familyTagsEl.addEventListener('click', (event) => {
 
 searchInput.addEventListener('input', renderGrid);
 
+const editDialog = document.getElementById('edit-dialog');
+const editStatus = document.getElementById('edit-status');
+let editingId = null;
+
+function openEdit(component) {
+  editingId = component.id;
+  document.getElementById('edit-name').value = component.name;
+  document.getElementById('edit-family').value = component.productFamily || '';
+  document.getElementById('edit-value').value = component.valuePerPiece ?? '';
+  document.getElementById('edit-demand').value = component.demand ?? 0;
+  editStatus.textContent = '';
+  editDialog.hidden = false;
+}
+
+document.getElementById('cancel-edit').addEventListener('click', () => {
+  editDialog.hidden = true;
+  editingId = null;
+});
+
+document.getElementById('save-edit').addEventListener('click', async () => {
+  if (!editingId) return;
+  const value = document.getElementById('edit-value').value;
+  const demand = document.getElementById('edit-demand').value;
+  editStatus.textContent = 'Saving…';
+  try {
+    const response = await fetch(`/dies/${editingId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: document.getElementById('edit-name').value.trim(),
+        productFamily: document.getElementById('edit-family').value.trim() || null,
+        valuePerPiece: value === '' ? null : Number(value),
+        demand: demand === '' ? 0 : Number(demand),
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      editStatus.textContent = `Error: ${body.error}`;
+      return;
+    }
+    editDialog.hidden = true;
+    editingId = null;
+    await loadDies();
+  } catch {
+    editStatus.textContent = 'Error: could not reach the server. Please try again.';
+  }
+});
+
 gridEl.addEventListener('click', async (event) => {
-  const id = event.target.dataset.deleteId;
-  if (!id) return;
-  await fetch(`/dies/${id}`, { method: 'DELETE' });
+  const editId = event.target.dataset.editId;
+  if (editId) {
+    const component = components.find((c) => c.id === editId);
+    if (component) openEdit(component);
+    return;
+  }
+  const deleteId = event.target.dataset.deleteId;
+  if (!deleteId) return;
+  await fetch(`/dies/${deleteId}`, { method: 'DELETE' });
   loadDies();
 });
 

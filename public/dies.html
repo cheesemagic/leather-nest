@@ -32,6 +32,7 @@
       .component-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
       #add-panel[hidden] { display: none; }
       .form-grid { display: flex; flex-direction: column; gap: var(--space-3); }
+      #edit-dialog[hidden] { display: none; }
     </style>
   </head>
   <body>
@@ -66,6 +67,7 @@
           <div>
             <label class="radio"><input type="radio" name="add-mode" value="svg" checked /><span class="dot"></span> Upload SVG</label>
             <label class="radio"><input type="radio" name="add-mode" value="photo" /><span class="dot"></span> Photograph a die</label>
+            <label class="radio"><input type="radio" name="add-mode" value="dimensions" /><span class="dot"></span> Enter dimensions</label>
           </div>
 
           <div id="svg-mode">
@@ -78,6 +80,46 @@
             <div id="region-container"></div>
           </div>
 
+          <div id="dimensions-mode" style="display: none">
+            <div class="field">
+              <label for="width-input">Width (mm)</label>
+              <input class="input" type="number" step="0.1" min="0" id="width-input" />
+            </div>
+            <div class="field">
+              <label for="height-input">Height (mm)</label>
+              <input class="input" type="number" step="0.1" min="0" id="height-input" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="family-input">Product family</label>
+            <input class="input" type="text" id="family-input" placeholder="belt, sneaker, small-goods…" />
+          </div>
+          <div class="field">
+            <label for="value-input">Value per piece ($)</label>
+            <input class="input" type="number" step="0.01" min="0" id="value-input" />
+          </div>
+          <div class="field">
+            <label for="demand-input">Current demand</label>
+            <input class="input" type="number" step="1" min="0" id="demand-input" />
+          </div>
+          <div class="field">
+            <label for="species-input">Allowed species (comma-separated, blank = any)</label>
+            <input class="input" type="text" id="species-input" placeholder="cayman, crocodile" />
+          </div>
+          <div class="field">
+            <label for="thickness-min-input">Thickness min (mm)</label>
+            <input class="input" type="number" step="0.1" min="0" id="thickness-min-input" />
+          </div>
+          <div class="field">
+            <label for="thickness-max-input">Thickness max (mm)</label>
+            <input class="input" type="number" step="0.1" min="0" id="thickness-max-input" />
+          </div>
+          <div class="field">
+            <label for="rotations-input">Allowed rotations (comma-separated degrees, blank = all)</label>
+            <input class="input" type="text" id="rotations-input" placeholder="0, 90, 180, 270" />
+          </div>
+
           <div id="add-status" class="text-muted"></div>
           <div class="component-actions">
             <button type="button" class="btn btn-primary" id="submit-die">Add to library</button>
@@ -87,6 +129,37 @@
       </section>
 
       <div class="component-grid" id="component-grid"></div>
+
+      <div class="dialog-backdrop" id="edit-dialog" hidden>
+        <div class="dialog">
+          <h3 class="dialog-title">Edit component</h3>
+          <div class="dialog-body">
+            <div class="form-grid">
+              <div class="field">
+                <label for="edit-name">Name</label>
+                <input class="input" type="text" id="edit-name" />
+              </div>
+              <div class="field">
+                <label for="edit-family">Product family</label>
+                <input class="input" type="text" id="edit-family" />
+              </div>
+              <div class="field">
+                <label for="edit-value">Value per piece ($)</label>
+                <input class="input" type="number" step="0.01" min="0" id="edit-value" />
+              </div>
+              <div class="field">
+                <label for="edit-demand">Current demand</label>
+                <input class="input" type="number" step="1" min="0" id="edit-demand" />
+              </div>
+              <div id="edit-status" class="text-muted"></div>
+            </div>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" class="btn btn-secondary" id="cancel-edit">Cancel</button>
+            <button type="button" class="btn btn-primary" id="save-edit">Save</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <script type="module" src="/src/dies-app.js"></script>
