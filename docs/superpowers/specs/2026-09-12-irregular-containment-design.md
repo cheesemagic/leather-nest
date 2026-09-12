@@ -28,8 +28,10 @@ obvious approach turned out not to work — see Approach Evidence below.
 
 - Parts are placed only where they genuinely lie inside the sheet outline,
   not merely inside its bounding box.
-- Support a configurable clearance between cut lines, so a job can respect
-  laser kerf plus handling gap, or the physical footprint of a clicker die.
+- Support a configurable clearance around each part's cut line, set
+  per-part with a job-level default, so a job can respect laser kerf plus
+  handling gap, or the differing physical footprints of individual clicker
+  dies.
 - Preserve today's behavior exactly for the existing rectangular-sheet
   consumer (`public/app.html`), including flush placement against every
   edge.
@@ -146,13 +148,17 @@ four vertices. `mm` of `0` returns the polygon unchanged.
 
 ### `place(sheetPolygon, parts, options)` — modified
 
-Signature gains a third parameter, `{ spacingMm = 0 }`. `nest()` passes it
-through. The default preserves today's behavior exactly.
+Signature gains a third parameter, `{ clearanceMm = 0 }`, the job-level
+default. An individual part may override it with its own
+`part.clearanceMm`. `nest()` passes the options through. The default of `0`
+preserves today's behavior exactly.
 
 Per part and rotation, before the grid scan:
 
 1. Rotate and normalize as today.
-2. Inflate by `spacingMm / 2` once → the **test shape**.
+2. Inflate by this part's effective clearance
+   (`part.clearanceMm ?? options.clearanceMm ?? 0`) once → the **test
+   shape**.
 3. Compute forbidden regions from already-placed **test shapes**, as today.
 
 Then within the scan, for each candidate position:
@@ -167,19 +173,41 @@ Then within the scan, for each candidate position:
 inflated shape exists solely for fit testing; the geometry handed onward —
 and ultimately to LightBurn — is the shape that was actually drawn.
 
-### Spacing semantics
+### Clearance semantics
 
-`spacingMm` is the **minimum gap between cut lines**. Each part is inflated
-by half of it, so two adjacent parts end up `spacingMm` apart and a part
-sits `spacingMm / 2` inside the sheet edge.
+`clearanceMm` is the clearance each part requires **around its own cut
+line**, and each part is inflated by its full value — not half.
 
-One number rather than separate kerf and clearance inputs, because the
-geometry only ever needs their sum and splitting it at this layer would
-invite guessing at the split. A laser job sets it to measured kerf plus
-handling gap; a die job sets it to whatever the die body requires — which
-is typically *larger*, since a clicker die is a physical object with board
-and rule around the blade, not a beam. A richer presentation (separate
-"kerf" and "clearance" fields that sum to this) belongs in UI, not here.
+That choice is not arithmetic convenience; it encodes how the two
+processes actually behave. Clearances are **not shared** between
+neighbours: a part needing 8 mm beside a part needing 2 mm must have
+10 mm between them, because each piece's requirement is measured from its
+own cut line. Inflating each part by its full clearance produces exactly
+that, since the two inflated shapes cannot overlap until the true gap
+reaches the sum. Halving would have had them meet in the middle at 5 mm,
+which is wrong for a physical die: a clicker die's board needs its room
+regardless of what sits beside it.
+
+Clearance is therefore **per-part**, with a job-level default for parts
+that don't specify one. This matters because die sets differ — a small
+keeper die and a large vamp die carry very different board footprints
+around the blade — so a single global number cannot describe a job mixing
+them. A laser job, by contrast, is naturally uniform: kerf plus handling
+gap applies to every part equally, and the job-level default covers it
+without touching any part.
+
+One number per part rather than separate kerf and clearance inputs,
+because the geometry only ever needs their sum and splitting it at this
+layer would invite guessing at the split. A richer presentation — a
+Laser/Die toggle prefilling editable defaults, with die clearance read
+from each component's own die footprint — belongs in UI and in the
+cutting-method sub-project, not here.
+
+Against the sheet outline the same rule applies: a part sits at least its
+own clearance inside the edge. That is conservative for a laser, where
+only half the kerf strictly must stay on the leather, but it keeps one
+rule with no special cases, and it costs a few millimetres at the
+boundary rather than risking a cut that runs off the hide.
 
 ## Error Handling
 
@@ -189,7 +217,8 @@ than three vertices) makes containment meaningless; `polygonContains`
 returns `false` rather than throwing, so a malformed part is reported in
 `noFit` like any other part that cannot be placed — consistent with the
 existing "an oversized part produces noFit instead of throwing" behavior.
-A negative `spacingMm` is treated as `0`.
+A negative or non-finite `clearanceMm`, at either the part or the job
+level, is treated as `0`.
 
 ## Testing
 
@@ -214,10 +243,17 @@ real intersection areas through clipper.
     reported in `noFit` — the regression this sub-project exists to fix.
   - Every existing rectangular-sheet test passes unchanged, including the
     two-rectangles-nest case and the oversized-part case.
-  - With `spacingMm: 2`, the **true** polygons of two placed parts are at
-    least 2 mm apart, and the reported placement polygons are the true
-    ones, not the inflated ones.
-  - With spacing, a part is held off the sheet edge rather than flush.
+  - With a job-level `clearanceMm: 2`, the **true** polygons of two placed
+    parts are at least 2 mm apart, and the reported placement polygons are
+    the true ones, not the inflated ones.
+  - **Clearances are not shared**: a part declaring `clearanceMm: 8` placed
+    beside one declaring `clearanceMm: 2` leaves at least 10 mm between
+    their true polygons — not 5 mm. This is the test that pins the
+    full-inflation choice; a half-inflation implementation passes the
+    uniform case above and fails only here.
+  - A part's own `clearanceMm` overrides the job-level default, and a part
+    without one inherits it.
+  - With clearance set, a part is held off the sheet edge rather than flush.
   - A part with no `allowedRotations` still places (the legacy-record
     guard added previously stays covered).
 
@@ -233,7 +269,11 @@ throwaway and is not part of the codebase.
 
 - **Cutting method** as a modeled concept — a component field for whether
   a physical die exists, a job field for what the run is cut on, and the
-  derivation of `spacingMm` from it. Sequenced next, before sub-project C.
+  derivation of `clearanceMm` from it. Sequenced next, before sub-project
+  C. Expected shape: a Laser/Die toggle prefilling editable defaults,
+  where "Laser" supplies one job-level clearance (kerf plus handling gap,
+  uniform across parts) and "Die" reads each component's own die
+  footprint, since die sets differ from one another.
   The component side is more interesting than clearance alone: a die-cut
   job can only contain components you own dies for, which feeds the
   brief's reverse-search idea.
