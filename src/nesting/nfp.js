@@ -5,7 +5,8 @@ export function computeNFP(stationaryPolygon, movingPolygon) {
 
   // NFP(A, B) = A ⊕ (-B): the Minkowski sum of the stationary polygon with
   // the moving polygon reflected through its own reference point (origin).
-  // Exact for convex polygons — all of v0's hardcoded test shapes.
+  // Exact for convex polygons only; non-convex parts get an approximate
+  // NFP here, so their part-vs-part overlap checks aren't guaranteed exact.
   const reflectedMoving = movingPolygon.map((p) => ({ x: -p.x, y: -p.y }));
   const patternPath = toClipperPath(reflectedMoving);
   const stationaryPath = toClipperPath(stationaryPolygon);

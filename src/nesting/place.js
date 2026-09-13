@@ -22,9 +22,12 @@ export function place(sheetPolygon, parts, options = {}) {
   const defaultClearanceMm = options.clearanceMm;
 
   // Containment is tested against the sheet's true outline via
-  // polygonContains. The axis-aligned bounds below are kept only as a free
-  // pre-filter — they reject far-outside positions before any real work,
-  // but they are never the authority on whether a part fits.
+  // polygonContains, which is now exact (backed by a clipper difference, not
+  // just the cheap vertex/edge checks). The axis-aligned bounds below are
+  // kept only as a free pre-filter — they reject far-outside positions
+  // before any real work, but they are never the authority on whether a
+  // part fits. Part-vs-part overlap is a separate story: it still goes
+  // through computeNFP (nfp.js), which is exact for convex parts only.
   const placed = [];
   const placements = [];
   const noFit = [];
@@ -37,7 +40,7 @@ export function place(sheetPolygon, parts, options = {}) {
     // part ends up 10mm away. Inflating each by its FULL clearance (rather
     // than half) is what produces that.
     const rawClearance = part.clearanceMm ?? defaultClearanceMm;
-    const clearanceMm = rawClearance > 0 ? rawClearance : 0;
+    const clearanceMm = Number.isFinite(rawClearance) && rawClearance > 0 ? rawClearance : 0;
 
     // Records predating the component metadata feature have no
     // allowedRotations key at all; default to full rotation freedom rather
@@ -71,6 +74,17 @@ export function place(sheetPolygon, parts, options = {}) {
       let found = null;
       // Bottom-left-fill scan: rows from sheet minY upward, left to right
       // within each row, first valid position wins.
+      //
+      // Worst case, synchronous, no early exit: a part that fits the
+      // sheet's bounding box but no reachable position on the true outline
+      // pays a full grid traversal — every (x, y) at GRID_STEP_MM spacing,
+      // per allowed rotation — before it's reported noFit. Measured at
+      // ~680ms for one such part on a 200-vertex hide; ~6.9s for ten of
+      // them in a row. The AABB pre-filter above only catches parts bigger
+      // than the box, so "fits the box, not the hide" is the common failure
+      // mode on an irregular hide, not an edge case. No caching, early
+      // exit, or yielding here by design — that's a later optimization
+      // pass, not this fix.
       for (let y = minY; y <= maxY && !found; y += GRID_STEP_MM) {
         for (let x = minX; x <= maxX && !found; x += GRID_STEP_MM) {
           const clipperPoint = new ClipperLib.IntPoint2(

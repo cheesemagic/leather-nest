@@ -117,7 +117,28 @@ export function polygonContains(outer, inner) {
       if (segmentsProperlyCross(a, b, c, d)) return false;
     }
   }
-  return true;
+
+  // The cheap tests above are a fast reject, not the authority. They have a
+  // blind spot: when a part's edges are exactly collinear with the outline's
+  // (integer coordinates on a 1mm grid make this reachable), no edge
+  // *properly* crosses and every vertex reads inside via the boundary rule,
+  // yet the part can still span a notch and sit over air. Clipper's exact
+  // difference closes that gap. It only runs on candidates that survive both
+  // cheap tests, which in a grid scan is a handful per part.
+  const ClipperLib = getClipperLib();
+  const clipper = new ClipperLib.Clipper();
+  clipper.AddPath(toClipperPath(inner), ClipperLib.PolyType.ptSubject, true);
+  clipper.AddPath(toClipperPath(outer), ClipperLib.PolyType.ptClip, true);
+  const leftover = new ClipperLib.Paths();
+  clipper.Execute(
+    ClipperLib.ClipType.ctDifference,
+    leftover,
+    ClipperLib.PolyFillType.pftNonZero,
+    ClipperLib.PolyFillType.pftNonZero
+  );
+  let outsideArea = 0;
+  for (const path of leftover) outsideArea += Math.abs(ClipperLib.Clipper.Area(path));
+  return outsideArea / (SCALE * SCALE) < 1e-6;
 }
 
 // Grows a polygon outward by `mm` on every side. Used to apply a part's

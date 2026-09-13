@@ -183,6 +183,21 @@ test('inflatePolygon grows a rectangle by the given mm on every side', () => {
   assert.ok(Math.abs(b.maxY - b.minY - 13.2) < 1e-6, `height ${b.maxY - b.minY}`);
 });
 
+test('polygonContains rejects a part whose edges are exactly collinear with a notch, spanning air (collinear-edge false-accept)', () => {
+  // The part's vertical edges exactly coincide with the C_SHAPE notch walls
+  // (x=30 and x=70). Every vertex reads "inside" via the boundary-inclusive
+  // rule and no edge *properly* crosses (collinear, d=0), so the cheap
+  // vertex+crossing tests alone false-accept this even though 200mm^2 of
+  // the part (x 30..70, y 25..30) sits over the notch, which is air.
+  const part = [
+    { x: 30, y: 20 },
+    { x: 70, y: 20 },
+    { x: 70, y: 30 },
+    { x: 30, y: 30 },
+  ];
+  assert.equal(polygonContains(C_SHAPE, part), false);
+});
+
 test('inflatePolygon returns the polygon unchanged for zero, negative, or non-finite mm', () => {
   for (const mm of [0, -3, NaN, undefined]) {
     assert.deepEqual(inflatePolygon(RECT, mm), RECT, `mm=${mm}`);

@@ -6,7 +6,7 @@ import ClipperLib from 'clipper-lib';
 globalThis.ClipperLib = ClipperLib;
 
 import { nest } from '../src/nesting/index.js';
-import { boundingBox, placedPolygon } from '../src/nesting/geometry.js';
+import { boundingBox, placedPolygon, polygonContains } from '../src/nesting/geometry.js';
 
 function intersectionArea(polyA, polyB) {
   const SCALE = 1000;
@@ -226,6 +226,60 @@ test("a part's own clearanceMm overrides the job default", () => {
     minGapBetween(placedPolys[0], placedPolys[1]) < 1,
     'parts overriding to 0 should nest flush despite the job default'
   );
+});
+
+test('a part is never placed straddling a notch even when its edges are exactly collinear with the notch walls (collinear-edge false-accept regression)', () => {
+  // C-shaped sheet with a notch cut from the middle of the top: air occupies
+  // x 30..70, y 25..60. Before the polygonContains fix, an all-integer grid
+  // scan could place a part flush against the notch walls (collinear edges)
+  // that reads as "contained" by the cheap tests alone while half its area
+  // sits over the notch. Concretely: G at (30, 20) used to be accepted.
+  const notchedSheet = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 60 },
+    { x: 70, y: 60 },
+    { x: 70, y: 25 },
+    { x: 30, y: 25 },
+    { x: 30, y: 60 },
+    { x: 0, y: 60 },
+  ];
+  const partF = {
+    id: 'F',
+    polygon: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 20 }, { x: 0, y: 20 }],
+    allowedRotations: [0],
+  };
+  const partG = {
+    id: 'G',
+    polygon: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 10 }, { x: 0, y: 10 }],
+    allowedRotations: [0],
+  };
+
+  const result = nest(notchedSheet, [partF, partG]);
+
+  const gPlacement = result.placements.find((p) => p.id === 'G');
+  assert.ok(!gPlacement || !(gPlacement.x === 30 && gPlacement.y === 20), 'G must not be placed at (30, 20), which sits over the notch');
+
+  // Stronger check: whatever got placed, none of it may sit outside the
+  // sheet's true outline.
+  const partsById = new Map([partF, partG].map((p) => [p.id, p]));
+  for (const placement of result.placements) {
+    const poly = placedPolygon(partsById.get(placement.id), placement);
+    assert.equal(
+      polygonContains(notchedSheet, poly),
+      true,
+      `placed part ${placement.id} must lie entirely within the sheet`
+    );
+  }
+});
+
+test('Infinity clearanceMm is treated as 0 rather than crashing', () => {
+  const parts = [{ id: 'A', polygon: SQUARE_20, allowedRotations: [0] }];
+
+  const flush = nest(WIDE_SHEET, parts, { clearanceMm: 0 });
+  const infinite = nest(WIDE_SHEET, parts, { clearanceMm: Infinity });
+
+  assert.deepEqual(infinite.placements, flush.placements);
 });
 
 test('clearance holds a part off the sheet edge', () => {
