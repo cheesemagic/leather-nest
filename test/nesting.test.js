@@ -92,3 +92,52 @@ test('a part with no allowedRotations (legacy record) still places instead of th
   assert.equal(result.noFit.length, 0);
   assert.equal(result.placements.length, 1);
 });
+
+test('a part that fits the bounding box but not the real outline is reported noFit', () => {
+  // A triangle occupying the lower-left half of a 100x100 bounding box.
+  const triangleSheet = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 0, y: 100 },
+  ];
+  // 60x60 fits the 100x100 bounding box easily, but cannot fit inside the
+  // triangle at any position.
+  const part = {
+    id: 'big-square',
+    polygon: [
+      { x: 0, y: 0 },
+      { x: 60, y: 0 },
+      { x: 60, y: 60 },
+      { x: 0, y: 60 },
+    ],
+    allowedRotations: [0],
+  };
+
+  const result = nest(triangleSheet, [part]);
+
+  assert.equal(result.placements.length, 0);
+  assert.deepEqual(result.noFit, ['big-square']);
+});
+
+test('a part small enough for the real outline still places inside an irregular sheet', () => {
+  const triangleSheet = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 0, y: 100 },
+  ];
+  const part = {
+    id: 'small',
+    polygon: [
+      { x: 0, y: 0 },
+      { x: 20, y: 0 },
+      { x: 20, y: 20 },
+      { x: 0, y: 20 },
+    ],
+    allowedRotations: [0],
+  };
+
+  const result = nest(triangleSheet, [part]);
+
+  assert.equal(result.noFit.length, 0);
+  assert.equal(result.placements.length, 1);
+});

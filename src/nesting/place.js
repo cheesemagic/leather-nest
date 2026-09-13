@@ -5,6 +5,7 @@ import {
   normalizeToOrigin,
   toClipperPath,
   placedPolygon,
+  polygonContains,
   SCALE,
 } from './geometry.js';
 import { computeNFP } from './nfp.js';
@@ -17,9 +18,10 @@ export function place(sheetPolygon, parts) {
   const sheetWidth = sheetBounds.maxX - sheetBounds.minX;
   const sheetHeight = sheetBounds.maxY - sheetBounds.minY;
 
-  // v0 assumes a rectangular sheet, so containment is a simple AABB check
-  // against sheetBounds rather than a general inner-fit-polygon (see spec
-  // Non-goals). computeNFP is only used for part-vs-placed-part overlap.
+  // Containment is tested against the sheet's true outline via
+  // polygonContains. The axis-aligned bounds below are kept only as a free
+  // pre-filter — they reject far-outside positions before any real work,
+  // but they are never the authority on whether a part fits.
   const placed = [];
   const placements = [];
   const noFit = [];
@@ -64,7 +66,10 @@ export function place(sheetPolygon, parts) {
               ClipperLib.Clipper.PointInPolygon(clipperPoint, path) === 1
           );
           if (!overlapsPlacedPart) {
-            found = { x, y, rotation, polygon: placedPolygon(part, { x, y, rotation }) };
+            const candidate = placedPolygon(part, { x, y, rotation });
+            if (polygonContains(sheetPolygon, candidate)) {
+              found = { x, y, rotation, polygon: candidate };
+            }
           }
         }
       }
