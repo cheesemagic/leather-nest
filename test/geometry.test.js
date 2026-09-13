@@ -15,6 +15,9 @@ import {
   fromClipperPath,
   getClipperLib,
   polygonArea,
+  pointInPolygon,
+  polygonContains,
+  inflatePolygon,
 } from '../src/nesting/geometry.js';
 
 test('rotatePolygon rotates a point 90 degrees around the origin', () => {
@@ -91,4 +94,97 @@ test('polygonArea is unaffected by winding order, rotation, or translation', () 
 
   assert.ok(Math.abs(polygonArea(rotatePolygon(rectangle, 37)) - 800) < 1e-9);
   assert.equal(polygonArea(translatePolygon(rectangle, -500, 250)), 800);
+});
+
+const RECT = [
+  { x: 0, y: 0 },
+  { x: 100, y: 0 },
+  { x: 100, y: 60 },
+  { x: 0, y: 60 },
+];
+
+// A C-shape: 100x60 with a notch bitten out of the middle of the top edge.
+const C_SHAPE = [
+  { x: 0, y: 0 },
+  { x: 100, y: 0 },
+  { x: 100, y: 60 },
+  { x: 70, y: 60 },
+  { x: 70, y: 25 },
+  { x: 30, y: 25 },
+  { x: 30, y: 60 },
+  { x: 0, y: 60 },
+];
+
+test('pointInPolygon treats every boundary point as inside, on all four edges', () => {
+  assert.equal(pointInPolygon({ x: 50, y: 30 }, RECT), true, 'interior');
+  assert.equal(pointInPolygon({ x: 0, y: 30 }, RECT), true, 'left edge');
+  assert.equal(pointInPolygon({ x: 100, y: 30 }, RECT), true, 'right edge');
+  assert.equal(pointInPolygon({ x: 50, y: 0 }, RECT), true, 'bottom edge');
+  assert.equal(pointInPolygon({ x: 50, y: 60 }, RECT), true, 'top edge');
+  assert.equal(pointInPolygon({ x: 0, y: 0 }, RECT), true, 'corner');
+  assert.equal(pointInPolygon({ x: 101, y: 30 }, RECT), false, 'just outside');
+});
+
+test('polygonContains accepts a part flush against each edge of a rectangle', () => {
+  const part = (x, y) => [
+    { x, y },
+    { x: x + 10, y },
+    { x: x + 10, y: y + 10 },
+    { x, y: y + 10 },
+  ];
+  assert.equal(polygonContains(RECT, part(0, 0)), true, 'flush bottom-left');
+  assert.equal(polygonContains(RECT, part(90, 0)), true, 'flush bottom-right');
+  assert.equal(polygonContains(RECT, part(0, 50)), true, 'flush top-left');
+  assert.equal(polygonContains(RECT, part(90, 50)), true, 'flush top-right');
+  assert.equal(polygonContains(RECT, part(95, 0)), false, 'hanging off the right');
+});
+
+test('polygonContains rejects a part spanning a concavity even when every vertex is inside', () => {
+  // Both ends sit on the arms of the C; the middle crosses the notch.
+  const spanner = [
+    { x: 20, y: 40 },
+    { x: 80, y: 40 },
+    { x: 80, y: 50 },
+    { x: 20, y: 50 },
+  ];
+  for (const pt of spanner) {
+    assert.equal(pointInPolygon(pt, C_SHAPE), true, `vertex ${pt.x},${pt.y} is inside`);
+  }
+  assert.equal(polygonContains(C_SHAPE, spanner), false);
+});
+
+test('polygonContains accepts a part that fits inside one arm of the concavity', () => {
+  const inArm = [
+    { x: 5, y: 30 },
+    { x: 25, y: 30 },
+    { x: 25, y: 55 },
+    { x: 5, y: 55 },
+  ];
+  assert.equal(polygonContains(C_SHAPE, inArm), true);
+});
+
+test('polygonContains returns false for degenerate input rather than throwing', () => {
+  assert.equal(polygonContains(RECT, [{ x: 1, y: 1 }, { x: 2, y: 2 }]), false);
+  assert.equal(polygonContains([{ x: 0, y: 0 }], RECT), false);
+});
+
+test('inflatePolygon grows a rectangle by the given mm on every side', () => {
+  const grown = inflatePolygon(
+    [
+      { x: 0, y: 0 },
+      { x: 35, y: 0 },
+      { x: 35, y: 12 },
+      { x: 0, y: 12 },
+    ],
+    0.6
+  );
+  const b = boundingBox(grown);
+  assert.ok(Math.abs(b.maxX - b.minX - 36.2) < 1e-6, `width ${b.maxX - b.minX}`);
+  assert.ok(Math.abs(b.maxY - b.minY - 13.2) < 1e-6, `height ${b.maxY - b.minY}`);
+});
+
+test('inflatePolygon returns the polygon unchanged for zero, negative, or non-finite mm', () => {
+  for (const mm of [0, -3, NaN, undefined]) {
+    assert.deepEqual(inflatePolygon(RECT, mm), RECT, `mm=${mm}`);
+  }
 });
