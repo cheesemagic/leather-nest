@@ -40,7 +40,17 @@ export function place(sheetPolygon, parts, options = {}) {
     // part ends up 10mm away. Inflating each by its FULL clearance (rather
     // than half) is what produces that.
     const rawClearance = part.clearanceMm ?? defaultClearanceMm;
-    const clearanceMm = Number.isFinite(rawClearance) && rawClearance > 0 ? rawClearance : 0;
+    // Cap as well as floor. A finite but absurd clearance (1e18) passes
+    // Number.isFinite yet overflows clipper's coordinate range, and clipper
+    // reports that by calling alert() — which throws in Node and, worse,
+    // returns silently in a browser, leaving placement to run on a bogus
+    // offset. Anything wider than the sheet can never fit anyway, so the
+    // cap costs no real placement and keeps the offset in range.
+    const maxUsefulClearanceMm = sheetWidth + sheetHeight;
+    const clearanceMm =
+      Number.isFinite(rawClearance) && rawClearance > 0
+        ? Math.min(rawClearance, maxUsefulClearanceMm)
+        : 0;
 
     // Records predating the component metadata feature have no
     // allowedRotations key at all; default to full rotation freedom rather

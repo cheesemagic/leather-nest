@@ -282,6 +282,20 @@ test('Infinity clearanceMm is treated as 0 rather than crashing', () => {
   assert.deepEqual(infinite.placements, flush.placements);
 });
 
+test('a finite but absurd clearanceMm reports noFit instead of crashing clipper', () => {
+  // 1e18 passes Number.isFinite but overflows clipper's coordinate range,
+  // where clipper reports the error by calling alert() — it throws in Node
+  // and returns silently in a browser. Unlike Infinity (spec: treat as 0),
+  // this is a real request that simply cannot be satisfied, so the honest
+  // answer is noFit rather than quietly ignoring the clearance.
+  const parts = [{ id: 'A', polygon: SQUARE_20, allowedRotations: [0] }];
+
+  const result = nest(WIDE_SHEET, parts, { clearanceMm: 1e18 });
+
+  assert.deepEqual(result.noFit, ['A']);
+  assert.equal(result.placements.length, 0);
+});
+
 test('clearance holds a part off the sheet edge', () => {
   const parts = [{ id: 'A', polygon: SQUARE_20, allowedRotations: [0] }];
 
