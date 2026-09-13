@@ -6,17 +6,20 @@ import {
   toClipperPath,
   placedPolygon,
   polygonContains,
+  inflatePolygon,
+  translatePolygon,
   SCALE,
 } from './geometry.js';
 import { computeNFP } from './nfp.js';
 
 export const GRID_STEP_MM = 1;
 
-export function place(sheetPolygon, parts) {
+export function place(sheetPolygon, parts, options = {}) {
   const ClipperLib = getClipperLib();
   const sheetBounds = boundingBox(sheetPolygon);
   const sheetWidth = sheetBounds.maxX - sheetBounds.minX;
   const sheetHeight = sheetBounds.maxY - sheetBounds.minY;
+  const defaultClearanceMm = options.clearanceMm;
 
   // Containment is tested against the sheet's true outline via
   // polygonContains. The axis-aligned bounds below are kept only as a free
@@ -29,22 +32,37 @@ export function place(sheetPolygon, parts) {
   for (const part of parts) {
     let accepted = null;
 
+    // Clearances are not shared between neighbours: each part reserves its
+    // full clearance around its own cut line, so an 8mm part beside a 2mm
+    // part ends up 10mm away. Inflating each by its FULL clearance (rather
+    // than half) is what produces that.
+    const rawClearance = part.clearanceMm ?? defaultClearanceMm;
+    const clearanceMm = rawClearance > 0 ? rawClearance : 0;
+
     // Records predating the component metadata feature have no
     // allowedRotations key at all; default to full rotation freedom rather
     // than throwing on `for...of undefined`.
     for (const rotation of part.allowedRotations ?? [0, 90, 180, 270]) {
       const normalized = normalizeToOrigin(rotatePolygon(part.polygon, rotation));
-      const partBounds = boundingBox(normalized);
-      const width = partBounds.maxX;
-      const height = partBounds.maxY;
 
-      if (width > sheetWidth || height > sheetHeight) {
+      // The test shape carries the clearance and is deliberately NOT
+      // re-normalized: expressed relative to the true part's origin it
+      // spans (-c,-c)..(w+c,h+c), which keeps the scan position, the NFP's
+      // reference point, and the reported polygon on one shared origin.
+      const testShape = inflatePolygon(normalized, clearanceMm);
+      const testBounds = boundingBox(testShape);
+      const testWidth = testBounds.maxX - testBounds.minX;
+      const testHeight = testBounds.maxY - testBounds.minY;
+
+      if (testWidth > sheetWidth || testHeight > sheetHeight) {
         continue;
       }
 
-      const maxX = sheetBounds.maxX - width;
-      const maxY = sheetBounds.maxY - height;
-      const forbiddenRegions = placed.flatMap((p) => computeNFP(p.polygon, normalized));
+      const minX = sheetBounds.minX - testBounds.minX;
+      const minY = sheetBounds.minY - testBounds.minY;
+      const maxX = sheetBounds.maxX - testBounds.maxX;
+      const maxY = sheetBounds.maxY - testBounds.maxY;
+      const forbiddenRegions = placed.flatMap((p) => computeNFP(p.testPolygon, testShape));
       // Forbidden regions don't change during the grid scan below, so
       // convert to clipper format once per rotation trial rather than once
       // per candidate point (was 4.8x slower re-converting per point).
@@ -53,8 +71,8 @@ export function place(sheetPolygon, parts) {
       let found = null;
       // Bottom-left-fill scan: rows from sheet minY upward, left to right
       // within each row, first valid position wins.
-      for (let y = sheetBounds.minY; y <= maxY && !found; y += GRID_STEP_MM) {
-        for (let x = sheetBounds.minX; x <= maxX && !found; x += GRID_STEP_MM) {
+      for (let y = minY; y <= maxY && !found; y += GRID_STEP_MM) {
+        for (let x = minX; x <= maxX && !found; x += GRID_STEP_MM) {
           const clipperPoint = new ClipperLib.IntPoint2(
             Math.round(x * SCALE),
             Math.round(y * SCALE)
@@ -66,9 +84,15 @@ export function place(sheetPolygon, parts) {
               ClipperLib.Clipper.PointInPolygon(clipperPoint, path) === 1
           );
           if (!overlapsPlacedPart) {
-            const candidate = placedPolygon(part, { x, y, rotation });
-            if (polygonContains(sheetPolygon, candidate)) {
-              found = { x, y, rotation, polygon: candidate };
+            const placedTestShape = translatePolygon(testShape, x, y);
+            if (polygonContains(sheetPolygon, placedTestShape)) {
+              found = {
+                x,
+                y,
+                rotation,
+                polygon: placedPolygon(part, { x, y, rotation }),
+                testPolygon: placedTestShape,
+              };
             }
           }
         }
@@ -81,7 +105,7 @@ export function place(sheetPolygon, parts) {
     }
 
     if (accepted) {
-      placed.push({ polygon: accepted.polygon });
+      placed.push({ polygon: accepted.polygon, testPolygon: accepted.testPolygon });
       placements.push({ id: part.id, x: accepted.x, y: accepted.y, rotation: accepted.rotation });
     } else {
       noFit.push(part.id);

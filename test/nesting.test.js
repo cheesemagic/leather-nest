@@ -141,3 +141,100 @@ test('a part small enough for the real outline still places inside an irregular 
   assert.equal(result.noFit.length, 0);
   assert.equal(result.placements.length, 1);
 });
+
+function minGapBetween(polyA, polyB) {
+  // Smallest distance between any vertex of one and any edge of the other,
+  // which is enough for the axis-aligned rectangles used in these tests.
+  const pointToSegment = (p, a, b) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+    const cx = a.x + t * dx;
+    const cy = a.y + t * dy;
+    return Math.hypot(p.x - cx, p.y - cy);
+  };
+  let min = Infinity;
+  for (const [from, to] of [[polyA, polyB], [polyB, polyA]]) {
+    for (const p of from) {
+      for (let i = 0; i < to.length; i++) {
+        min = Math.min(min, pointToSegment(p, to[i], to[(i + 1) % to.length]));
+      }
+    }
+  }
+  return min;
+}
+
+const SQUARE_20 = [
+  { x: 0, y: 0 },
+  { x: 20, y: 0 },
+  { x: 20, y: 20 },
+  { x: 0, y: 20 },
+];
+
+const WIDE_SHEET = [
+  { x: 0, y: 0 },
+  { x: 200, y: 0 },
+  { x: 200, y: 100 },
+  { x: 0, y: 100 },
+];
+
+test('a job-level clearance separates placed parts by at least that much', () => {
+  const parts = [
+    { id: 'A', polygon: SQUARE_20, allowedRotations: [0] },
+    { id: 'B', polygon: SQUARE_20, allowedRotations: [0] },
+  ];
+
+  const result = nest(WIDE_SHEET, parts, { clearanceMm: 6 });
+
+  assert.equal(result.placements.length, 2);
+  const placedPolys = result.placements.map((p) =>
+    placedPolygon(parts.find((q) => q.id === p.id), p)
+  );
+  const gap = minGapBetween(placedPolys[0], placedPolys[1]);
+  assert.ok(gap >= 6 - 1e-6, `gap was ${gap}`);
+});
+
+test('clearances are NOT shared: 8mm beside 2mm leaves 10mm, not 5mm', () => {
+  const parts = [
+    { id: 'needy', polygon: SQUARE_20, allowedRotations: [0], clearanceMm: 8 },
+    { id: 'modest', polygon: SQUARE_20, allowedRotations: [0], clearanceMm: 2 },
+  ];
+
+  const result = nest(WIDE_SHEET, parts);
+
+  assert.equal(result.placements.length, 2);
+  const placedPolys = result.placements.map((p) =>
+    placedPolygon(parts.find((q) => q.id === p.id), p)
+  );
+  const gap = minGapBetween(placedPolys[0], placedPolys[1]);
+  assert.ok(gap >= 10 - 1e-6, `expected >= 10mm, got ${gap}`);
+});
+
+test("a part's own clearanceMm overrides the job default", () => {
+  const parts = [
+    { id: 'A', polygon: SQUARE_20, allowedRotations: [0], clearanceMm: 0 },
+    { id: 'B', polygon: SQUARE_20, allowedRotations: [0], clearanceMm: 0 },
+  ];
+
+  const result = nest(WIDE_SHEET, parts, { clearanceMm: 30 });
+
+  const placedPolys = result.placements.map((p) =>
+    placedPolygon(parts.find((q) => q.id === p.id), p)
+  );
+  assert.ok(
+    minGapBetween(placedPolys[0], placedPolys[1]) < 1,
+    'parts overriding to 0 should nest flush despite the job default'
+  );
+});
+
+test('clearance holds a part off the sheet edge', () => {
+  const parts = [{ id: 'A', polygon: SQUARE_20, allowedRotations: [0] }];
+
+  const flush = nest(WIDE_SHEET, parts);
+  const inset = nest(WIDE_SHEET, parts, { clearanceMm: 5 });
+
+  assert.equal(flush.placements[0].x, 0);
+  assert.ok(inset.placements[0].x >= 5 - 1e-6, `x was ${inset.placements[0].x}`);
+  assert.ok(inset.placements[0].y >= 5 - 1e-6, `y was ${inset.placements[0].y}`);
+});
