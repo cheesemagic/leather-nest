@@ -132,20 +132,11 @@ function validateDieUpdate(payload, existing) {
       if (value !== null && !(typeof value === 'number' && Number.isFinite(value))) {
         return { error: `${field} must be a number or null.` };
       }
-      // A negative value per piece or die clearance is meaningless, and a
-      // negative die clearance would be actively wrong — it would read as a
-      // die that fits inside its own cut line.
-      //
-      // The thickness bounds are deliberately NOT checked here, and are not
-      // checked anywhere else either: the range check below only rejects an
-      // INVERTED range (min > max), so a lone negative thickness is accepted
-      // and stored. That gap predates this field; it is recorded rather than
-      // silently papered over.
-      if (
-        (field === 'valuePerPiece' || field === 'dieClearanceMm') &&
-        value !== null &&
-        value < 0
-      ) {
+      // All four are magnitudes — a price, two material thicknesses, and a
+      // die clearance — so none can meaningfully be negative. The range
+      // check further down only catches an INVERTED range (min > max), so
+      // without this a lone negative thickness would be accepted and stored.
+      if (value !== null && value < 0) {
         return { error: `${field} must not be negative.` };
       }
       result[field] = value;
@@ -429,6 +420,21 @@ function createDiesRoutes(dataDir) {
       allowedRotations: rotationsOrUndefined(getField('allowedRotations')),
       demand: numberOrNull(getField('demand')) ?? 0,
     };
+
+    // The same magnitude rule validateDieUpdate applies. Without it the
+    // create path is the back door: numberOrNull passes -5 straight through,
+    // so a component could be created with a negative thickness or price
+    // that the update route would refuse to set. Only numbers are checked,
+    // which leaves allowedRotations (an array, where negative degrees are
+    // legitimate) alone.
+    const negativeField = Object.entries(metadata).find(
+      ([, value]) => typeof value === 'number' && value < 0
+    );
+    if (negativeField) {
+      cleanupFiles(files);
+      sendJSON(res, 400, { error: `${negativeField[0]} must not be negative.` });
+      return;
+    }
 
     if (svgFile) {
       const svgContent = fs.readFileSync(svgFile.filepath, 'utf8');

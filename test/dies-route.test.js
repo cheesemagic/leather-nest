@@ -271,6 +271,48 @@ test('POST /dies/:id returns 400 for an empty allowedRotations array', async () 
   });
 });
 
+test('POST /dies/:id returns 400 for a negative thickness bound', async () => {
+  // The inverted-range check below only catches min > max, so a LONE negative
+  // slipped through and was stored: POST { thicknessMinMm: -5 } used to
+  // return 200. A thickness is a magnitude; it cannot be negative.
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl)).json();
+
+    const min = await updateDie(baseUrl, created.id, { thicknessMinMm: -5 });
+    assert.equal(min.status, 400);
+    assert.match((await min.json()).error, /thicknessMinMm/);
+
+    const max = await updateDie(baseUrl, created.id, { thicknessMaxMm: -1 });
+    assert.equal(max.status, 400);
+    assert.match((await max.json()).error, /thicknessMaxMm/);
+  });
+});
+
+test('POST /dies rejects a negative magnitude at creation too', async () => {
+  // The create path is the back door: numberOrNull passes -5 straight
+  // through, so without a guard a component could be CREATED with a negative
+  // thickness or price that the update route would refuse to set.
+  await withServer(async (baseUrl) => {
+    const negThickness = await postDieDimensions(baseUrl, {
+      fields: { widthMm: 35, heightMm: 12, thicknessMinMm: -5 },
+    });
+    assert.equal(negThickness.status, 400);
+    assert.match((await negThickness.json()).error, /thicknessMinMm/);
+
+    const negValue = await postDieDimensions(baseUrl, {
+      fields: { widthMm: 35, heightMm: 12, valuePerPiece: -2 },
+    });
+    assert.equal(negValue.status, 400);
+    assert.match((await negValue.json()).error, /valuePerPiece/);
+
+    // A legitimate component still creates cleanly.
+    const ok = await postDieDimensions(baseUrl, {
+      fields: { widthMm: 35, heightMm: 12, thicknessMinMm: 1.2, thicknessMaxMm: 2.4 },
+    });
+    assert.equal(ok.status, 200);
+  });
+});
+
 test('POST /dies/:id returns 400 for an inverted thickness range', async () => {
   await withServer(async (baseUrl) => {
     const created = await (await postDieDimensions(baseUrl)).json();
