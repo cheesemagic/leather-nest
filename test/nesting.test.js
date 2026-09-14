@@ -7,6 +7,7 @@ globalThis.ClipperLib = ClipperLib;
 
 import { nest } from '../src/nesting/index.js';
 import { boundingBox, placedPolygon, polygonContains } from '../src/nesting/geometry.js';
+import { resolveClearances } from '../src/nesting/clearance.js';
 
 function intersectionArea(polyA, polyB) {
   const SCALE = 1000;
@@ -305,4 +306,28 @@ test('clearance holds a part off the sheet edge', () => {
   assert.equal(flush.placements[0].x, 0);
   assert.ok(inset.placements[0].x >= 5 - 1e-6, `x was ${inset.placements[0].x}`);
   assert.ok(inset.placements[0].y >= 5 - 1e-6, `y was ${inset.placements[0].y}`);
+});
+
+test('resolveClearances output feeds nest() with unshared die clearances', () => {
+  // Proves the two halves agree on the field name and on B's unshared
+  // semantics: two 8mm dies leave 16mm, not 8mm.
+  const components = [
+    { id: 'A', polygon: SQUARE_20, allowedRotations: [0], dieClearanceMm: 8 },
+    { id: 'B', polygon: SQUARE_20, allowedRotations: [0], dieClearanceMm: 8 },
+    { id: 'C', polygon: SQUARE_20, allowedRotations: [0], dieClearanceMm: null },
+  ];
+
+  const { parts, noDie } = resolveClearances(components, { method: 'die' });
+  assert.deepEqual(noDie, ['C'], 'the untooled component never reaches the nester');
+
+  const result = nest(WIDE_SHEET, parts);
+
+  assert.equal(result.placements.length, 2);
+  assert.deepEqual(result.noFit, [], 'noFit stays empty — C was excluded, not unfittable');
+
+  const placedPolys = result.placements.map((p) =>
+    placedPolygon(parts.find((q) => q.id === p.id), p)
+  );
+  const gap = minGapBetween(placedPolys[0], placedPolys[1]);
+  assert.ok(gap >= 16 - 1e-6, `expected >= 16mm between two 8mm dies, got ${gap}`);
 });
