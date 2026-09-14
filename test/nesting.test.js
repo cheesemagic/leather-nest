@@ -385,3 +385,46 @@ test('parts without componentId are never skipped', () => {
   assert.equal(result.placements.length, 1);
   assert.deepEqual(result.noFit, ['b']);
 });
+
+test('many parts of one component all place when they all fit', () => {
+  // Found by mutation testing: marking a component failed on SUCCESS instead
+  // of on failure caps every component at one piece — and the whole suite
+  // still passed, because no other test had two successes sharing a
+  // componentId. For a feature whose entire job is "how many of these fit",
+  // that bug would be catastrophic and completely silent.
+  const sheet = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 100 }, { x: 0, y: 100 }];
+  const small = [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }, { x: 0, y: 20 }];
+  const parts = Array.from({ length: 5 }, (_, i) => ({
+    id: `s#${i}`,
+    componentId: 's',
+    polygon: small,
+    allowedRotations: [0],
+  }));
+
+  const result = nest(sheet, parts);
+
+  assert.equal(result.placements.length, 5, 'a success must not poison its own component');
+  assert.deepEqual(result.noFit, []);
+});
+
+test('a componentId-less failure does not short-circuit a later componentId-less part', () => {
+  // Also found by mutation testing: skipping on an undefined componentId
+  // needs THREE parts to show up. With only two (one fits, one fails) the
+  // bug is invisible, because there is no third part left to wrongly skip.
+  const sheet = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }];
+  const big = [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 50 }, { x: 0, y: 50 }];
+  const small = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 8 }, { x: 0, y: 8 }];
+  const parts = [
+    { id: 'first-big', polygon: big, allowedRotations: [0] },
+    { id: 'doomed-big', polygon: big, allowedRotations: [0] },
+    { id: 'small-after', polygon: small, allowedRotations: [0] },
+  ];
+
+  const result = nest(sheet, parts);
+
+  assert.deepEqual(result.noFit, ['doomed-big']);
+  assert.ok(
+    result.placements.some((p) => p.id === 'small-after'),
+    'a part with no componentId must still be scanned after an earlier one failed'
+  );
+});
