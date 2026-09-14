@@ -132,8 +132,15 @@ function validateDieUpdate(payload, existing) {
       if (value !== null && !(typeof value === 'number' && Number.isFinite(value))) {
         return { error: `${field} must be a number or null.` };
       }
-      // A negative value per piece or die clearance is meaningless; a
-      // negative thickness bound is caught by the range check below.
+      // A negative value per piece or die clearance is meaningless, and a
+      // negative die clearance would be actively wrong — it would read as a
+      // die that fits inside its own cut line.
+      //
+      // The thickness bounds are deliberately NOT checked here, and are not
+      // checked anywhere else either: the range check below only rejects an
+      // INVERTED range (min > max), so a lone negative thickness is accepted
+      // and stored. That gap predates this field; it is recorded rather than
+      // silently papered over.
       if (
         (field === 'valuePerPiece' || field === 'dieClearanceMm') &&
         value !== null &&

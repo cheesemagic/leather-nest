@@ -201,5 +201,17 @@ test('dieClearanceMm defaults to null, and 0 survives a round trip', () => {
 
   assert.equal(store.update(record.id, { dieClearanceMm: null }).dieClearanceMm, null);
 
+  // create() with an EXPLICIT 0, not merely an omitted field. Omitting it
+  // yields null under both `?? null` and `|| null`, so the assertions above
+  // pass either way — mutation testing confirmed a `||` here goes unnoticed.
+  // Nothing calls create() with this today, but the first caller that does
+  // would silently record "no die" for a die needing no margin.
+  const flushDie = store.create({
+    name: 'Flush die',
+    polygon: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }],
+    dieClearanceMm: 0,
+  });
+  assert.equal(flushDie.dieClearanceMm, 0, 'create() must not coerce an explicit 0 to null');
+
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
