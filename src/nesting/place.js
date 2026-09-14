@@ -21,6 +21,20 @@ export function place(sheetPolygon, parts, options = {}) {
   const sheetHeight = sheetBounds.maxY - sheetBounds.minY;
   const defaultClearanceMm = options.clearanceMm;
 
+  // How far apart candidate positions are tried. This is a packing-QUALITY
+  // knob, not a correctness one: every position still passes the same exact
+  // containment and overlap checks, so a coarse layout is genuinely
+  // cuttable — it just packs less tightly. Measured on a 120-vertex hide
+  // asking for 277 keepers: 1mm placed 277 in 172s, 5mm placed 234 in 5.5s.
+  //
+  // Guarded like clearanceMm, and for a sharper reason: a step of 0 loops
+  // forever, and NaN makes `y <= maxY` false immediately so nothing places
+  // at all. Both fall back to the 1mm default, which keeps every existing
+  // caller — src/app.js included — behaving exactly as before.
+  const rawGridStep = options.gridStepMm;
+  const gridStepMm =
+    Number.isFinite(rawGridStep) && rawGridStep > 0 ? rawGridStep : GRID_STEP_MM;
+
   // Containment is tested against the sheet's true outline via
   // polygonContains, which is now exact (backed by a clipper difference, not
   // just the cheap vertex/edge checks). The axis-aligned bounds below are
@@ -109,8 +123,8 @@ export function place(sheetPolygon, parts, options = {}) {
       // mode on an irregular hide, not an edge case. No caching, early
       // exit, or yielding here by design — that's a later optimization
       // pass, not this fix.
-      for (let y = minY; y <= maxY && !found; y += GRID_STEP_MM) {
-        for (let x = minX; x <= maxX && !found; x += GRID_STEP_MM) {
+      for (let y = minY; y <= maxY && !found; y += gridStepMm) {
+        for (let x = minX; x <= maxX && !found; x += gridStepMm) {
           const clipperPoint = new ClipperLib.IntPoint2(
             Math.round(x * SCALE),
             Math.round(y * SCALE)

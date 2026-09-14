@@ -386,6 +386,60 @@ test('parts without componentId are never skipped', () => {
   assert.deepEqual(result.noFit, ['b']);
 });
 
+test('a coarser gridStepMm lands placements on multiples of that step', () => {
+  // The grid step is a packing-QUALITY knob, not a correctness one: every
+  // placement still passes the same containment and overlap checks, so a
+  // coarse layout is genuinely cuttable — it just packs less tightly.
+  // Measured on a real hide: 1mm found 277 keepers in 172s, 5mm found 234
+  // in 5.5s. Both are real layouts.
+  const sheet = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 100 }, { x: 0, y: 100 }];
+  const small = [{ x: 0, y: 0 }, { x: 13, y: 0 }, { x: 13, y: 13 }, { x: 0, y: 13 }];
+  const parts = Array.from({ length: 8 }, (_, i) => ({
+    id: `s#${i}`,
+    polygon: small,
+    allowedRotations: [0],
+  }));
+
+  const coarse = nest(sheet, parts, { gridStepMm: 10 });
+
+  assert.ok(coarse.placements.length > 0);
+  for (const p of coarse.placements) {
+    assert.equal(p.x % 10, 0, `x=${p.x} is not on the 10mm grid`);
+    assert.equal(p.y % 10, 0, `y=${p.y} is not on the 10mm grid`);
+  }
+});
+
+test('omitting gridStepMm reproduces the 1mm result exactly', () => {
+  // The nester's own default stays 1mm, so src/app.js and every existing
+  // caller are untouched by this option existing.
+  const sheet = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 100 }, { x: 0, y: 100 }];
+  const small = [{ x: 0, y: 0 }, { x: 13, y: 0 }, { x: 13, y: 13 }, { x: 0, y: 13 }];
+  const parts = Array.from({ length: 5 }, (_, i) => ({
+    id: `s#${i}`,
+    polygon: small,
+    allowedRotations: [0],
+  }));
+
+  const omitted = nest(sheet, parts);
+  const explicit = nest(sheet, parts, { gridStepMm: 1 });
+
+  assert.deepEqual(omitted.placements, explicit.placements);
+});
+
+test('a non-positive or non-finite gridStepMm falls back to 1mm instead of hanging', () => {
+  // A step of 0 would loop forever and NaN would exit immediately, placing
+  // nothing. Same guard as clearanceMm, for the same reason.
+  const sheet = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 100 }, { x: 0, y: 100 }];
+  const small = [{ x: 0, y: 0 }, { x: 13, y: 0 }, { x: 13, y: 13 }, { x: 0, y: 13 }];
+  const parts = [{ id: 'a', polygon: small, allowedRotations: [0] }];
+  const baseline = nest(sheet, parts).placements;
+
+  for (const gridStepMm of [0, -5, NaN, Infinity, 'big', null]) {
+    const result = nest(sheet, parts, { gridStepMm });
+    assert.deepEqual(result.placements, baseline, `gridStepMm=${String(gridStepMm)}`);
+  }
+});
+
 test('many parts of one component all place when they all fit', () => {
   // Found by mutation testing: marking a component failed on SUCCESS instead
   // of on failure caps every component at one piece — and the whole suite

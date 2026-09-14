@@ -5,7 +5,7 @@ import ClipperLib from 'clipper-lib';
 
 globalThis.ClipperLib = ClipperLib;
 
-import { evaluateCandidate } from '../src/bestuse/evaluate.js';
+import { evaluateCandidate, DEFAULT_SEARCH_GRID_MM } from '../src/bestuse/evaluate.js';
 
 const OUTLINE = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 100 }, { x: 0, y: 100 }];
 const HIDE = { id: 'h1', species: 'alligator', thicknessMm: 1.8, outlinePolygon: OUTLINE, remainingAreaPct: 100 };
@@ -127,4 +127,58 @@ test('placements come from the nester, never from an estimate', () => {
     assert.equal(typeof p.y, 'number');
     assert.equal(typeof p.rotation, 'number');
   }
+});
+
+test('the search defaults to a coarser grid than the nester does', () => {
+  // Deliberately different defaults: place() stays at 1mm so the existing
+  // nest workspace is untouched, while this pipeline — which packs dozens of
+  // candidates — starts coarse. A 1mm scan of a 277-piece candidate measured
+  // 172 seconds against 5.5 at 5mm.
+  assert.equal(DEFAULT_SEARCH_GRID_MM, 5);
+
+  const result = evaluateCandidate(
+    HIDE,
+    candidate([{ component: comp('a', 13, 13), quantity: 6, unverified: [] }]),
+    { method: 'laser', laserClearanceMm: 0 }
+  );
+
+  assert.ok(result.placements.length > 0);
+  for (const p of result.placements) {
+    assert.equal(p.x % DEFAULT_SEARCH_GRID_MM, 0, `x=${p.x} is off the search grid`);
+    assert.equal(p.y % DEFAULT_SEARCH_GRID_MM, 0, `y=${p.y} is off the search grid`);
+  }
+});
+
+test('an explicit gridStepMm overrides the search default', () => {
+  const fine = evaluateCandidate(
+    HIDE,
+    candidate([{ component: comp('a', 13, 13), quantity: 6, unverified: [] }]),
+    { method: 'laser', laserClearanceMm: 0, gridStepMm: 1 }
+  );
+
+  assert.ok(
+    fine.placements.some((p) => p.x % DEFAULT_SEARCH_GRID_MM !== 0 || p.y % DEFAULT_SEARCH_GRID_MM !== 0),
+    'a 1mm run must be able to use positions the 5mm grid cannot reach'
+  );
+});
+
+test('a coarse run packs less tightly but every placement is still real', () => {
+  // The trade this setting exists to make: fewer pieces, same exactness.
+  // A coarse layout is genuinely cuttable — it just leaves more waste — so
+  // utilization may drop while nothing becomes invalid.
+  const items = [{ component: comp('a', 13, 13), quantity: 60, unverified: [] }];
+
+  const coarse = evaluateCandidate(HIDE, candidate(items), {
+    method: 'laser', laserClearanceMm: 0, gridStepMm: 10,
+  });
+  const fine = evaluateCandidate(HIDE, candidate(items), {
+    method: 'laser', laserClearanceMm: 0, gridStepMm: 1,
+  });
+
+  assert.ok(
+    coarse.placements.length < fine.placements.length,
+    `coarse placed ${coarse.placements.length}, fine placed ${fine.placements.length}`
+  );
+  assert.ok(coarse.utilization <= fine.utilization);
+  assert.ok(coarse.placements.length > 0, 'coarse must still produce a usable layout');
 });

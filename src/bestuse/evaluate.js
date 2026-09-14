@@ -2,6 +2,10 @@ import { nest } from '../nesting/index.js';
 import { polygonArea } from '../nesting/geometry.js';
 import { resolveClearances } from '../nesting/clearance.js';
 
+// The search grid, coarser than the nester's own 1mm default. See the note
+// at the nest() call below for why the two differ.
+export const DEFAULT_SEARCH_GRID_MM = 5;
+
 // Turns one candidate into an exactly-nested, scored result. Every number
 // here comes from the nester — no estimate reaches this module.
 export function evaluateCandidate(hide, candidate, options = {}) {
@@ -24,7 +28,17 @@ export function evaluateCandidate(hide, candidate, options = {}) {
   }
 
   const { parts: cuttable, noDie: noDiePartIds } = resolveClearances(parts, options);
-  const { placements, noFit: noFitPartIds } = nest(hide.outlinePolygon, cuttable);
+  // The SEARCH defaults coarser than the nester does, and the difference is
+  // deliberate. place() stays at 1mm so the existing nest workspace is
+  // untouched; this pipeline packs dozens of candidates, and a 1mm scan of a
+  // 277-piece candidate measured 172 seconds against 5.5 at 5mm. Every
+  // placement is still exact — the coarse layout is genuinely cuttable, it
+  // just leaves more waste. Callers that want maximum yield pass 1.
+  const gridStepMm = options.gridStepMm ?? DEFAULT_SEARCH_GRID_MM;
+  const { placements, noFit: noFitPartIds } = nest(hide.outlinePolygon, cuttable, {
+    ...options,
+    gridStepMm,
+  });
 
   // resolveClearances and nest() both speak in PART ids ("strap#3"), because
   // one component becomes many parts. The operator thinks in components, so
