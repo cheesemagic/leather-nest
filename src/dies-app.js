@@ -242,6 +242,7 @@ function openEdit(component) {
   document.getElementById('edit-thickness-min').value = component.thicknessMinMm ?? '';
   document.getElementById('edit-thickness-max').value = component.thicknessMaxMm ?? '';
   document.getElementById('edit-rotations').value = (component.allowedRotations || []).join(', ');
+  document.getElementById('edit-die-clearance').value = component.dieClearanceMm ?? '';
   editStatus.textContent = '';
   editDialog.hidden = false;
 }
@@ -257,6 +258,7 @@ document.getElementById('save-edit').addEventListener('click', async () => {
   const demand = document.getElementById('edit-demand').value;
   const thicknessMin = document.getElementById('edit-thickness-min').value;
   const thicknessMax = document.getElementById('edit-thickness-max').value;
+  const dieClearance = document.getElementById('edit-die-clearance').value;
   const speciesRaw = document.getElementById('edit-species').value.trim();
   const rotationsRaw = document.getElementById('edit-rotations').value.trim();
 
@@ -274,6 +276,7 @@ document.getElementById('save-edit').addEventListener('click', async () => {
     demand: demand === '' ? 0 : Number(demand),
     thicknessMinMm: thicknessMin === '' ? null : Number(thicknessMin),
     thicknessMaxMm: thicknessMax === '' ? null : Number(thicknessMax),
+    dieClearanceMm: dieClearance === '' ? null : Number(dieClearance),
     allowedSpecies: speciesList.length ? speciesList : null,
   };
   // An empty array is invalid per the update route's rules — omit the key
