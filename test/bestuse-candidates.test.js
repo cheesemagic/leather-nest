@@ -1,8 +1,9 @@
 // test/bestuse-candidates.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateCapacity, PACKING_EFFICIENCY } from '../src/bestuse/estimate.js';
+import { estimateCapacity, PACKING_EFFICIENCY, ESTIMATE_SCORERS } from '../src/bestuse/estimate.js';
 import { generateCandidates, SHORTLIST_SIZE } from '../src/bestuse/candidates.js';
+import { RANKING_STRATEGIES } from '../src/bestuse/ranking.js';
 
 const OUTLINE = [{ x: 0, y: 0 }, { x: 600, y: 0 }, { x: 600, y: 400 }, { x: 0, y: 400 }];
 const HIDE = { id: 'h1', species: 'alligator', thicknessMm: 1.8, outlinePolygon: OUTLINE, remainingAreaPct: 100 };
@@ -112,23 +113,85 @@ test('singles mode shortlists to SHORTLIST_SIZE, keeping the best by strategy', 
 });
 
 test('the shortlist depends on the strategy, not a fixed value ordering', () => {
-  // A cheap component that fits many times beats a dear one under
-  // utilization and loses under value. If shortlisting ignored the strategy,
-  // the utilization winner would be dropped before it was ever nested — a
-  // bug invisible in the final output.
+  // If shortlisting ignored the strategy, the utilization winner would be
+  // dropped before it was ever nested — and every result that DID appear
+  // would look perfectly reasonable, so nobody would notice.
+  //
+  // This needs SEVEN components to discriminate. An earlier six-component
+  // version was vacuous: `tiny` scored 450 by value, second behind `dear`
+  // at 500, so it survived the top five under BOTH strategies and the
+  // assertion could not fail. Mutation testing caught that — hardcoding the
+  // scorer to `value` left the whole suite green.
+  //
+  // With five fillers at 540 by value, `tiny` (450) is pushed out under
+  // value but stays in under utilization (450 pieces x 400mm^2 = 180,000,
+  // tying the fillers and beating `dear` at 120,000).
   const eligible = [
     elig(comp('tiny', 20, 20, { valuePerPiece: 1 })),
     elig(comp('dear', 300, 400, { valuePerPiece: 500 })),
-    elig(comp('f1', 100, 100, { valuePerPiece: 9 })),
-    elig(comp('f2', 100, 100, { valuePerPiece: 9 })),
-    elig(comp('f3', 100, 100, { valuePerPiece: 9 })),
-    elig(comp('f4', 100, 100, { valuePerPiece: 9 })),
+    elig(comp('f1', 100, 100, { valuePerPiece: 30 })),
+    elig(comp('f2', 100, 100, { valuePerPiece: 30 })),
+    elig(comp('f3', 100, 100, { valuePerPiece: 30 })),
+    elig(comp('f4', 100, 100, { valuePerPiece: 30 })),
+    elig(comp('f5', 100, 100, { valuePerPiece: 30 })),
+  ];
+  const shortlistFor = (strategy) =>
+    generateCandidates('singles', eligible, { hide: HIDE, strategy })
+      .map((c) => c.items[0].component.id);
+
+  const byValue = shortlistFor('value');
+  const byUtil = shortlistFor('utilization');
+
+  assert.ok(!byValue.includes('tiny'), 'tiny is not worth enough to make the value shortlist');
+  assert.ok(byUtil.includes('tiny'), 'but it fills the most area, so utilization must keep it');
+});
+
+test('the demand shortlist favours what was ordered, not what fits most', () => {
+  // Without this, demand mode shortlists by raw capacity: 450 keepers nobody
+  // ordered would crowd out the strap with twelve orders against it — for
+  // the one question the mode exists to answer.
+  const eligible = [
+    elig(comp('keeper', 20, 20, { valuePerPiece: 1, demand: 0 })),
+    elig(comp('strap', 38, 400, { valuePerPiece: 60, demand: 12 })),
   ];
 
-  const byUtil = generateCandidates('singles', eligible, { hide: HIDE, strategy: 'utilization' })
+  const byDemand = generateCandidates('singles', eligible, { hide: HIDE, strategy: 'demand' })
     .map((c) => c.items[0].component.id);
 
-  assert.ok(byUtil.includes('tiny'), 'tiny fills the most area and must be shortlisted');
+  assert.equal(byDemand[0], 'strap', 'the ordered component must come first under demand');
+});
+
+test('the utilization scorer weighs area, not piece count', () => {
+  // Tested against the scorer directly rather than through a shortlist,
+  // because a real estimate cannot separate these: `pieces` is itself
+  // floor(hideArea * efficiency / partArea), so pieces x partArea comes back
+  // to roughly hideArea * efficiency for EVERY component. Two components
+  // chosen at random tie almost exactly (measured: 450 x 400 and 15 x 12,000
+  // both give 180,000), which is why a shortlist-based version of this test
+  // failed to discriminate.
+  //
+  // With the piece counts fixed, the two rankings disagree outright: by
+  // count the small component wins 10 to 2; by area the large one wins
+  // 240,000 to 4,000.
+  const small = comp('small', 20, 20); // 400mm^2
+  const large = comp('large', 300, 400); // 120,000mm^2
+
+  const smallScore = ESTIMATE_SCORERS.utilization({ pieces: 10, estimatedValue: 0 }, small);
+  const largeScore = ESTIMATE_SCORERS.utilization({ pieces: 2, estimatedValue: 0 }, large);
+
+  assert.equal(smallScore, 4000);
+  assert.equal(largeScore, 240000);
+  assert.ok(largeScore > smallScore, 'area used must beat piece count');
+});
+
+test('the estimate scorers and the ranking strategies offer the same questions', () => {
+  // If one gained a key the other lacked, the shortlist would score by a
+  // different question than the ranking asks. Key drift is loud (both throw
+  // on an unknown strategy), but this pins it rather than relying on that.
+  assert.deepEqual(
+    Object.keys(ESTIMATE_SCORERS).sort(),
+    Object.keys(RANKING_STRATEGIES).sort()
+  );
 });
 
 test('singles mode drops components that cannot fit even once', () => {
