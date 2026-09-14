@@ -318,3 +318,37 @@ test('POST /dies/:id accepts a valid update end to end', async () => {
     assert.equal(listed.name, 'Belt keeper 35mm v2');
   });
 });
+
+test('POST /dies/:id accepts dieClearanceMm, including 0 and null', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl)).json();
+    assert.equal(created.dieClearanceMm, null, 'new components own no die');
+
+    const set = await updateDie(baseUrl, created.id, { dieClearanceMm: 8 });
+    assert.equal(set.status, 200);
+    assert.equal((await set.json()).dieClearanceMm, 8);
+
+    // A die needing no margin. Must not be coerced to null.
+    const zero = await updateDie(baseUrl, created.id, { dieClearanceMm: 0 });
+    assert.equal(zero.status, 200);
+    assert.equal((await zero.json()).dieClearanceMm, 0);
+
+    const cleared = await updateDie(baseUrl, created.id, { dieClearanceMm: null });
+    assert.equal(cleared.status, 200);
+    assert.equal((await cleared.json()).dieClearanceMm, null);
+  });
+});
+
+test('POST /dies/:id returns 400 for a string or negative dieClearanceMm', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postDieDimensions(baseUrl)).json();
+
+    const asString = await updateDie(baseUrl, created.id, { dieClearanceMm: '8' });
+    assert.equal(asString.status, 400);
+    assert.match((await asString.json()).error, /dieClearanceMm/);
+
+    const negative = await updateDie(baseUrl, created.id, { dieClearanceMm: -1 });
+    assert.equal(negative.status, 400);
+    assert.match((await negative.json()).error, /negative/);
+  });
+});

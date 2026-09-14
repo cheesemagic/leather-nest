@@ -16,6 +16,7 @@ const METADATA_FIELDS = [
   'thicknessMaxMm',
   'allowedRotations',
   'demand',
+  'dieClearanceMm',
 ];
 
 export function createStore(dataDir) {
@@ -55,6 +56,7 @@ export function createStore(dataDir) {
     thicknessMaxMm,
     allowedRotations,
     demand,
+    dieClearanceMm,
   }) {
     ensureDir();
     const id = crypto.randomUUID();
@@ -69,6 +71,7 @@ export function createStore(dataDir) {
       thicknessMaxMm: thicknessMaxMm ?? null,
       allowedRotations: allowedRotations ?? [0, 90, 180, 270],
       demand: demand ?? 0,
+      dieClearanceMm: dieClearanceMm ?? null,
       createdAt: new Date().toISOString(),
     };
     fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));

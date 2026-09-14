@@ -121,14 +121,25 @@ function validateDieUpdate(payload, existing) {
     result.productFamily = trimmed === '' ? null : trimmed;
   }
 
-  for (const field of ['valuePerPiece', 'thicknessMinMm', 'thicknessMaxMm']) {
+  for (const field of [
+    'valuePerPiece',
+    'thicknessMinMm',
+    'thicknessMaxMm',
+    'dieClearanceMm',
+  ]) {
     if (field in payload) {
       const value = payload[field];
       if (value !== null && !(typeof value === 'number' && Number.isFinite(value))) {
         return { error: `${field} must be a number or null.` };
       }
-      if (field === 'valuePerPiece' && value !== null && value < 0) {
-        return { error: 'valuePerPiece must not be negative.' };
+      // A negative value per piece or die clearance is meaningless; a
+      // negative thickness bound is caught by the range check below.
+      if (
+        (field === 'valuePerPiece' || field === 'dieClearanceMm') &&
+        value !== null &&
+        value < 0
+      ) {
+        return { error: `${field} must not be negative.` };
       }
       result[field] = value;
     }

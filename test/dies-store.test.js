@@ -180,3 +180,26 @@ test('list() and update() handle a legacy record with none of the metadata field
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+test('dieClearanceMm defaults to null, and 0 survives a round trip', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+
+  const record = store.create({
+    name: 'Belt strap 38mm',
+    polygon: [{ x: 0, y: 0 }, { x: 38, y: 0 }, { x: 38, y: 900 }, { x: 0, y: 900 }],
+  });
+  assert.equal(record.dieClearanceMm, null, 'a brand new component owns no die');
+
+  assert.equal(store.update(record.id, { dieClearanceMm: 8 }).dieClearanceMm, 8);
+
+  // 0 is a real die that needs no margin beyond its cut line. If anything
+  // treats it as falsy it will read as "no die" and the component will be
+  // wrongly excluded from every die job.
+  assert.equal(store.update(record.id, { dieClearanceMm: 0 }).dieClearanceMm, 0);
+  assert.equal(store.list()[0].dieClearanceMm, 0, '0 persists to disk as 0');
+
+  assert.equal(store.update(record.id, { dieClearanceMm: null }).dieClearanceMm, null);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
