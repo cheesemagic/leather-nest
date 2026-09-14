@@ -32,7 +32,21 @@ export function place(sheetPolygon, parts, options = {}) {
   const placements = [];
   const noFit = [];
 
+  // Once a part fails, every later part from the SAME component fails too:
+  // `placed` only grows during this call, so the free region only ever
+  // shrinks, and a part that fit nowhere cannot fit against less space.
+  // Skipping them turns a wasted full grid scan per part into nothing — a
+  // measured 12.9s drops to roughly the cost of the parts that could fit.
+  // componentId is optional; parts without it are never skipped, so existing
+  // callers behave exactly as before.
+  const failedComponentIds = new Set();
+
   for (const part of parts) {
+    if (part.componentId !== undefined && failedComponentIds.has(part.componentId)) {
+      noFit.push(part.id);
+      continue;
+    }
+
     let accepted = null;
 
     // Clearances are not shared between neighbours: each part reserves its
@@ -133,6 +147,7 @@ export function place(sheetPolygon, parts, options = {}) {
       placements.push({ id: part.id, x: accepted.x, y: accepted.y, rotation: accepted.rotation });
     } else {
       noFit.push(part.id);
+      if (part.componentId !== undefined) failedComponentIds.add(part.componentId);
     }
   }
 

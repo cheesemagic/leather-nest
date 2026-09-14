@@ -331,3 +331,57 @@ test('resolveClearances output feeds nest() with unshared die clearances', () =>
   const gap = minGapBetween(placedPolys[0], placedPolys[1]);
   assert.ok(gap >= 16 - 1e-6, `expected >= 16mm between two 8mm dies, got ${gap}`);
 });
+
+test('a failed part short-circuits later parts of the same component', () => {
+  // The sheet fits exactly one 80x50. The 2nd and 3rd are doomed the moment
+  // the 1st is placed, so they must be reported noFit without scanning.
+  const sheet = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }];
+  const big = [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 50 }, { x: 0, y: 50 }];
+  const parts = [
+    { id: 'big#0', componentId: 'big', polygon: big, allowedRotations: [0] },
+    { id: 'big#1', componentId: 'big', polygon: big, allowedRotations: [0] },
+    { id: 'big#2', componentId: 'big', polygon: big, allowedRotations: [0] },
+  ];
+
+  const result = nest(sheet, parts);
+
+  assert.equal(result.placements.length, 1);
+  assert.deepEqual(result.noFit, ['big#1', 'big#2']);
+});
+
+test('the skip is per-component: a different component is still tried', () => {
+  // This is the test that fails if the skip is global rather than keyed on
+  // componentId — the small part fits easily and must still be placed.
+  const sheet = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }];
+  const big = [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 50 }, { x: 0, y: 50 }];
+  const small = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 8 }, { x: 0, y: 8 }];
+  const parts = [
+    { id: 'big#0', componentId: 'big', polygon: big, allowedRotations: [0] },
+    { id: 'big#1', componentId: 'big', polygon: big, allowedRotations: [0] },
+    { id: 'small#0', componentId: 'small', polygon: small, allowedRotations: [0] },
+  ];
+
+  const result = nest(sheet, parts);
+
+  assert.deepEqual(result.noFit, ['big#1']);
+  assert.ok(
+    result.placements.some((p) => p.id === 'small#0'),
+    'a different component must still be scanned after big failed'
+  );
+});
+
+test('parts without componentId are never skipped', () => {
+  // Backward compatibility: identical parts with no componentId each get
+  // their own scan, exactly as before this feature.
+  const sheet = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }];
+  const big = [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 50 }, { x: 0, y: 50 }];
+  const parts = [
+    { id: 'a', polygon: big, allowedRotations: [0] },
+    { id: 'b', polygon: big, allowedRotations: [0] },
+  ];
+
+  const result = nest(sheet, parts);
+
+  assert.equal(result.placements.length, 1);
+  assert.deepEqual(result.noFit, ['b']);
+});
