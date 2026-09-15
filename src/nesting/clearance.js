@@ -11,6 +11,27 @@ export const DEFAULT_LASER_CLEARANCE_MM = 1.0;
 // 8mm die, it has no die at all.
 export const DEFAULT_DIE_CLEARANCE_MM = 8.0;
 
+// The single rule for "how much clear space does THIS part need under THIS
+// method". Shared so the cheap area estimate and the real nester cannot
+// drift apart — the estimate ignoring clearance under-counted a 35x12mm
+// keeper's footprint by 2.7x, because at 6mm the clearance IS most of the
+// footprint (47x24mm occupied against 35x12mm of leather).
+//
+// Returns null under 'die' when no die is owned: that part cannot be cut at
+// all, which is a different answer from "needs no clearance".
+export function clearanceFor(part, options = {}) {
+  const { method = 'laser', laserClearanceMm = DEFAULT_LASER_CLEARANCE_MM } = options;
+
+  if (method !== 'laser' && method !== 'die') {
+    throw new Error(`Unknown cutting method "${method}". Expected "laser" or "die".`);
+  }
+  if (method === 'laser') return laserClearanceMm;
+
+  // `??`, not a falsy check: a dieClearanceMm of 0 is a real die needing no
+  // margin beyond its cut line, and must not read as "no die".
+  return part.dieClearanceMm ?? null;
+}
+
 export function resolveClearances(parts, options = {}) {
   const { method = 'laser', laserClearanceMm = DEFAULT_LASER_CLEARANCE_MM } = options;
 

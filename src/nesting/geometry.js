@@ -175,6 +175,18 @@ export function polygonArea(polygon) {
   return Math.abs(sum) / 2;
 }
 
+// Perimeter, for estimating how much a polygon grows when inflated without
+// paying for a real clipper offset. See estimateCapacity.
+export function polygonPerimeter(polygon) {
+  let total = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    total += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  return total;
+}
+
 export function normalizeToOrigin(polygon) {
   const bounds = boundingBox(polygon);
   return translatePolygon(polygon, -bounds.minX, -bounds.minY);

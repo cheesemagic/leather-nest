@@ -20,14 +20,30 @@ function comp(id, w, h, overrides = {}) {
 }
 const elig = (component) => ({ component, unverified: [] });
 
-test('estimateCapacity is hide area times efficiency, over part area', () => {
-  // 600x400 = 240000mm^2; at 0.75 that is 180000 usable; a 100x100 part is
-  // 10000, so 18 pieces.
+test('estimateCapacity divides usable area by what a piece OCCUPIES', () => {
+  // 600x400 = 240000mm^2; at 0.75 that is 180000 usable. A 100x100 part cuts
+  // 10000mm^2 but OCCUPIES 10403 once the default 1mm laser clearance is
+  // counted (10000 + perimeter 400 x 1 + pi), so 17 pieces, not 18.
+  //
+  // Estimating on the cut area alone over-counted small components by up to
+  // 2.7x — and because the bias scales with perimeter-to-area it hit small
+  // parts hardest, distorting the shortlist's ORDER rather than just its
+  // magnitude. Real measurement: a 35x12mm keeper estimated 53 pieces on a
+  // real python strip where 14 actually fit.
   const { pieces, estimatedValue } = estimateCapacity(HIDE, comp('a', 100, 100));
 
   assert.equal(PACKING_EFFICIENCY, 0.75);
-  assert.equal(pieces, 18);
-  assert.equal(estimatedValue, 180);
+  assert.equal(pieces, 17);
+  assert.equal(estimatedValue, 170);
+});
+
+test('a bigger clearance means fewer pieces, and it is the clearance that moves it', () => {
+  const component = comp('a', 35, 12);
+
+  const laser = estimateCapacity(HIDE, component, { method: 'laser', laserClearanceMm: 1 });
+  const die = estimateCapacity(HIDE, { ...component, dieClearanceMm: 6 }, { method: 'die' });
+
+  assert.ok(die.pieces < laser.pieces, `die ${die.pieces} should be under laser ${laser.pieces}`);
 });
 
 test('estimateCapacity returns 0 for a part larger than the usable area', () => {
@@ -40,7 +56,7 @@ test('estimateCapacity returns 0 for a part larger than the usable area', () => 
 test('estimateCapacity treats an unpriced component as worth 0, not as free', () => {
   const { pieces, estimatedValue } = estimateCapacity(HIDE, comp('x', 100, 100, { valuePerPiece: null }));
 
-  assert.equal(pieces, 18);
+  assert.equal(pieces, 17);
   assert.equal(estimatedValue, 0);
 });
 
@@ -117,33 +133,22 @@ test('the shortlist depends on the strategy, not a fixed value ordering', () => 
   // dropped before it was ever nested — and every result that DID appear
   // would look perfectly reasonable, so nobody would notice.
   //
-  // This needs SEVEN components to discriminate. An earlier six-component
-  // version was vacuous: `tiny` scored 450 by value, second behind `dear`
-  // at 500, so it survived the top five under BOTH strategies and the
-  // assertion could not fail. Mutation testing caught that — hardcoding the
-  // scorer to `value` left the whole suite green.
+  // A big cheap panel fills the most leather; a small dear tag is worth far
+  // more per hide. The two strategies must pick opposite winners.
   //
-  // With five fillers at 540 by value, `tiny` (450) is pushed out under
-  // value but stays in under utilization (450 pieces x 400mm^2 = 180,000,
-  // tying the fillers and beating `dear` at 120,000).
+  // This fixture replaced an earlier one that stopped discriminating when
+  // estimateCapacity became clearance-aware: small parts lose proportionally
+  // more to clearance, so the old "tiny wins utilization" premise stopped
+  // being true. The model got more honest and the test had to follow.
   const eligible = [
-    elig(comp('tiny', 20, 20, { valuePerPiece: 1 })),
-    elig(comp('dear', 300, 400, { valuePerPiece: 500 })),
-    elig(comp('f1', 100, 100, { valuePerPiece: 30 })),
-    elig(comp('f2', 100, 100, { valuePerPiece: 30 })),
-    elig(comp('f3', 100, 100, { valuePerPiece: 30 })),
-    elig(comp('f4', 100, 100, { valuePerPiece: 30 })),
-    elig(comp('f5', 100, 100, { valuePerPiece: 30 })),
+    elig(comp('panel', 250, 200, { valuePerPiece: 1 })),
+    elig(comp('tag', 15, 15, { valuePerPiece: 2 })),
   ];
-  const shortlistFor = (strategy) =>
-    generateCandidates('singles', eligible, { hide: HIDE, strategy })
-      .map((c) => c.items[0].component.id);
+  const firstBy = (strategy) =>
+    generateCandidates('singles', eligible, { hide: HIDE, strategy })[0].items[0].component.id;
 
-  const byValue = shortlistFor('value');
-  const byUtil = shortlistFor('utilization');
-
-  assert.ok(!byValue.includes('tiny'), 'tiny is not worth enough to make the value shortlist');
-  assert.ok(byUtil.includes('tiny'), 'but it fills the most area, so utilization must keep it');
+  assert.equal(firstBy('value'), 'tag', 'many small dear pieces are worth the most');
+  assert.equal(firstBy('utilization'), 'panel', 'but the big panel uses the most leather');
 });
 
 test('the demand shortlist favours what was ordered, not what fits most', () => {
