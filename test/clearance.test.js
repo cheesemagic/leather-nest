@@ -84,7 +84,9 @@ test('the input parts are not mutated', () => {
 });
 
 test('DEFAULT_DIE_CLEARANCE_MM is a UI prefill, never applied as a fallback', () => {
-  assert.equal(DEFAULT_DIE_CLEARANCE_MM, 8.0);
+  // Half the operator's 5mm between-cuts figure, because clearances are not
+  // shared — two identical dies end up 2x this far apart.
+  assert.equal(DEFAULT_DIE_CLEARANCE_MM, 2.5);
 
   // An untooled component is excluded, NOT silently given 8mm — otherwise
   // the layout would claim tooling the shop does not own.
