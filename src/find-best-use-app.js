@@ -18,6 +18,16 @@ const state = {
   isRunning: false,
 };
 
+// The pipeline speaks component ids; the operator does not. Every id shown
+// to a human goes through here.
+function componentName(id) {
+  return state.components.find((c) => c.id === id)?.name || id;
+}
+
+function componentNames(ids) {
+  return ids.map(componentName).join(', ');
+}
+
 function renderHideSelect() {
   const select = document.getElementById('hide-select');
   select.innerHTML = '';
@@ -31,7 +41,7 @@ function renderHideSelect() {
     const option = document.createElement('option');
     option.value = hide.id;
 
-    let label = hide.id;
+    let label = hide.label || hide.id;
     if (hide.species) label += ` (${hide.species})`;
 
     // Disable if no outline or partially cut
@@ -251,7 +261,10 @@ function renderResults({ results, hide, error }) {
     card.className = 'candidate-card';
 
     const header = document.createElement('h3');
-    header.textContent = `#${i + 1}: ${result.candidateId}`;
+    const titleIds = Object.keys(result.counts).length
+      ? Object.keys(result.counts)
+      : [...result.noDie, ...result.noFit];
+    header.textContent = `#${i + 1}: ${componentNames(titleIds) || '(nothing placed)'}`;
     card.appendChild(header);
 
     const statsDiv = document.createElement('div');
@@ -283,7 +296,7 @@ function renderResults({ results, hide, error }) {
         : '(unpriced)';
       const item = document.createElement('div');
       item.className = 'component-item';
-      item.textContent = `${componentId}: ${count}x ${value}`;
+      item.textContent = `${componentName(componentId)}: ${count}x ${value}`;
       breakdown.appendChild(item);
     }
     card.appendChild(breakdown);
@@ -293,21 +306,21 @@ function renderResults({ results, hide, error }) {
       const warning = document.createElement('div');
       warning.className = 'warning no-die';
       warning.innerHTML =
-        '<strong>No die available for:</strong> ' + result.noDie.join(', ');
+        '<strong>No die available for:</strong> ' + componentNames(result.noDie);
       card.appendChild(warning);
     }
     if (result.noFit.length > 0) {
       const warning = document.createElement('div');
       warning.className = 'warning no-fit';
       warning.innerHTML =
-        '<strong>Did not fit:</strong> ' + result.noFit.join(', ');
+        '<strong>Did not fit:</strong> ' + componentNames(result.noFit);
       card.appendChild(warning);
     }
     if (result.unpriced.length > 0) {
       const warning = document.createElement('div');
       warning.className = 'warning unpriced';
       warning.innerHTML =
-        '<strong>Unpriced:</strong> ' + result.unpriced.join(', ');
+        '<strong>Unpriced:</strong> ' + componentNames(result.unpriced);
       card.appendChild(warning);
     }
     if (result.unverified.length > 0) {
@@ -449,7 +462,7 @@ function renderLayout(canvas, result, hide) {
     ctx.fillStyle = colors[colorIdx];
     ctx.fillRect(canvas.width - 130, legendY, 12, 12);
     ctx.fillStyle = '#000';
-    ctx.fillText(componentId, canvas.width - 110, legendY + 10);
+    ctx.fillText(componentName(componentId), canvas.width - 110, legendY + 10);
     legendY += 15;
   }
 }
