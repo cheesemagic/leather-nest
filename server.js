@@ -30,7 +30,8 @@ const MIME_TYPES = {
 };
 
 function serveStatic(req, res) {
-  const urlPath = req.url === '/' ? '/public/index.html' : req.url;
+  const pathname = req.url.split('?')[0];
+  const urlPath = pathname === '/' ? '/public/index.html' : pathname;
   const filePath = path.join(__dirname, urlPath);
 
   if (!filePath.startsWith(__dirname + path.sep)) {
