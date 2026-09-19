@@ -6,10 +6,14 @@
 // segments because `component.polygon` is a point array and the nester has no
 // curve representation.
 //
-// UNITS: numbers are taken as millimetres, exactly as the `points` form always
-// has. A file declaring width="100mm" with viewBox="0 0 1000 1000" imports 10x
-// wrong, and nothing here detects that. Handling viewBox scaling is a separate
-// change; until then the assumption is load-bearing.
+// UNITS: coordinates are millimetres, as the `points` form has always assumed.
+// When the root <svg> declares BOTH a physical size and a viewBox, that
+// assumption is wrong and the file says so — width="100mm" over
+// viewBox="0 0 1000 1000" means each user unit is 0.1mm, and importing it
+// unscaled would be 10x out. scaleFactor() below reads that pair and converts.
+// A file that gives no physical unit is still taken as millimetres, because
+// nothing in it says otherwise and that is what every existing die record
+// already assumes.
 
 // One segment per millimetre of curve, clamped. Chord error for a circular arc
 // is about s^2/8r, so a 1mm step on a 10mm fillet is off by 0.0125mm — well
@@ -296,6 +300,75 @@ function parsePath(d) {
   return points;
 }
 
+// CSS absolute units, in millimetres. Unitless lengths are deliberately absent:
+// per spec they are user units, which is exactly the ambiguous case this
+// function refuses to guess at.
+const UNIT_TO_MM = {
+  mm: 1,
+  cm: 10,
+  q: 0.25,
+  in: 25.4,
+  pt: 25.4 / 72,
+  pc: 25.4 / 6,
+  px: 25.4 / 96,
+};
+
+// "100mm" -> 100. "2in" -> 50.8. "100" or "50%" -> null, meaning "this file
+// does not state a physical size", which is a different thing from zero.
+function physicalLengthMm(raw) {
+  if (!raw) return null;
+  const match = /^\s*(-?\d*\.?\d+(?:e[-+]?\d+)?)\s*([a-z%]*)\s*$/i.exec(raw);
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const unit = match[2].toLowerCase();
+  if (!unit || unit === '%') return null;
+  const factor = UNIT_TO_MM[unit];
+  return factor ? value * factor : null;
+}
+
+function rootAttribute(svgTag, name) {
+  const match = new RegExp(`[\\s"']${name}\\s*=\\s*"([^"]*)"`, 'i').exec(svgTag);
+  return match ? match[1] : null;
+}
+
+// How many millimetres one user unit represents. 1 unless the file states a
+// physical size alongside a viewBox.
+function scaleFactor(svgString) {
+  // Only the ROOT <svg> element's attributes count. Searching the whole string
+  // would happily read width= off a child <rect> and scale by something
+  // unrelated to the document.
+  const svgTag = /<svg\b[^>]*>/i.exec(svgString);
+  if (!svgTag) return 1;
+  const tag = svgTag[0];
+
+  const viewBox = rootAttribute(tag, 'viewBox');
+  if (!viewBox) return 1;
+  const box = viewBox.trim().split(/[\s,]+/).map(Number);
+  if (box.length !== 4 || !box.every(Number.isFinite)) return 1;
+  const [, , boxWidth, boxHeight] = box;
+
+  const widthMm = physicalLengthMm(rootAttribute(tag, 'width'));
+  const heightMm = physicalLengthMm(rootAttribute(tag, 'height'));
+  const sx = widthMm !== null && boxWidth > 0 ? widthMm / boxWidth : null;
+  const sy = heightMm !== null && boxHeight > 0 ? heightMm / boxHeight : null;
+  if (sx === null && sy === null) return 1;
+
+  // preserveAspectRatio defaults to "meet", which scales uniformly by the
+  // SMALLER ratio and letterboxes the remainder — so a width and height that
+  // disagree is normal, not a malformed file, and min() is the spec answer
+  // rather than a guess. "none" stretches the axes independently, which would
+  // distort the die; that one is refused in parseSVGPolygon.
+  if (sx === null) return sy;
+  if (sy === null) return sx;
+  return Math.min(sx, sy);
+}
+
+function scaled(points, scale) {
+  if (scale === 1) return points;
+  return points.map((point) => ({ x: point.x * scale, y: point.y * scale }));
+}
+
 export function parseSVGPolygon(svgString) {
   // A transform on the shape or any ancestor <g> changes the geometry, and
   // applying it is not implemented. Importing a die that is silently offset or
@@ -308,11 +381,23 @@ export function parseSVGPolygon(svgString) {
     );
   }
 
+  // preserveAspectRatio="none" scales x and y by different factors, which
+  // changes the shape rather than its size. Same reasoning as transforms:
+  // a die that imports distorted looks plausible and cuts wrong.
+  if (/[\s"']preserveAspectRatio\s*=\s*"\s*none\s*"/i.test(svgString)) {
+    throw new Error(
+      'SVG uses preserveAspectRatio="none", which stretches the drawing unevenly. ' +
+        'Re-export with a viewBox matching the document proportions.'
+    );
+  }
+
+  const scale = scaleFactor(svgString);
+
   const points = svgString.match(/points\s*=\s*"([^"]+)"/);
-  if (points) return parsePoints(points[1]);
+  if (points) return scaled(parsePoints(points[1]), scale);
 
   const d = svgString.match(/[\s"']d\s*=\s*"([^"]+)"/);
-  if (d) return parsePath(d[1]);
+  if (d) return scaled(parsePath(d[1]), scale);
 
   throw new Error('No <polygon points="..."> or <path d="..."> found in SVG string');
 }
