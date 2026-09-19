@@ -23,6 +23,28 @@ export const PACKING_EFFICIENCY = 0.75;
 // than "as high as possible".
 export const ASK_EFFICIENCY = 0.95;
 
+// What a piece actually OCCUPIES, not what it cuts. For small components the
+// clearance is most of the footprint: a 35x12mm keeper (420mm^2) with a 6mm
+// die board around it takes up 47x24mm (1128mm^2). Estimating on the cut area
+// alone over-counted such a component by 2.7x — and because the bias scales
+// with perimeter-to-area, it hit SMALL parts hardest, which distorted the
+// shortlist's ranking rather than just its magnitude.
+//
+// Computed analytically (A + P*c + pi*c^2) rather than by a real clipper
+// offset, so the cheap stage stays cheap and free of a ClipperLib global.
+// Measured within 2.7% of the exact miter offset, erring LOW — which
+// over-estimates pieces, the safe direction for a shortlist.
+export function footprintArea(component, options = {}) {
+  const cutArea = polygonArea(component.polygon);
+  const clearanceMm = clearanceFor(component, options) ?? 0;
+  if (!(clearanceMm > 0)) return cutArea;
+  return (
+    cutArea +
+    polygonPerimeter(component.polygon) * clearanceMm +
+    Math.PI * clearanceMm ** 2
+  );
+}
+
 // Cheap, area-only. NEVER returns placements — only nest() produces a layout.
 export function estimateCapacity(hide, component, options = {}) {
   const efficiency = options.packingEfficiency ?? PACKING_EFFICIENCY;
@@ -31,24 +53,7 @@ export function estimateCapacity(hide, component, options = {}) {
 
   if (!(hideArea > 0) || !(cutArea > 0)) return { pieces: 0, estimatedValue: 0 };
 
-  // What a piece actually OCCUPIES, not what it cuts. For small components
-  // the clearance is most of the footprint: a 35x12mm keeper (420mm^2) with
-  // a 6mm die board around it takes up 47x24mm (1128mm^2). Estimating on the
-  // cut area alone over-counted such a component by 2.7x — and because the
-  // bias scales with perimeter-to-area, it hit SMALL parts hardest, which
-  // distorted the shortlist's ranking rather than just its magnitude.
-  //
-  // Computed analytically (A + P*c + pi*c^2) rather than by a real clipper
-  // offset, so the cheap stage stays cheap and free of a ClipperLib global.
-  // Measured within 2.7% of the exact miter offset, erring LOW — which
-  // over-estimates pieces, the safe direction for a shortlist.
-  const clearanceMm = clearanceFor(component, options) ?? 0;
-  const footprintArea =
-    clearanceMm > 0
-      ? cutArea + polygonPerimeter(component.polygon) * clearanceMm + Math.PI * clearanceMm ** 2
-      : cutArea;
-
-  const pieces = Math.floor((hideArea * efficiency) / footprintArea);
+  const pieces = Math.floor((hideArea * efficiency) / footprintArea(component, options));
   // An unpriced component is not free, it is unpriced. It scores 0 here and
   // is reported separately downstream.
   const estimatedValue = pieces * (component.valuePerPiece ?? 0);

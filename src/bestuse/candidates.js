@@ -1,4 +1,5 @@
 import { estimateCapacity, ESTIMATE_SCORERS, ASK_EFFICIENCY } from './estimate.js';
+import { mixCandidates } from './mix.js';
 
 // At roughly 1-6s per exact nest, five keeps a run in the seconds range.
 export const SHORTLIST_SIZE = 5;
@@ -6,7 +7,10 @@ export const SHORTLIST_SIZE = 5;
 export function generateCandidates(mode, eligible, options = {}) {
   if (mode === 'explicit') return explicitCandidates(eligible, options);
   if (mode === 'singles') return singlesCandidates(eligible, options);
-  throw new Error(`Unknown candidate mode "${mode}". Expected "explicit" or "singles".`);
+  if (mode === 'mix') return mixCandidates(eligible, options);
+  throw new Error(
+    `Unknown candidate mode "${mode}". Expected "explicit", "singles" or "mix".`
+  );
 }
 
 // The operator has already named the quantities, so no estimate is involved.
