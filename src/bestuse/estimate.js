@@ -7,6 +7,22 @@ import { clearanceFor } from '../nesting/clearance.js';
 // an irregular outline runs 60-70%, so 0.75 keeps this an upper bound.
 export const PACKING_EFFICIENCY = 0.75;
 
+// What a candidate ASKS FOR, which is a different question from what the
+// shortlist ranks by, and deliberately higher.
+//
+// The shortlist needs an upper bound it can trust not to discard a winner.
+// A candidate's quantity has no such constraint: nest() places what fits and
+// reports the rest as noFit, so over-asking costs a little search time and
+// nothing else, while under-asking silently leaves leather uncut.
+//
+// Measured (scripts/c3-spike.mjs, 4 outlines x 3 strategies): moving the ASK
+// from 0.75 to 0.95 raised value 8-11% and utilization 2-17% on every
+// fixture, and captured the entire gain of a full mixed-component search on
+// the value question. It SATURATES at 0.95 — 1.20 and 1.60 scored identically
+// and only cost time, because the surplus is discarded. Hence 0.95 rather
+// than "as high as possible".
+export const ASK_EFFICIENCY = 0.95;
+
 // Cheap, area-only. NEVER returns placements — only nest() produces a layout.
 export function estimateCapacity(hide, component, options = {}) {
   const efficiency = options.packingEfficiency ?? PACKING_EFFICIENCY;

@@ -1,7 +1,12 @@
 // test/bestuse-candidates.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateCapacity, PACKING_EFFICIENCY, ESTIMATE_SCORERS } from '../src/bestuse/estimate.js';
+import {
+  estimateCapacity,
+  PACKING_EFFICIENCY,
+  ASK_EFFICIENCY,
+  ESTIMATE_SCORERS,
+} from '../src/bestuse/estimate.js';
 import { generateCandidates, SHORTLIST_SIZE } from '../src/bestuse/candidates.js';
 import { RANKING_STRATEGIES } from '../src/bestuse/ranking.js';
 
@@ -220,4 +225,92 @@ test('an unrecognised mode throws rather than guessing', () => {
     () => generateCandidates('telepathy', [], { hide: HIDE }),
     /telepathy/
   );
+});
+
+// --- the shortlist/ask split -------------------------------------------
+// PACKING_EFFICIENCY ranks the shortlist; ASK_EFFICIENCY sizes the survivors.
+// Measured in scripts/c3-spike.mjs: asking at 0.95 was worth 8-11% on value.
+// Nothing pinned the quantity before the split, so the behaviour was invisible
+// to this suite.
+
+test('a candidate asks for MORE than the shortlist estimate', () => {
+  const component = comp('a', 100, 100);
+  const [candidate] = generateCandidates('singles', [elig(component)], {
+    hide: HIDE,
+    strategy: 'value',
+  });
+
+  const shortlistPieces = estimateCapacity(HIDE, component).pieces;
+  const asked = candidate.items[0].quantity;
+
+  assert.ok(ASK_EFFICIENCY > PACKING_EFFICIENCY, 'the ask must exceed the shortlist bound');
+  assert.ok(
+    asked > shortlistPieces,
+    `expected the ask (${asked}) to exceed the shortlist estimate (${shortlistPieces})`
+  );
+  // And it is the ask constant doing it, not an arbitrary bump.
+  assert.equal(
+    asked,
+    estimateCapacity(HIDE, component, { packingEfficiency: ASK_EFFICIENCY }).pieces
+  );
+});
+
+test('raising the ask does NOT change which components are shortlisted', () => {
+  // The risk the C3 spike flagged: PACKING_EFFICIENCY drove both jobs, so
+  // moving it would have silently reordered the shortlist. Eight components,
+  // only five survive — membership and order must be identical whatever the
+  // ask is set to.
+  const eligible = [
+    elig(comp('a', 300, 300, { valuePerPiece: 5 })),
+    elig(comp('b', 200, 200, { valuePerPiece: 20 })),
+    elig(comp('c', 150, 150, { valuePerPiece: 12 })),
+    elig(comp('d', 100, 100, { valuePerPiece: 8 })),
+    elig(comp('e', 90, 90, { valuePerPiece: 3 })),
+    elig(comp('f', 80, 80, { valuePerPiece: 30 })),
+    elig(comp('g', 70, 70, { valuePerPiece: 1 })),
+    elig(comp('h', 60, 60, { valuePerPiece: 15 })),
+  ];
+
+  const idsAt = (askEfficiency) =>
+    generateCandidates('singles', eligible, {
+      hide: HIDE,
+      strategy: 'value',
+      askEfficiency,
+    }).map((c) => c.items[0].component.id);
+
+  const baseline = idsAt(undefined);
+  assert.equal(baseline.length, SHORTLIST_SIZE);
+  for (const askEfficiency of [0.75, 0.95, 1.4, 2.0]) {
+    assert.deepEqual(
+      idsAt(askEfficiency),
+      baseline,
+      `ask ${askEfficiency} reordered or re-membered the shortlist`
+    );
+  }
+});
+
+test('askEfficiency overrides the ask without touching the shortlist bound', () => {
+  const component = comp('a', 100, 100);
+  const [low] = generateCandidates('singles', [elig(component)], {
+    hide: HIDE, strategy: 'value', askEfficiency: PACKING_EFFICIENCY,
+  });
+  const [high] = generateCandidates('singles', [elig(component)], {
+    hide: HIDE, strategy: 'value', askEfficiency: 1.5,
+  });
+
+  // Passing the shortlist bound as the ask reproduces the pre-split quantity.
+  assert.equal(low.items[0].quantity, estimateCapacity(HIDE, component).pieces);
+  assert.ok(high.items[0].quantity > low.items[0].quantity);
+});
+
+test('a component that cannot fit even at the higher ask is still dropped', () => {
+  // The shortlist filter runs at PACKING_EFFICIENCY, so an oversized part is
+  // excluded before the ask is ever computed. Raising the ask must not
+  // resurrect something that does not fit once.
+  const eligible = [elig(comp('huge', 900, 900)), elig(comp('fits', 100, 100))];
+  const ids = generateCandidates('singles', eligible, {
+    hide: HIDE, strategy: 'value', askEfficiency: 2.0,
+  }).map((c) => c.items[0].component.id);
+
+  assert.deepEqual(ids, ['fits']);
 });

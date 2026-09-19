@@ -1,4 +1,4 @@
-import { estimateCapacity, ESTIMATE_SCORERS } from './estimate.js';
+import { estimateCapacity, ESTIMATE_SCORERS, ASK_EFFICIENCY } from './estimate.js';
 
 // At roughly 1-6s per exact nest, five keeps a run in the seconds range.
 export const SHORTLIST_SIZE = 5;
@@ -23,8 +23,9 @@ function explicitCandidates(eligible, options) {
   return items.length ? [{ candidateId: 'explicit', mode: 'explicit', items }] : [];
 }
 
-// One candidate per component, each that type alone, sized by the estimate
-// and shortlisted so a run stays in the seconds range.
+// One candidate per component, each that type alone. The shortlist is RANKED
+// at PACKING_EFFICIENCY and each survivor is SIZED at the higher
+// ASK_EFFICIENCY — see the note on both constants in estimate.js.
 function singlesCandidates(eligible, options) {
   const { hide, strategy } = options;
   const shortlistSize = options.shortlistSize ?? SHORTLIST_SIZE;
@@ -40,13 +41,19 @@ function singlesCandidates(eligible, options) {
     .filter(({ estimate }) => estimate.pieces > 0)
     .sort((a, b) => score(b.estimate, b.entry.component) - score(a.estimate, a.entry.component))
     .slice(0, shortlistSize)
-    .map(({ entry, estimate }) => ({
+    .map(({ entry }) => ({
       candidateId: `single:${entry.component.id}`,
       mode: 'singles',
       items: [
         {
           component: entry.component,
-          quantity: estimate.pieces,
+          // Sized by a SECOND estimate at the higher ask, deliberately not
+          // reusing the shortlist's. The two answer different questions, and
+          // collapsing them back into one call is what this split undoes.
+          quantity: estimateCapacity(hide, entry.component, {
+            ...options,
+            packingEfficiency: options.askEfficiency ?? ASK_EFFICIENCY,
+          }).pieces,
           unverified: entry.unverified,
         },
       ],
