@@ -148,17 +148,15 @@ function updateModeUI() {
     button.classList.toggle('active', button.dataset.mode === state.mode);
   }
 
-  const explicitSection = document.getElementById('explicit-section');
-  const singlesSection = document.getElementById('singles-section');
-
-  if (state.mode === 'explicit') {
-    explicitSection.style.display = 'block';
-    singlesSection.style.display = 'none';
-    renderComponentList();
-  } else {
-    explicitSection.style.display = 'none';
-    singlesSection.style.display = 'block';
+  const sections = {
+    explicit: document.getElementById('explicit-section'),
+    singles: document.getElementById('singles-section'),
+    mix: document.getElementById('mix-section'),
+  };
+  for (const [mode, section] of Object.entries(sections)) {
+    section.style.display = state.mode === mode ? 'block' : 'none';
   }
+  if (state.mode === 'explicit') renderComponentList();
 }
 
 function updateMethodUI() {
@@ -181,11 +179,13 @@ function updatePrecisionUI() {
 
 function updateRunButtonState() {
   const runButton = document.getElementById('run-button');
-  const canRun =
-    state.selectedHideId &&
-    (state.mode === 'explicit'
-      ? Object.keys(state.quantities).length > 0
-      : state.strategy !== null && state.strategy !== '');
+  const readyForMode = {
+    // Fill Orders answers one fixed question, so there is nothing to choose.
+    mix: () => true,
+    explicit: () => Object.keys(state.quantities).length > 0,
+    singles: () => state.strategy !== null && state.strategy !== '',
+  };
+  const canRun = Boolean(state.selectedHideId && readyForMode[state.mode]());
 
   runButton.disabled = !canRun;
 }
@@ -222,7 +222,7 @@ async function run() {
       hide,
       quantities:
         state.mode === 'explicit' ? state.quantities : undefined,
-      strategy: state.mode === 'singles' ? state.strategy : undefined,
+      strategy: state.mode === 'explicit' ? undefined : state.strategy,
       shortlistSize: state.shortlistSize,
     });
 
@@ -245,8 +245,14 @@ async function run() {
       evaluated.push(result);
     }
 
-    // Task 4: Rank candidates
-    state.results = rankCandidates(evaluated, state.strategy || state.mode);
+    // Rank only when a strategy was actually named. 'You Choose' produces a
+    // single candidate and names no strategy — the old code passed the MODE
+    // here instead, which the ranker rejects outright (deliberately: it has
+    // no default, so that "highest utilization" can never win by omission).
+    // That made You Choose fail every time it was used.
+    state.results = state.strategy
+      ? rankCandidates(evaluated, state.strategy)
+      : evaluated;
 
     renderResults({ results: state.results, hide });
   } catch (err) {
@@ -517,7 +523,11 @@ function attachEventListeners() {
       const newMode = e.target.dataset.mode;
       state.mode = newMode;
       state.quantities = {};
-      state.strategy = null;
+      // Fill Orders only answers the orders question, so it selects it rather
+      // than offering a choice that has one valid answer.
+      state.strategy = newMode === 'mix' ? 'demand' : null;
+      const strategySelect = document.getElementById('strategy-select');
+      if (strategySelect) strategySelect.value = state.strategy ?? '';
       updateModeUI();
       updateRunButtonState();
     });

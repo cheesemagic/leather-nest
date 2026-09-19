@@ -104,6 +104,7 @@
           <div class="button-group">
             <button class="button" data-mode="explicit">You Choose</button>
             <button class="button active" data-mode="singles">Rank Singles</button>
+            <button class="button" data-mode="mix">Fill Orders</button>
           </div>
         </div>
 
@@ -111,6 +112,18 @@
           <div class="control-group">
             <label>Components</label>
             <div id="component-list" style="max-height: 300px; overflow-y: auto;"></div>
+          </div>
+        </div>
+
+        <div id="mix-section" style="display: none;">
+          <div class="control-group">
+            <p class="text-muted" style="margin: 0; font-size: 0.9rem; line-height: 1.5;">
+              Fills as many outstanding orders as this hide can, using several
+              component types together. Ranks by orders filled, so it will
+              usually earn less than Highest Value and use less of the hide —
+              it is answering what can I ship, not what is this scrap worth.
+              Components with no orders recorded are ignored.
+            </p>
           </div>
         </div>
 
