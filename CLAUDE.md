@@ -5,9 +5,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A local web app that nests laser-cut leather pattern pieces onto irregular
-exotic-leather scrap offcuts, targeting a Thunder Laser Nova 51 (100W CO2)
-driven by LightBurn. Single operator, desktop laser — not an industrial
-hide-cutting system.
+exotic-leather scrap offcuts. Single operator, desktop laser — not an
+industrial hide-cutting system.
+
+**The target machine is not settled.** Earlier drafts of this file named a
+Thunder Laser Nova 51 (100W CO2) driven by LightBurn as if it were a fact; it
+was an aspiration. The machines actually reachable are at a makerspace — an
+80W Red Sail and a 150W Boss LS-3655 — and neither has been used yet. Assume
+only: large-bed CO2, SVG in. Do not design against a specific controller,
+bed size, or LightBurn feature until someone has stood at the machine.
+
+**Every physical constant in this repo is an assumption, not a measurement.**
+`DEFAULT_LASER_CLEARANCE_MM` (1.0), `DEFAULT_DIE_CLEARANCE_MM` (2.5) and
+`PACKING_EFFICIENCY` (0.75) were chosen in conversation. Kerf is not modelled
+at all. Nothing here has been checked against cut leather. Say so when one of
+these numbers carries an argument, and prefer a cheap real-world test over
+another simulation once the laser is reachable.
 
 ## Commands
 
@@ -113,3 +126,65 @@ Feature work in this repo goes through a spec → plan pair under
 These documents record *why*, including reordering decisions and explicit
 non-goals — check them before assuming a missing feature is an oversight
 rather than a deferred, documented decision.
+
+## Working with Andrew
+
+Full profile and reasoning: `docs/working-with-me.md`. The rules that matter
+every session:
+
+**Talking**
+- Plain English, half the length, especially about code. Bullets over prose.
+  Tables are fine on desktop, bad on a phone.
+- Say what you think. No confidence percentages, no hedging. If it's a guess,
+  say "this is a guess" and move on.
+- Describe what the program does, not what the code says. Name a constant by
+  its effect, not its identifier.
+- Never offer passing tests as evidence that something is right.
+
+**Asking**
+- Read the code and `docs/superpowers/{specs,plans}/` before asking anything.
+  Never ask how the code works.
+- Don't ask a question he lacks the background to answer — that includes
+  choosing between implementations and judging how you should explain things.
+  A question he can't answer is a rubber stamp with extra steps.
+- Do ask about the physical world and about what the product is for. That's
+  where his judgment leads and you have none.
+- A "yes" to a dense technical message means *keep going*, not *I agree*.
+  Never cite it later as a choice he made.
+
+**Deciding**
+- Decide alone: structure, naming, file layout, test design, anything
+  reversible that doesn't change behaviour.
+- Stop and tell him before changing how the app behaves, touching code that
+  already works, or when the literal request would break something else.
+- When you stop: state the conflict plainly, give **one recommendation**, ask
+  for a go-ahead. Never a menu of options.
+- Good goal, weak implementation → keep the goal, propose better, say you did.
+- Once he settles a direction, stop reopening it without new evidence.
+
+**Ideas**
+- Half-formed idea → two or three short directions, not one deep one.
+- Weak idea → say so immediately, why, and what to do instead.
+- Never kill an idea without saying what survives.
+- Push back on premises harder than on code. Always with a way forward.
+
+**Finishing**
+- End every session with a plain-English list of what changed — what it does
+  now that it didn't before. Not a commit log, not test output.
+- When a change is visual, produce something he can look at.
+
+**Priorities** — name which one a proposed piece of work serves; if none, say
+so and don't propose it:
+
+1. Cut real pieces from real scrap, and they come out right.
+2. Andrew understands the thing well enough to direct it (≈60% domain
+   knowledge, ≈40% software).
+3. Polished enough to show people.
+4. Magna using the matching tool — droppable.
+
+The cutting side serves us; the matching side serves Magna. Magna owns no
+laser cutter and does not want one — they care about matching pieces, not
+utilization. Do not reintroduce "efficiency saves Magna money" framing.
+
+**Teaching** — at the moment a concept has a physical consequence, in the
+summary, never mid-task.
