@@ -1,7 +1,8 @@
 import { filterEligible } from './bestuse/eligibility.js';
 import { generateCandidates, SHORTLIST_SIZE } from './bestuse/candidates.js';
-import { evaluateCandidate } from './bestuse/evaluate.js';
+import { evaluateCandidate, componentIdOf } from './bestuse/evaluate.js';
 import { rankCandidates, RANKING_STRATEGIES } from './bestuse/ranking.js';
+import { exportToSVG } from './svg/export.js';
 
 const state = {
   hides: [],
@@ -17,6 +18,27 @@ const state = {
   results: [],
   isRunning: false,
 };
+
+// LightBurn reads plain SVG, so the existing exporter is the whole job. The
+// file is named after the hide and the rank, so a folder of them stays
+// readable once a few have piled up.
+function downloadLayout(filename, svgContent) {
+  const url = URL.createObjectURL(new Blob([svgContent], { type: 'image/svg+xml' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function slug(text) {
+  return (
+    (text || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'layout'
+  );
+}
 
 // The pipeline speaks component ids; the operator does not. Every id shown
 // to a human goes through here.
@@ -347,13 +369,28 @@ function renderResults({ results, hide, error }) {
     const confirmButton = document.createElement('button');
     confirmButton.className = 'confirm-button';
     confirmButton.textContent = 'Confirm & Export';
-    confirmButton.disabled = result.unverified.length > 0;
+    // A candidate where nothing fit still clears the unverified gate, and
+    // exporting it would hand the laser an empty file.
+    const nothingPlaced = result.placements.length === 0;
+    confirmButton.disabled = result.unverified.length > 0 || nothingPlaced;
     if (result.unverified.length > 0) {
       confirmButton.title = `Measure: ${result.unverified.join(', ')} before confirming`;
+    } else if (nothingPlaced) {
+      confirmButton.title = 'Nothing was placed, so there is nothing to cut.';
     }
+    const rank = i + 1;
     confirmButton.addEventListener('click', () => {
-      alert(
-        `Confirmed candidate ${result.candidateId}. Export to LightBurn would happen here.`
+      // exportToSVG wants a part per placement id; evaluateCandidate does not
+      // return the parts it built, so map each placement back to the polygon
+      // it was cut from.
+      const parts = result.placements.map((placement) => ({
+        id: placement.id,
+        polygon: state.components.find((c) => c.id === componentIdOf(placement.id))
+          ?.polygon,
+      }));
+      downloadLayout(
+        `${slug(hide.label)}-${rank}.svg`,
+        exportToSVG(hide.outlinePolygon, result.placements, parts)
       );
     });
     card.appendChild(confirmButton);

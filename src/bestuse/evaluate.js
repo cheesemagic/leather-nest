@@ -6,6 +6,11 @@ import { resolveClearances } from '../nesting/clearance.js';
 // at the nest() call below for why the two differ.
 export const DEFAULT_SEARCH_GRID_MM = 5;
 
+// Parts are named `${componentId}#${n}` because one component becomes many
+// parts. Exported so a caller rendering placements can get back to the
+// component without re-deriving the scheme and drifting from it.
+export const componentIdOf = (partId) => partId.slice(0, partId.lastIndexOf('#'));
+
 // Turns one candidate into an exactly-nested, scored result. Every number
 // here comes from the nester — no estimate reaches this module.
 export function evaluateCandidate(hide, candidate, options = {}) {
@@ -43,7 +48,6 @@ export function evaluateCandidate(hide, candidate, options = {}) {
   // resolveClearances and nest() both speak in PART ids ("strap#3"), because
   // one component becomes many parts. The operator thinks in components, so
   // fold both lists back and deduplicate.
-  const componentIdOf = (partId) => partId.slice(0, partId.lastIndexOf('#'));
   const toComponentIds = (partIds) => {
     const seen = [];
     for (const partId of partIds) {
