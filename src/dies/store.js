@@ -6,7 +6,9 @@ const SAFE_ID = /^[0-9a-f-]+$/i;
 
 // Only these are writable after creation. A component's polygon is its
 // identity — a changed shape would invalidate any layout already computed
-// against it — so a new shape means a new component.
+// against it — so a new shape means a new component. interiorPaths are
+// deliberately absent for the same reason: moving a hole changes the piece
+// as surely as moving its edge does.
 const METADATA_FIELDS = [
   'name',
   'valuePerPiece',
@@ -49,6 +51,7 @@ export function createStore(dataDir) {
   function create({
     name,
     polygon,
+    interiorPaths,
     valuePerPiece,
     productFamily,
     allowedSpecies,
@@ -64,6 +67,9 @@ export function createStore(dataDir) {
       id,
       name,
       polygon,
+      // Holes, stitch guides, fringe slits. Absent on every component made
+      // before they existed, so default rather than require.
+      interiorPaths: interiorPaths ?? [],
       valuePerPiece: valuePerPiece ?? null,
       productFamily: productFamily ?? null,
       allowedSpecies: allowedSpecies ?? null,

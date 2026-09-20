@@ -144,6 +144,32 @@ export function polygonContains(outer, inner) {
 // Grows a polygon outward by `mm` on every side. Used to apply a part's
 // clearance: the inflated shape is what gets fit-tested, while the true
 // polygon is what gets cut.
+// Shrinks a polygon inward. The mirror of inflatePolygon, and separate from
+// it because inflate deliberately ignores a negative distance — callers pass
+// clearances there, and a negative clearance is a mistake, not an instruction
+// to shrink.
+//
+// Returns null when the shape collapses: a 3mm hole shrunk by 2mm a side has
+// nothing left, and silently returning the original would cut it at full size.
+export function deflatePolygon(polygon, mm) {
+  if (!(mm > 0)) return polygon;
+  const ClipperLib = getClipperLib();
+  const offset = new ClipperLib.ClipperOffset();
+  offset.AddPath(toClipperPath(polygon), ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
+  const solution = new ClipperLib.Paths();
+  offset.Execute(solution, -mm * SCALE);
+  if (!solution.length) return null;
+
+  let largest = solution[0];
+  for (const path of solution) {
+    if (Math.abs(ClipperLib.Clipper.Area(path)) > Math.abs(ClipperLib.Clipper.Area(largest))) {
+      largest = path;
+    }
+  }
+  const shrunk = fromClipperPath(largest);
+  return shrunk.length >= 3 ? shrunk : null;
+}
+
 export function inflatePolygon(polygon, mm) {
   if (!(mm > 0)) return polygon;
   const ClipperLib = getClipperLib();
@@ -195,9 +221,23 @@ export function normalizeToOrigin(polygon) {
 // The one place the placement transform (rotate -> normalize to origin ->
 // translate) is implemented. Used by placement, SVG export, preview
 // rendering, and tests so all four stay in lockstep.
-export function placedPolygon(part, placement) {
-  const normalized = normalizeToOrigin(rotatePolygon(part.polygon, placement.rotation));
+//
+// Takes arbitrary points rather than only the outline, because a component's
+// interior cuts — holes, stitch guides — have to land in the same frame as
+// the piece they belong to. Crucially the offset comes from the ROTATED
+// OUTLINE's bounds, not from the points' own: a hole normalised to its own
+// bounding box would sit wherever its piece's corner is, which is how a hole
+// ends up neatly punched through the wrong part of the leather.
+export function placedPoints(part, placement, points) {
+  const rotatedOutline = rotatePolygon(part.polygon, placement.rotation);
+  const { minX, minY } = boundingBox(rotatedOutline);
+  const rotated = rotatePolygon(points, placement.rotation);
+  const normalized = rotated.map((point) => ({ x: point.x - minX, y: point.y - minY }));
   return translatePolygon(normalized, placement.x, placement.y);
+}
+
+export function placedPolygon(part, placement) {
+  return placedPoints(part, placement, part.polygon);
 }
 
 export function polygonToSVGPoints(polygon) {

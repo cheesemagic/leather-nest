@@ -3,6 +3,8 @@ import {
   placedPolygon,
   polygonToSVGPoints,
   inflatePolygon,
+  deflatePolygon,
+  placedPoints,
 } from '../nesting/geometry.js';
 import { kerfAllowanceMm } from '../nesting/clearance.js';
 
@@ -12,6 +14,51 @@ import { kerfAllowanceMm } from '../nesting/clearance.js';
 // a test can assert they never collapse into the same value.
 export const CUT_COLOR = '#FF0000';
 export const OUTLINE_COLOR = '#0000FF';
+
+// One colour per operation, because that is the only thing a laser file can
+// say about intent — the operator maps colour to power and speed at the
+// machine. Interior cuts share CUT_COLOR with the outline: both go all the
+// way through, and the difference between them is not the machine's problem.
+export const INTERIOR_COLORS = {
+  cut: CUT_COLOR,
+  score: '#00A000',
+  mark: '#FF00FF',
+};
+
+function interiorMarkup(part, placement, kerf) {
+  const paths = part.interiorPaths ?? [];
+  if (!paths.length) return '';
+
+  const lines = [];
+  for (const path of paths) {
+    const colour = INTERIOR_COLORS[path.kind] ?? CUT_COLOR;
+    let points = placedPoints(part, placement, path.points);
+
+    // Kerf runs the OTHER WAY inside a hole. The beam eats the edge of
+    // whatever it follows, so to leave a correctly sized hole the cut goes
+    // INSIDE the hole's line, where cutting the outline goes outside it.
+    // Getting this backwards makes every hole a full kerf too big.
+    if (kerf > 0 && path.kind === 'cut' && path.closed) {
+      const shrunk = deflatePolygon(points, kerf);
+      // A hole too small to survive the beam is dropped rather than cut at
+      // full size — a 0.4mm hole with a 0.3mm kerf is not a hole.
+      if (!shrunk) continue;
+      points = shrunk;
+    }
+
+    if (path.closed) {
+      lines.push(
+        `  <polygon points="${polygonToSVGPoints(points)}" stroke="${colour}" stroke-width="0.01" fill="none" />`
+      );
+    } else {
+      const d = points
+        .map((point, i) => `${i === 0 ? 'M' : 'L'} ${point.x},${point.y}`)
+        .join(' ');
+      lines.push(`  <path d="${d}" stroke="${colour}" stroke-width="0.01" fill="none" />`);
+    }
+  }
+  return lines.join('\n');
+}
 
 export function exportToSVG(sheetPolygon, placements, parts, options = {}) {
   const bounds = boundingBox(sheetPolygon);
@@ -30,7 +77,9 @@ export function exportToSVG(sheetPolygon, placements, parts, options = {}) {
       const part = partsById.get(placement.id);
       const absolute = placedPolygon(part, placement);
       const cutLine = kerf > 0 ? inflatePolygon(absolute, kerf) : absolute;
-      return `  <polygon points="${polygonToSVGPoints(cutLine)}" stroke="${CUT_COLOR}" stroke-width="0.01" fill="none" />`;
+      const outer = `  <polygon points="${polygonToSVGPoints(cutLine)}" stroke="${CUT_COLOR}" stroke-width="0.01" fill="none" />`;
+      const interior = interiorMarkup(part, placement, kerf);
+      return interior ? `${outer}\n${interior}` : outer;
     })
     .join('\n');
 
