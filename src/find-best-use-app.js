@@ -1,7 +1,7 @@
-import { filterEligible } from './bestuse/eligibility.js';
-import { generateCandidates, SHORTLIST_SIZE } from './bestuse/candidates.js';
-import { evaluateCandidate, componentIdOf } from './bestuse/evaluate.js';
-import { rankCandidates, RANKING_STRATEGIES } from './bestuse/ranking.js';
+import { SHORTLIST_SIZE } from './bestuse/candidates.js';
+import { componentIdOf } from './bestuse/evaluate.js';
+import { RANKING_STRATEGIES } from './bestuse/ranking.js';
+import { runSearch, canRun, strategyForMode } from './bestuse/search.js';
 import { exportToSVG } from './svg/export.js';
 
 const state = {
@@ -179,15 +179,12 @@ function updatePrecisionUI() {
 
 function updateRunButtonState() {
   const runButton = document.getElementById('run-button');
-  const readyForMode = {
-    // Fill Orders answers one fixed question, so there is nothing to choose.
-    mix: () => true,
-    explicit: () => Object.keys(state.quantities).length > 0,
-    singles: () => state.strategy !== null && state.strategy !== '',
-  };
-  const canRun = Boolean(state.selectedHideId && readyForMode[state.mode]());
-
-  runButton.disabled = !canRun;
+  runButton.disabled = !canRun({
+    hideId: state.selectedHideId,
+    mode: state.mode,
+    strategy: state.strategy,
+    quantities: state.quantities,
+  });
 }
 
 async function run() {
@@ -201,60 +198,20 @@ async function run() {
 
   try {
     const hide = state.hides.find((h) => h.id === state.selectedHideId);
-    if (!hide) throw new Error('Hide not selected');
-
-    // Task 1: Filter eligible components
-    const { eligible, excluded, hideRejection } = filterEligible(
+    const { results, error } = runSearch({
       hide,
-      state.components
-    );
-
-    if (hideRejection) {
-      state.results = [];
-      renderResults({
-        error: `Hide cannot be used: ${hideRejection}`,
-      });
-      return;
-    }
-
-    // Task 2: Generate candidates
-    const candidates = generateCandidates(state.mode, eligible, {
-      hide,
-      quantities:
-        state.mode === 'explicit' ? state.quantities : undefined,
-      strategy: state.mode === 'explicit' ? undefined : state.strategy,
+      components: state.components,
+      mode: state.mode,
+      strategy: state.strategy,
+      quantities: state.quantities,
       shortlistSize: state.shortlistSize,
+      method: state.method,
+      laserClearanceMm: state.laserClearanceMm,
+      gridStepMm: state.gridStepMm,
     });
 
-    if (candidates.length === 0) {
-      state.results = [];
-      renderResults({
-        error: 'No valid candidates for these selections.',
-      });
-      return;
-    }
-
-    // Task 3: Evaluate each candidate
-    const evaluated = [];
-    for (const candidate of candidates) {
-      const result = evaluateCandidate(hide, candidate, {
-        method: state.method,
-        laserClearanceMm: state.laserClearanceMm,
-        gridStepMm: state.gridStepMm,
-      });
-      evaluated.push(result);
-    }
-
-    // Rank only when a strategy was actually named. 'You Choose' produces a
-    // single candidate and names no strategy — the old code passed the MODE
-    // here instead, which the ranker rejects outright (deliberately: it has
-    // no default, so that "highest utilization" can never win by omission).
-    // That made You Choose fail every time it was used.
-    state.results = state.strategy
-      ? rankCandidates(evaluated, state.strategy)
-      : evaluated;
-
-    renderResults({ results: state.results, hide });
+    state.results = results;
+    renderResults(error ? { error } : { results, hide });
   } catch (err) {
     console.error('Run failed:', err);
     renderResults({ error: err.message });
@@ -523,9 +480,7 @@ function attachEventListeners() {
       const newMode = e.target.dataset.mode;
       state.mode = newMode;
       state.quantities = {};
-      // Fill Orders only answers the orders question, so it selects it rather
-      // than offering a choice that has one valid answer.
-      state.strategy = newMode === 'mix' ? 'demand' : null;
+      state.strategy = strategyForMode(newMode);
       const strategySelect = document.getElementById('strategy-select');
       if (strategySelect) strategySelect.value = state.strategy ?? '';
       updateModeUI();
