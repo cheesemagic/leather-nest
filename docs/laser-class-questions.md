@@ -75,14 +75,35 @@ any, and three things about it are guesses.
 A fringed test strip is a good first cut — simple geometry, quick, and it
 answers all three at once.
 
-## 6. Bed size
+## 6. Multi-pass cutting and heat
+
+Leather chars and curls at the cut edge when too much heat goes in at once.
+The usual answer is several faster, lower-power passes instead of one slow
+hot one — but that is a machine setting, not something a file can carry, so
+it has to be set at the laser.
+
+- Do they cut leather in multiple passes? How many, at what power and speed?
+- Does the edge still char? Is there a trick to it — masking tape, air assist
+  turned up, a particular focus?
+- **Measure kerf at whatever settings you end up using, passes included.**
+  More passes at lower power usually cut narrower, so a kerf measured any
+  other way will not match what the program is told.
+
+The file now cuts pieces in a spread-out order rather than working across the
+sheet neighbour by neighbour, so the beam is rarely returning to leather it
+was just beside. Worth asking whether that is a thing people actually bother
+with, or whether the machine's own path optimiser overrides file order anyway
+— if it does, this needs to be switched off for the ordering to mean
+anything.
+
+## 7. Bed size
 
 The program has no idea how big the machines are.
 
 - Usable bed dimensions on each machine?
 - Is there a pass-through for material longer than the bed?
 
-## 7. Getting the material in the right place
+## 8. Getting the material in the right place
 
 The program assumes the leather sits where the drawing says it does.
 
@@ -91,7 +112,7 @@ The program assumes the leather sits where the drawing says it does.
 - Is there a way to jog the head to a corner to check alignment before
   running?
 
-## 8. Settings, roughly
+## 9. Settings, roughly
 
 - Typical power/speed for leather at 2mm-ish thickness?
 - Does it need multiple passes, or one?

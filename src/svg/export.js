@@ -7,6 +7,7 @@ import {
   placedPoints,
 } from '../nesting/geometry.js';
 import { kerfAllowanceMm } from '../nesting/clearance.js';
+import { orderForHeat, sortInteriorPaths } from '../cut-order.js';
 
 // LightBurn groups imported vectors into layers by stroke colour. The cuts
 // and the registration outline MUST stay different colours: one colour means
@@ -26,7 +27,7 @@ export const INTERIOR_COLORS = {
 };
 
 function interiorMarkup(part, placement, kerf) {
-  const paths = part.interiorPaths ?? [];
+  const paths = sortInteriorPaths(part.interiorPaths ?? []);
   if (!paths.length) return '';
 
   const lines = [];
@@ -72,14 +73,29 @@ export function exportToSVG(sheetPolygon, placements, parts, options = {}) {
   // the size that was drawn. Zero by default — see DEFAULT_KERF_MM.
   const kerf = kerfAllowanceMm(options);
 
-  const polygonsMarkup = placements
-    .map((placement) => {
-      const part = partsById.get(placement.id);
-      const absolute = placedPolygon(part, placement);
+  // Spread consecutive cuts apart so heat has somewhere to go. Laser software
+  // follows file order unless its own optimiser is on, so this is ours to set.
+  const positioned = placements.map((placement) => {
+    const part = partsById.get(placement.id);
+    const absolute = placedPolygon(part, placement);
+    const bounds = boundingBox(absolute);
+    return {
+      placement,
+      part,
+      absolute,
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2,
+    };
+  });
+
+  const polygonsMarkup = orderForHeat(positioned, options)
+    .map(({ placement, part, absolute }) => {
       const cutLine = kerf > 0 ? inflatePolygon(absolute, kerf) : absolute;
       const outer = `  <polygon points="${polygonToSVGPoints(cutLine)}" stroke="${CUT_COLOR}" stroke-width="0.01" fill="none" />`;
+      // Interior first, outline last: cutting the outline frees the piece,
+      // and anything cut after that goes into something loose enough to shift.
       const interior = interiorMarkup(part, placement, kerf);
-      return interior ? `${outer}\n${interior}` : outer;
+      return interior ? `${interior}\n${outer}` : outer;
     })
     .join('\n');
 

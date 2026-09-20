@@ -142,13 +142,19 @@ test('stitch guides and etch lines are a different colour from cuts', () => {
 // --- kerf, which runs backwards inside a hole ----------------------------
 
 const holeBounds = (svg) => {
-  const polygons = [...svg.matchAll(/<polygon points="([^"]+)" stroke="#FF0000"/g)];
-  // The second red polygon is the hole; the first is the piece outline.
-  const points = polygons[1][1].split(' ').map((pair) => {
-    const [x, y] = pair.split(',').map(Number);
-    return { x, y };
-  });
-  return boundingBox(points);
+  // Identified by size, not by position in the file: interior cuts are
+  // emitted BEFORE the outline (cutting the outline frees the piece), and a
+  // test that depends on that order breaks every time the order is revisited.
+  const polygons = [...svg.matchAll(/<polygon points="([^"]+)" stroke="#FF0000"/g)].map((m) =>
+    m[1].split(' ').map((pair) => {
+      const [x, y] = pair.split(',').map(Number);
+      return { x, y };
+    })
+  );
+  const bounds = polygons.map(boundingBox);
+  return bounds.reduce((smallest, b) =>
+    (b.maxX - b.minX) < (smallest.maxX - smallest.minX) ? b : smallest
+  );
 };
 
 test('a hole is cut SMALLER than drawn, not larger', () => {
