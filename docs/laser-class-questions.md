@@ -57,14 +57,32 @@ number was chosen in conversation, not measured.
   curls, or tears?
 - Does thicker leather need more room?
 
-## 5. Bed size
+## 5. Fringe — how thin can strands go before they fail?
+
+The program can now generate fringe: a strip with many parallel slits cut in
+from one edge, stopping short so the piece stays in one part. Nobody has cut
+any, and three things about it are guesses.
+
+- How narrow can a leather strand be before it tears or curls? The program
+  defaults to 5mm because that seemed reasonable, not because anyone knows.
+- Lots of parallel cuts packed close together puts a lot of heat into a small
+  area, and a thin strand has nowhere to dump it. Does it scorch? Curl? Does
+  it need slower passes with gaps between, or more spacing than the design
+  suggests?
+- How wide does the solid band at the top need to be so the strands don't
+  tear away from it in use?
+
+A fringed test strip is a good first cut — simple geometry, quick, and it
+answers all three at once.
+
+## 6. Bed size
 
 The program has no idea how big the machines are.
 
 - Usable bed dimensions on each machine?
 - Is there a pass-through for material longer than the bed?
 
-## 6. Getting the material in the right place
+## 7. Getting the material in the right place
 
 The program assumes the leather sits where the drawing says it does.
 
@@ -73,7 +91,7 @@ The program assumes the leather sits where the drawing says it does.
 - Is there a way to jog the head to a corner to check alignment before
   running?
 
-## 7. Settings, roughly
+## 8. Settings, roughly
 
 - Typical power/speed for leather at 2mm-ish thickness?
 - Does it need multiple passes, or one?
@@ -89,6 +107,7 @@ Every one of these was chosen in conversation. None has touched leather.
 - Space between pieces on a laser job: **1.0mm**
 - Space around a die-cut piece: **2.5mm**
 - How full the program assumes a hide can get: **75%**
-- Kerf: **not modelled at all**
+- Kerf: **modelled now, but set to 0 until measured**
+- Fringe strand width: **5mm, assumed**
 
 Anything measured at the class beats anything simulated here.
