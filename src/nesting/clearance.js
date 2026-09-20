@@ -22,6 +22,35 @@ export const DEFAULT_LASER_CLEARANCE_MM = 1.0;
 // die recorded does not have a 2.5mm die, it has no die at all.
 export const DEFAULT_DIE_CLEARANCE_MM = 2.5;
 
+// The width of material the laser beam destroys as it cuts.
+//
+// ZERO, and that is not a placeholder for a small number — it is the honest
+// statement that nobody has measured it. Every other physical constant in
+// this file was chosen in conversation; this one refuses to be. A guessed
+// kerf silently resizes every piece the program ever cuts, in a direction
+// nobody would notice until a strap does not fit its buckle.
+//
+// Set it once a test square has been cut and measured: cut a 50mm square,
+// measure what comes off the bed, and the difference is the kerf. Until
+// then 0 means "cut exactly on the line", which is what the program has
+// always done.
+//
+// Die cutting ignores this entirely — a steel rule shears the leather apart
+// rather than burning a channel through it, so nothing is removed.
+export const DEFAULT_KERF_MM = 0;
+
+// Half the kerf, because the beam eats into BOTH sides of the line it
+// follows: a cut path is a channel of kerf width centred on the line, so the
+// piece on either side loses half of it. Compensating means moving the cut
+// line outward by this much, so what is left after the burn is the size that
+// was drawn.
+export function kerfAllowanceMm(options = {}) {
+  const { method = 'laser', kerfMm = DEFAULT_KERF_MM } = options;
+  if (method !== 'laser') return 0;
+  if (!Number.isFinite(kerfMm) || kerfMm <= 0) return 0;
+  return kerfMm / 2;
+}
+
 // The single rule for "how much clear space does THIS part need under THIS
 // method". Shared so the cheap area estimate and the real nester cannot
 // drift apart — the estimate ignoring clearance under-counted a 35x12mm
@@ -36,11 +65,19 @@ export function clearanceFor(part, options = {}) {
   if (method !== 'laser' && method !== 'die') {
     throw new Error(`Unknown cutting method "${method}". Expected "laser" or "die".`);
   }
-  if (method === 'laser') return laserClearanceMm;
+  // A kerf-compensated piece is cut slightly oversize, so it takes up more
+  // room on the hide than its drawn outline does. Folding that into the
+  // clearance keeps one rule for "space this part needs" rather than two
+  // that can disagree — and because clearances are not shared, two adjacent
+  // parts each reserve half a kerf, which is exactly the full kerf between
+  // their cut lines.
+  const kerf = kerfAllowanceMm(options);
+  if (method === 'laser') return laserClearanceMm + kerf;
 
   // `??`, not a falsy check: a dieClearanceMm of 0 is a real die needing no
   // margin beyond its cut line, and must not read as "no die".
-  return part.dieClearanceMm ?? null;
+  const dieClearanceMm = part.dieClearanceMm ?? null;
+  return dieClearanceMm === null ? null : dieClearanceMm + kerf;
 }
 
 export function resolveClearances(parts, options = {}) {
@@ -52,9 +89,11 @@ export function resolveClearances(parts, options = {}) {
 
   // A laser cuts anything on the sheet, so dies are irrelevant and nothing
   // is ever untooled.
+  const kerf = kerfAllowanceMm(options);
+
   if (method === 'laser') {
     return {
-      parts: parts.map((part) => ({ ...part, clearanceMm: laserClearanceMm })),
+      parts: parts.map((part) => ({ ...part, clearanceMm: laserClearanceMm + kerf })),
       noDie: [],
     };
   }
@@ -71,7 +110,7 @@ export function resolveClearances(parts, options = {}) {
       // are different fixes.
       noDie.push(part.id);
     } else {
-      tooled.push({ ...part, clearanceMm: dieClearanceMm });
+      tooled.push({ ...part, clearanceMm: dieClearanceMm + kerf });
     }
   }
   return { parts: tooled, noDie };

@@ -157,6 +157,18 @@
             <label for="laser-clearance">Laser Clearance (mm)</label>
             <input type="number" id="laser-clearance" step="0.1" value="1.0" />
           </div>
+
+          <div class="control-group">
+            <label for="kerf-mm">Kerf (mm)</label>
+            <input type="number" id="kerf-mm" step="0.01" min="0" value="0" />
+            <p class="text-muted" style="margin: 0.25rem 0 0; font-size: 0.85rem; line-height: 1.4;">
+              How much material the beam burns away. Leave at 0 until it has
+              been measured — cut a 50mm square, measure what comes off the
+              bed, and the difference is the kerf. With a value set, cut lines
+              move outward by half of it so finished pieces come out the size
+              they were drawn.
+            </p>
+          </div>
         </div>
 
         <div class="control-group">

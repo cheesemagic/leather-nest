@@ -24,6 +24,7 @@ export function runSearch({
   shortlistSize = undefined,
   method,
   laserClearanceMm,
+  kerfMm,
   gridStepMm,
 }) {
   if (!hide) return { results: [], excluded: [], error: 'No hide selected.' };
@@ -53,7 +54,7 @@ export function runSearch({
   }
 
   const evaluated = candidates.map((candidate) =>
-    evaluateCandidate(hide, candidate, { method, laserClearanceMm, gridStepMm })
+    evaluateCandidate(hide, candidate, { method, laserClearanceMm, kerfMm, gridStepMm })
   );
 
   // Rank only when a strategy was actually named. "You Choose" produces one

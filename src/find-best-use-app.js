@@ -2,6 +2,7 @@ import { SHORTLIST_SIZE } from './bestuse/candidates.js';
 import { componentIdOf } from './bestuse/evaluate.js';
 import { RANKING_STRATEGIES } from './bestuse/ranking.js';
 import { runSearch, canRun, strategyForMode } from './bestuse/search.js';
+import { DEFAULT_KERF_MM } from './nesting/clearance.js';
 import { exportToSVG } from './svg/export.js';
 
 const state = {
@@ -13,6 +14,7 @@ const state = {
   strategy: null,
   method: 'laser',
   laserClearanceMm: 1.0,
+  kerfMm: DEFAULT_KERF_MM,
   gridStepMm: 5,
   shortlistSize: SHORTLIST_SIZE,
   results: [],
@@ -207,6 +209,7 @@ async function run() {
       shortlistSize: state.shortlistSize,
       method: state.method,
       laserClearanceMm: state.laserClearanceMm,
+      kerfMm: state.kerfMm,
       gridStepMm: state.gridStepMm,
     });
 
@@ -353,7 +356,10 @@ function renderResults({ results, hide, error }) {
       }));
       downloadLayout(
         `${slug(hide.label)}-${rank}.svg`,
-        exportToSVG(hide.outlinePolygon, result.placements, parts)
+        exportToSVG(hide.outlinePolygon, result.placements, parts, {
+          method: state.method,
+          kerfMm: state.kerfMm,
+        })
       );
     });
     card.appendChild(confirmButton);
@@ -492,6 +498,11 @@ function attachEventListeners() {
   document.getElementById('strategy-select').addEventListener('change', (e) => {
     state.strategy = e.target.value;
     updateRunButtonState();
+  });
+
+  document.getElementById('kerf-mm').addEventListener('change', (e) => {
+    const value = parseFloat(e.target.value);
+    state.kerfMm = Number.isFinite(value) && value >= 0 ? value : DEFAULT_KERF_MM;
   });
 
   document.getElementById('shortlist-size').addEventListener('change', (e) => {
