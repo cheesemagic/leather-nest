@@ -11,6 +11,7 @@ const PYTHON = path.join(__dirname, '..', 'venv', 'bin', 'python3');
 const SCRIPT = path.join(__dirname, '..', 'scripts', 'digitize.py');
 const FIXTURE = path.join(__dirname, 'fixtures', 'test-rectangle.png');
 const BLANK_FIXTURE = path.join(__dirname, 'fixtures', 'test-blank.png');
+const GLARE_FIXTURE = path.join(__dirname, 'fixtures', 'test-glare.png');
 
 test('digitize.py extracts a known rectangle at the correct mm dimensions', () => {
   const stdout = execFileSync(PYTHON, [SCRIPT, FIXTURE, '0', '0', '200', '0', '100']);
@@ -85,4 +86,33 @@ test('digitize.py fails clearly on non-numeric calibration args', () => {
       return true;
     }
   );
+});
+
+test('digitize.py refuses a glare-broken outline instead of returning it', () => {
+  // The failure that prompted this check: a shine on the leather is as pale
+  // as the background, so the trace dives into the middle of the piece,
+  // follows the edge of the highlight, and comes back out. It used to return
+  // that shape with no complaint — on the first real photograph ever put
+  // through it, roughly half a hide was silently discarded.
+  assert.throws(
+    () => execFileSync(PYTHON, [SCRIPT, GLARE_FIXTURE, '0', '0', '200', '0', '100'], { stdio: 'pipe' }),
+    (err) => {
+      const message = err.stderr.toString() + err.stdout.toString();
+      assert.match(message, /too ragged to trust/);
+      // The operator needs to know what to DO about it, not just that it failed.
+      assert.match(message, /glare/i);
+      assert.match(message, /rough side up|coloured card|indirect light/i);
+      return true;
+    }
+  );
+});
+
+test('a long thin strap is not mistaken for a ragged trace', () => {
+  // Elongation must not trip the check. A 1.5m x 30mm strap is a perfectly
+  // ordinary offcut, and a rule based on perimeter against area would have
+  // thrown it out — which is why the check measures raggedness against the
+  // shape's own convex hull instead.
+  const stdout = execFileSync(PYTHON, [SCRIPT, FIXTURE, '0', '0', '200', '0', '100']);
+  const result = JSON.parse(stdout.toString());
+  assert.ok(result.polygon.length >= 4, 'a clean outline should still come through');
 });

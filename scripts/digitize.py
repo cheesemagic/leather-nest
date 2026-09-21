@@ -11,6 +11,14 @@ def fail(message):
     sys.exit(1)
 
 
+# Traced edge length over convex-hull length. 1.0 is a convex shape; real
+# offcuts measured 1.00-1.31; a circle carrying 2mm of tracing jitter reached
+# 2.13; the one genuine glare failure scored 4.76. Set between the worst
+# plausible trace and the real failure, and worth revisiting once more real
+# photographs have been through this — it is calibrated on one failure.
+MAX_ROUGHNESS = 3.0
+
+
 def main():
     if len(sys.argv) not in (7, 11):
         fail(
@@ -76,6 +84,39 @@ def main():
         fail("No clear pattern outline detected — check lighting/contrast against the mat.")
 
     _, best_contour = max(candidates, key=lambda pair: pair[0])
+
+    # Is this the edge of a piece of leather, or the edge of a shadow?
+    #
+    # Thresholding decides what is leather by brightness, so a glare highlight
+    # on shiny leather reads as background: the trace dives into the middle of
+    # the piece, follows the edge of the shine, and comes back out. It returns
+    # a shape, confidently, and nothing downstream can tell it is fiction.
+    # That happened on the first real photo ever put through this — roughly
+    # half a hide was thrown away and no error was raised.
+    #
+    # The tell is raggedness: how much longer the traced edge is than a taut
+    # line pulled around it. Measured on real and synthetic outlines:
+    #
+    #     rectangle, long strap, circle                1.00
+    #     L-shaped offcut, dome with a notch      1.08 - 1.13
+    #     deeply concave shapes, zigzag            1.29 - 1.31
+    #     a circle with 2mm of tracing jitter           2.13
+    #     ------------------------------------------------------
+    #     the real glare failure                        4.76
+    #
+    # Elongation does not move this number, which matters — a 1.5m strap
+    # scores 1.00, and a rule based on perimeter against area would have
+    # rejected it. Only genuine raggedness moves it.
+    hull_perimeter = cv2.arcLength(cv2.convexHull(best_contour), True)
+    roughness = cv2.arcLength(best_contour, True) / hull_perimeter if hull_perimeter else 0
+    if roughness > MAX_ROUGHNESS:
+        fail(
+            "The outline came out too ragged to trust (roughness "
+            f"{roughness:.1f}, limit {MAX_ROUGHNESS}). This usually means glare: "
+            "a shine on the leather is as pale as the background, so the trace "
+            "follows the edge of the highlight instead of the edge of the piece. "
+            "Photograph the rough side up, on coloured card, in indirect light."
+        )
 
     scale_mm_per_px = real_distance_mm / pixel_distance
     epsilon = 0.5 / scale_mm_per_px
