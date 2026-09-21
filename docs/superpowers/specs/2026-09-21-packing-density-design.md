@@ -1,7 +1,8 @@
 # Packing density
 
-**Status:** proposal, not approved
-**Date:** 2026-09-21
+**Status:** stage one attempted and REVERTED — its premise was wrong.
+Stage two is where the work is. See "What stage one found" below.
+**Date:** 2026-09-21 (corrected same day)
 
 The first real job — a traced offcut with a real card-wallet pattern — placed
 54 pieces and used 59% of the leather, and the operator could see by eye that
@@ -45,7 +46,11 @@ not producing bad cuts.
 concavities or not, which means the concavities are doing nothing. Pieces are
 never settling into one another.
 
-## Why
+## Why — WRONG, corrected below
+
+*Kept as written so the error is visible. The diagnosis in this section is
+incorrect; see "What stage one found".*
+
 
 `computeNFP` in `src/nesting/nfp.js` is a Minkowski sum, which is exact for
 convex parts only. For a concave part it yields an NFP at least as large as
@@ -128,3 +133,54 @@ should wait until exotics are actually being cut, and should be judged then.
 - Changing how positions are scanned. Measured; it is not the problem.
 - Any new dependency. Convex decomposition is a few dozen lines against a
   library already present.
+
+
+---
+
+## What stage one found
+
+Stage one was built and then deleted. The diagnosis above was wrong.
+
+`nfp.js` carried a comment saying the Minkowski sum was "exact for convex
+polygons only". That was believed without being checked, and a convex
+decomposition was written on the strength of it. Measured against plain
+whole-shape calls afterwards:
+
+| shape against its 180° rotation | whole-shape | decomposed | difference |
+|---|---|---|---|
+| L-shape | 9600 | 9600 | 0.000% |
+| crescent (a real socket) | 8850 | 8850 | 0.000% |
+| the real card-wallet back | 22121 | 22121 | 0.000% |
+
+**clipper-lib's MinkowskiSum is already exact for concave input.** There was
+never anything to fix here. The decomposition was removed.
+
+### The estimate was wrong too
+
+The spec predicted 8-10% from interlocking, derived from the wallet pieces
+filling 90-92% of their convex hulls. That figure measures wasted area
+*inside* a hull, which is not the same as somewhere another piece can get
+into. The wallet's concavity is one broad scoop, not a socket: its exact NFP
+is 0.0% tighter than its hull's at matching rotations, 2.4% at 180°.
+
+### What was worth keeping
+
+One thing, and it was incidental. The NFP was being recomputed against every
+already-placed part. It depends only on the two shapes and their rotations —
+moving one moves the region with it — so it is now computed once per
+shape-and-rotation pair and translated. On a job of identical parts that is
+sixteen NFPs rather than one per placed part.
+
+The real job went from **49 seconds to 9** for the same 54 pieces. That
+speedup is the whole return from stage one.
+
+### So the cause is the search, and always was
+
+Nothing forbids an interlocked position. Placement simply takes the FIRST
+position where a part fits, scanning from the bottom left, and that position
+is almost never a nested one. Exactness was never the constraint; it is the
+greedy first-fit.
+
+That is stage two, and it is now the only stage. It should be judged on its
+own evidence rather than on this document's arithmetic — two estimates in it
+have already been withdrawn.
