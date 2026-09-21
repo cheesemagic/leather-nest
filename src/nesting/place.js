@@ -45,6 +45,9 @@ export function place(sheetPolygon, parts, options = {}) {
   const placed = [];
   const placements = [];
   const noFit = [];
+  // Keyed by shape, rotation and clearance on both sides. Local to this call,
+  // so it cannot grow across runs.
+  const nfpCache = new Map();
 
   // Once a part fails, every later part from the SAME component fails too:
   // `placed` only grows during this call, so the free region only ever
@@ -103,7 +106,31 @@ export function place(sheetPolygon, parts, options = {}) {
       const minY = sheetBounds.minY - testBounds.minY;
       const maxX = sheetBounds.maxX - testBounds.maxX;
       const maxY = sheetBounds.maxY - testBounds.maxY;
-      const forbiddenRegions = placed.flatMap((p) => computeNFP(p.testPolygon, testShape));
+      // The no-fit region between two shapes depends only on the shapes and
+      // their rotations — moving one of them just moves the region with it.
+      // It was being recomputed against every already-placed part, which was
+      // free while an NFP was one Minkowski sum. It is not free now: a part
+      // with a deep curved concavity decomposes into around twenty convex
+      // pieces, and an NFP costs one sum per PAIR of pieces. Computed once
+      // per shape-and-rotation pair and translated, a job of identical parts
+      // needs sixteen NFPs rather than one per placed part.
+      const forbiddenRegions = [];
+      for (const other of placed) {
+        const key =
+          other.componentId !== undefined && part.componentId !== undefined
+            ? `${other.componentId}@${other.rotation}/${other.clearanceMm}|` +
+              `${part.componentId}@${rotation}/${clearanceMm}`
+            : null;
+
+        let base = key === null ? null : nfpCache.get(key);
+        if (!base) {
+          base = computeNFP(other.baseShape, testShape);
+          if (key !== null) nfpCache.set(key, base);
+        }
+        for (const region of base) {
+          forbiddenRegions.push(translatePolygon(region, other.x, other.y));
+        }
+      }
       // Forbidden regions don't change during the grid scan below, so
       // convert to clipper format once per rotation trial rather than once
       // per candidate point (was 4.8x slower re-converting per point).
@@ -144,6 +171,7 @@ export function place(sheetPolygon, parts, options = {}) {
                 rotation,
                 polygon: placedPolygon(part, { x, y, rotation }),
                 testPolygon: placedTestShape,
+                baseShape: testShape,
               };
             }
           }
@@ -157,7 +185,18 @@ export function place(sheetPolygon, parts, options = {}) {
     }
 
     if (accepted) {
-      placed.push({ polygon: accepted.polygon, testPolygon: accepted.testPolygon });
+      placed.push({
+        polygon: accepted.polygon,
+        testPolygon: accepted.testPolygon,
+        // Kept so the NFP can be computed against the UNPLACED shape and
+        // translated, rather than recomputed against the placed one.
+        baseShape: accepted.baseShape,
+        x: accepted.x,
+        y: accepted.y,
+        rotation: accepted.rotation,
+        componentId: part.componentId,
+        clearanceMm,
+      });
       placements.push({ id: part.id, x: accepted.x, y: accepted.y, rotation: accepted.rotation });
     } else {
       noFit.push(part.id);
