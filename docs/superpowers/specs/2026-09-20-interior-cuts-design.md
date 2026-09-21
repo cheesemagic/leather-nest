@@ -76,14 +76,53 @@ bounds, not their own. A hole normalised to its own bounding box lands at the
 piece's corner — still inside the piece, which is why a containment-only test
 passes against it. That mutation survived the first test written for it.
 
+## Import classification — solved, 2026-09-20
+
+A real downloaded card-wallet pattern settled this. Three pieces, each one
+`<path>` element holding one outline plus 47-57 identical 1mm rings: the
+stitch holes. **Every line in the file is the same colour**, so any rule based
+on layers or colour would have failed outright.
+
+The rule is containment, not colour and not size: a ring inside nothing is a
+piece, a ring inside a piece is that piece's interior. Size alone would have
+worked for a single-piece file and broken on this one, where the second
+piece's outline is smaller than the first's.
+
+Element boundaries are deliberately not trusted. One `<path>` per piece is a
+convention, not a guarantee, and containment gives the right answer either
+way.
+
+What the file still cannot say is whether an interior ring should be **cut**
+or only **marked** — a stitch guide that must never be cut is geometrically
+identical to a hole that must. That stays the caller's to set.
+
+### Units are the other half, and are not inferable
+
+The same pattern states no physical size at all, only a coordinate box. Read
+as millimetres — which is what every component already in the library assumes
+— its back panel is 217x278mm, about a sheet of A4. It is actually 76x98mm:
+the file is in points. The giveaway was the stitch holes measuring exactly
+1.00mm in points, which is a standard size; nobody drills a 2.84mm stitch
+hole.
+
+`unitOptions()` reports what the drawing measures under each candidate unit
+so the operator can be shown the choice. Guessing was rejected: the same
+guess that is right for one file is three times wrong for another, and the
+failure is a pattern cut at triple size.
+
 ## Not built
 
-**Import classification.** Given a supplier's file with five paths, deciding
-which is the outline, which is a hole and which is a stitch guide. The file
-usually does not say, and guessing wrong cuts a stitch line straight through
-a piece. The importer still refuses multi-path files. This is a question
-about real files and real conventions, not about code, and it is the only
-thing standing between this representation and real dies going in.
+**Rebuilding holes from a dashed stroke.** Some patterns draw a row of stitch
+holes as ONE line with a dash pattern applied, rather than as real holes.
+Every importer — this one and LightBurn's alike — keeps the line and drops
+the dashes, and cutting that gives a continuous slit down the piece. Such
+files are now refused with an explanation.
+
+They are reconstructible: dash length, gap and stroke width are all in the
+file, so the real holes could be generated along the path. That would beat
+the manual workaround people currently use (expanding the stroke in a vector
+editor), which distorts the circles at each end. Deliberately deferred — no
+file we hold needs it, and it should be built against one that does.
 
 **A way to create interior paths by hand.** No UI. Components can carry them;
 nothing yet puts them there except code.

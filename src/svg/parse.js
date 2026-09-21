@@ -1,3 +1,4 @@
+import { pointInPolygon, polygonArea } from '../nesting/geometry.js';
 // Turns one SVG shape into the flat point array the nester works in.
 //
 // Two accepted forms: a `points` attribute (<polygon>/<polyline>), which is
@@ -145,7 +146,7 @@ function tokenizePath(d) {
   return tokens;
 }
 
-function parsePath(d) {
+function parseAllSubpaths(d) {
   const tokens = tokenizePath(d);
   const subpaths = [];
   let current = null;
@@ -278,26 +279,34 @@ function parsePath(d) {
     }
   }
 
-  const drawn = subpaths.filter((points) => points.length >= 3);
+  const drawn = subpaths.filter((points) => points.length >= 3).map(dropClosingDuplicate);
   if (drawn.length === 0) {
     throw new Error('SVG path encloses no area — expected at least three points');
   }
+  return drawn;
+}
+
+// A closing Z leaves the start point repeated at the end; the nester treats
+// polygons as implicitly closed.
+function dropClosingDuplicate(points) {
+  const last = points[points.length - 1];
+  if (points.length > 3 && last.x === points[0].x && last.y === points[0].y) {
+    return points.slice(0, -1);
+  }
+  return points;
+}
+
+// The single-shape contract the nester has always had. A file with more than
+// one subpath needs parseSVGComponents, which can say which ring is which.
+function parseSinglePath(d) {
+  const drawn = parseAllSubpaths(d);
   if (drawn.length > 1) {
-    // A die with a hole is two subpaths, and component.polygon is a single
-    // flat point array — the nester cannot represent a hole. Silently keeping
-    // the outer ring would cut through the hole, so refuse instead.
     throw new Error(
       `SVG path has ${drawn.length} subpaths; only a single closed outline is supported. ` +
-        'Holes and multi-part shapes cannot be represented.'
+        'Use the component importer for files with holes or several pieces.'
     );
   }
-
-  const points = drawn[0];
-  // A closing Z leaves the start point repeated at the end; the nester treats
-  // polygons as implicitly closed.
-  const last = points[points.length - 1];
-  if (points.length > 3 && last.x === points[0].x && last.y === points[0].y) points.pop();
-  return points;
+  return drawn[0];
 }
 
 // CSS absolute units, in millimetres. Unitless lengths are deliberately absent:
@@ -369,7 +378,131 @@ function scaled(points, scale) {
   return points.map((point) => ({ x: point.x * scale, y: point.y * scale }));
 }
 
-export function parseSVGPolygon(svgString) {
+// Every shape element in the document, as raw subpaths. One <path> element
+// commonly holds a whole piece — outline and all its stitch holes — but
+// nothing guarantees that, so element boundaries are not trusted to mean
+// anything. Containment decides.
+function allSubpaths(svgString) {
+  const out = [];
+  for (const match of svgString.matchAll(/points\s*=\s*"([^"]+)"/g)) {
+    const points = parsePoints(match[1]);
+    if (points.length >= 3) out.push(dropClosingDuplicate(points));
+  }
+  for (const match of svgString.matchAll(/[\s"']d\s*=\s*"([^"]+)"/g)) {
+    out.push(...parseAllSubpaths(match[1]));
+  }
+  return out;
+}
+
+const everyPointInside = (inner, outer) =>
+  inner.every((point) => pointInPolygon(point, outer));
+
+// Which piece does each ring belong to, and is it an outline or a hole?
+//
+// Not "the biggest one is the outline" — that only works when a file holds a
+// single piece. The wallet pattern that prompted this holds three, so the
+// rule is containment: a ring inside nothing is a piece, a ring inside a
+// piece is that piece's interior. Size only breaks ties.
+//
+// Deliberately not colour. In the file this was built against every single
+// line is the same blue, so any colour-based rule would have failed outright.
+export function groupSubpaths(subpaths) {
+  const ranked = subpaths
+    .map((points, index) => ({ points, index, area: Math.abs(polygonArea(points)) }))
+    .sort((a, b) => b.area - a.area);
+
+  const components = [];
+
+  for (const ring of ranked) {
+    // Rings are processed largest first, so any piece containing this one is
+    // already placed. Only one can: pieces do not overlap, so there is never
+    // a choice of container to make. (A "pick the smallest container" rule
+    // was written first and deleted — it could never fire.)
+    const parent = components.find((piece) => everyPointInside(ring.points, piece.polygon));
+    if (parent) {
+      parent.interior.push(ring);
+    } else {
+      components.push({ polygon: ring.points, area: ring.area, index: ring.index, interior: [] });
+    }
+  }
+
+  return { components };
+}
+
+
+// What the drawing measures under each plausible unit, so the operator can be
+// shown the choice rather than the program guessing.
+//
+// A file that states a physical size needs none of this. One that does not —
+// and the first real pattern tested here is exactly that — is genuinely
+// ambiguous: bare numbers are user units, and Illustrator's are points while
+// this program has always assumed millimetres. On that pattern the difference
+// is a card wallet at 76x98mm versus a sheet of A4.
+export function unitOptions(svgString) {
+  const stated = scaleFactor(svgString);
+  const subpaths = allSubpaths(svgString);
+  if (!subpaths.length) return { stated: stated !== 1, options: [] };
+
+  const all = subpaths.flat();
+  const width = Math.max(...all.map((p) => p.x)) - Math.min(...all.map((p) => p.x));
+  const height = Math.max(...all.map((p) => p.y)) - Math.min(...all.map((p) => p.y));
+
+  if (stated !== 1) {
+    return {
+      stated: true,
+      options: [{ unit: 'as stated', scale: stated, widthMm: width * stated, heightMm: height * stated }],
+    };
+  }
+  return {
+    stated: false,
+    options: Object.entries(UNIT_TO_MM).map(([unit, scale]) => ({
+      unit,
+      scale,
+      widthMm: width * scale,
+      heightMm: height * scale,
+    })).sort((a, b) => a.widthMm - b.widthMm),
+  };
+}
+
+// A whole file: every piece in it, each with its own interior cuts.
+//
+// `unit` names what a bare coordinate means, and is ignored when the file
+// states its own physical size. It defaults to millimetres because that is
+// what every component already in the library assumes — but the caller is
+// expected to ask, because the default is right for some files and three
+// times wrong for others.
+export function parseSVGComponents(svgString, { unit = 'mm', interiorKind = 'cut' } = {}) {
+  refuseUnsupportedStyling(svgString);
+
+  const stated = scaleFactor(svgString);
+  const scale = stated !== 1 ? stated : (UNIT_TO_MM[unit] ?? 1);
+  if (stated === 1 && !UNIT_TO_MM[unit]) {
+    throw new Error(`Unknown unit ${JSON.stringify(unit)}. Expected one of: ${Object.keys(UNIT_TO_MM).join(', ')}.`);
+  }
+
+  const subpaths = allSubpaths(svgString).map((points) => scaled(points, scale));
+  if (!subpaths.length) {
+    throw new Error('No <polygon points="..."> or <path d="..."> found in SVG string');
+  }
+
+  const { components } = groupSubpaths(subpaths);
+  return components
+    .sort((a, b) => a.index - b.index)
+    .map((component) => ({
+      polygon: component.polygon,
+      // Every ring inside a piece is taken as something to cut. A stitch
+      // guide that must NOT be cut looks identical in geometry, so this is
+      // the caller's to override — it cannot be read off the file.
+      interiorPaths: component.interior
+        .sort((a, b) => a.index - b.index)
+        .map((ring) => ({ kind: interiorKind, closed: true, points: ring.points })),
+    }));
+}
+
+// Styling that looks like geometry but is not. Each of these imports as
+// something plausible and cuts as something wrong, which is the worst
+// failure this importer can have.
+function refuseUnsupportedStyling(svgString) {
   // A transform on the shape or any ancestor <g> changes the geometry, and
   // applying it is not implemented. Importing a die that is silently offset or
   // scaled is worse than refusing it, so refuse.
@@ -391,13 +524,32 @@ export function parseSVGPolygon(svgString) {
     );
   }
 
+  // A dashed stroke is styling, not shape. Patterns exist that draw a row of
+  // stitch holes as ONE line with a dash pattern applied, and every importer
+  // — this one and LightBurn's alike — keeps the line and drops the dashes.
+  // Cut, that is a continuous slit down the piece where holes were meant.
+  // Rebuilding the real holes from the dash pattern is possible (the spacing
+  // and size are both in the file) and is deliberately not done yet.
+  if (/stroke-dasharray\s*:\s*(?!none)[^;"'}\s]/i.test(svgString) ||
+      /[\s"']stroke-dasharray\s*=\s*"\s*(?!none)[^"]/i.test(svgString)) {
+    throw new Error(
+      'SVG uses a dashed stroke. Some patterns draw stitch holes as one dashed line ' +
+        'rather than as real holes — imported, that becomes a single continuous cut ' +
+        'through the piece. Expand the dashes into real shapes before importing.'
+    );
+  }
+}
+
+export function parseSVGPolygon(svgString) {
+  refuseUnsupportedStyling(svgString);
+
   const scale = scaleFactor(svgString);
 
   const points = svgString.match(/points\s*=\s*"([^"]+)"/);
   if (points) return scaled(parsePoints(points[1]), scale);
 
   const d = svgString.match(/[\s"']d\s*=\s*"([^"]+)"/);
-  if (d) return scaled(parsePath(d[1]), scale);
+  if (d) return scaled(parseSinglePath(d[1]), scale);
 
   throw new Error('No <polygon points="..."> or <path d="..."> found in SVG string');
 }
