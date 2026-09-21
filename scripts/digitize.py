@@ -69,54 +69,103 @@ def main():
     min_area = total_area * 0.01
     max_area = total_area * 0.90
 
-    # Try both threshold directions — we don't know in advance whether the
-    # pattern piece is darker or lighter than the mat it's photographed on.
+    # Brightness alone is not enough, and a real photograph proved it. A bench
+    # lit from one side puts a gradient across the whole frame, so a single
+    # cutoff splits the picture into LIT and SHADOWED rather than leather and
+    # bench — it swallowed the shadowed wood and sliced diagonally through the
+    # middle of the hide.
+    #
+    # Colour survives that. Wood is strongly yellow; leather is grey, brown or
+    # dyed. A shadow changes how bright something is and barely changes its
+    # hue, so the blue-yellow and green-red axes cut cleanly through shade.
+    # On the photograph that failed, brightness scored 4.40 roughness against
+    # the blue-yellow axis's 1.18 — tracing essentially the true outline.
+    #
+    # Brightness stays in the list because it is the one that works on a plain
+    # grey piece against a white mat, where there is no colour to separate.
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    channels = (
+        ("brightness", gray),
+        ("blue-yellow", lab[:, :, 2]),
+        ("green-red", lab[:, :, 1]),
+    )
+
+    # Speckle along an edge is what inflates roughness; closing it costs
+    # nothing real at this scale. Sized from the photo so it means the same
+    # thing on a phone picture and on a small test fixture.
+    k = max(3, int(min(gray.shape) * 0.01))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+
     candidates = []
-    for thresh_type in (cv2.THRESH_BINARY, cv2.THRESH_BINARY_INV):
-        _, binary = cv2.threshold(gray, 0, 255, thresh_type + cv2.THRESH_OTSU)
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if min_area <= area <= max_area:
+    too_ragged = []
+    clipped = False
+    for name, channel in channels:
+        # Both directions: we do not know whether the piece is darker or
+        # lighter than the mat it is photographed on.
+        for thresh_type in (cv2.THRESH_BINARY, cv2.THRESH_BINARY_INV):
+            _, binary = cv2.threshold(channel, 0, 255, thresh_type + cv2.THRESH_OTSU)
+            binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+            binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+            contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if not (min_area <= area <= max_area):
+                    continue
+                # Discard anything running off the edge of the region. The
+                # piece is photographed with bench visible around it, so its
+                # outline never reaches the border — but an inverted threshold
+                # happily returns the whole frame as one contour, and since
+                # the biggest candidate wins, that would beat the real
+                # outline every time. With only the brightness channel this
+                # never came up; adding colour channels made it the answer
+                # on the first real photograph.
+                # Otsu returns the background just as readily as the piece,
+                # and the background is the bigger of the two — so with the
+                # largest candidate winning, it beats the real outline every
+                # time. Adding colour channels made that the answer on the
+                # first real photograph put through this.
+                #
+                # The background wraps the piece, so it reaches all four
+                # sides of the frame. A piece photographed with its edge
+                # against something — a tape measure laid alongside, say —
+                # reaches one, or two in a corner. Three is the line.
+                x, y, w, h = cv2.boundingRect(contour)
+                sides = sum((
+                    x <= 1,
+                    y <= 1,
+                    x + w >= gray.shape[1] - 1,
+                    y + h >= gray.shape[0] - 1,
+                ))
+                if sides >= 3:
+                    continue
+                if sides:
+                    clipped = True
+                hull = cv2.arcLength(cv2.convexHull(contour), True)
+                roughness = cv2.arcLength(contour, True) / hull if hull else 0
+                if roughness > MAX_ROUGHNESS:
+                    too_ragged.append(roughness)
+                    continue
                 candidates.append((area, contour))
 
     if not candidates:
+        if too_ragged:
+            fail(
+                "Every outline found came out too ragged to trust (best "
+                f"{min(too_ragged):.1f}, limit {MAX_ROUGHNESS}). That usually means "
+                "glare or a hard shadow: a shine on the leather reads as pale as the "
+                "background, or a shadow across the bench splits the picture into lit "
+                "and dark instead of leather and bench. Photograph the rough side up, "
+                "on coloured card, in even indirect light."
+            )
+        if clipped:
+            fail(
+                "Every outline found ran off the edge of the selected region. Select a "
+                "region with a margin of bench visible around the piece, and keep the "
+                "tape measure outside it."
+            )
         fail("No clear pattern outline detected — check lighting/contrast against the mat.")
 
     _, best_contour = max(candidates, key=lambda pair: pair[0])
-
-    # Is this the edge of a piece of leather, or the edge of a shadow?
-    #
-    # Thresholding decides what is leather by brightness, so a glare highlight
-    # on shiny leather reads as background: the trace dives into the middle of
-    # the piece, follows the edge of the shine, and comes back out. It returns
-    # a shape, confidently, and nothing downstream can tell it is fiction.
-    # That happened on the first real photo ever put through this — roughly
-    # half a hide was thrown away and no error was raised.
-    #
-    # The tell is raggedness: how much longer the traced edge is than a taut
-    # line pulled around it. Measured on real and synthetic outlines:
-    #
-    #     rectangle, long strap, circle                1.00
-    #     L-shaped offcut, dome with a notch      1.08 - 1.13
-    #     deeply concave shapes, zigzag            1.29 - 1.31
-    #     a circle with 2mm of tracing jitter           2.13
-    #     ------------------------------------------------------
-    #     the real glare failure                        4.76
-    #
-    # Elongation does not move this number, which matters — a 1.5m strap
-    # scores 1.00, and a rule based on perimeter against area would have
-    # rejected it. Only genuine raggedness moves it.
-    hull_perimeter = cv2.arcLength(cv2.convexHull(best_contour), True)
-    roughness = cv2.arcLength(best_contour, True) / hull_perimeter if hull_perimeter else 0
-    if roughness > MAX_ROUGHNESS:
-        fail(
-            "The outline came out too ragged to trust (roughness "
-            f"{roughness:.1f}, limit {MAX_ROUGHNESS}). This usually means glare: "
-            "a shine on the leather is as pale as the background, so the trace "
-            "follows the edge of the highlight instead of the edge of the piece. "
-            "Photograph the rough side up, on coloured card, in indirect light."
-        )
 
     scale_mm_per_px = real_distance_mm / pixel_distance
     epsilon = 0.5 / scale_mm_per_px

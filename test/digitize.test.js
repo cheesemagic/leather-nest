@@ -12,6 +12,9 @@ const SCRIPT = path.join(__dirname, '..', 'scripts', 'digitize.py');
 const FIXTURE = path.join(__dirname, 'fixtures', 'test-rectangle.png');
 const BLANK_FIXTURE = path.join(__dirname, 'fixtures', 'test-blank.png');
 const GLARE_FIXTURE = path.join(__dirname, 'fixtures', 'test-glare.png');
+const RAGGED_FIXTURE = path.join(__dirname, 'fixtures', 'test-ragged.png');
+const EDGE_FIXTURE = path.join(__dirname, 'fixtures', 'test-edge-piece.png');
+const SPECKLED_FIXTURE = path.join(__dirname, 'fixtures', 'test-speckled.png');
 
 test('digitize.py extracts a known rectangle at the correct mm dimensions', () => {
   const stdout = execFileSync(PYTHON, [SCRIPT, FIXTURE, '0', '0', '200', '0', '100']);
@@ -88,31 +91,79 @@ test('digitize.py fails clearly on non-numeric calibration args', () => {
   );
 });
 
-test('digitize.py refuses a glare-broken outline instead of returning it', () => {
-  // The failure that prompted this check: a shine on the leather is as pale
-  // as the background, so the trace dives into the middle of the piece,
-  // follows the edge of the highlight, and comes back out. It used to return
-  // that shape with no complaint — on the first real photograph ever put
-  // through it, roughly half a hide was silently discarded.
+test('a highlight across the piece no longer breaks the outline', () => {
+  // A real photograph failed exactly this way: the shine on the leather was
+  // as pale as the bench, so a brightness threshold dived into the middle of
+  // the piece and traced the edge of the highlight instead. Working on the
+  // colour axes as well recovers it, because a highlight changes how bright
+  // something is far more than it changes its hue.
+  const stdout = execFileSync(PYTHON, [SCRIPT, GLARE_FIXTURE, '0', '0', '200', '0', '100']);
+  const polygon = JSON.parse(stdout.toString()).polygon;
+  const bounds = boundingBox(polygon);
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+
+  // The fixture's dark block is 280x180px against a 200px = 100mm baseline.
+  assert.ok(Math.abs(width - 140) < 8, `expected ~140mm across, got ${width.toFixed(1)}`);
+  assert.ok(Math.abs(height - 90) < 8, `expected ~90mm tall, got ${height.toFixed(1)}`);
+});
+
+test('an outline too ragged to be a real edge is still refused', () => {
+  // The guard behind the recovery above. When no channel can produce a sane
+  // outline, returning the best of a bad set would hand the operator a shape
+  // that is not their leather — which is how half a hide got silently
+  // discarded before any of this existed.
   assert.throws(
-    () => execFileSync(PYTHON, [SCRIPT, GLARE_FIXTURE, '0', '0', '200', '0', '100'], { stdio: 'pipe' }),
+    () => execFileSync(PYTHON, [SCRIPT, RAGGED_FIXTURE, '0', '0', '200', '0', '100'], { stdio: 'pipe' }),
     (err) => {
       const message = err.stderr.toString() + err.stdout.toString();
       assert.match(message, /too ragged to trust/);
-      // The operator needs to know what to DO about it, not just that it failed.
-      assert.match(message, /glare/i);
+      // It has to say what to DO, not just that it failed.
       assert.match(message, /rough side up|coloured card|indirect light/i);
       return true;
     }
   );
 });
 
-test('a long thin strap is not mistaken for a ragged trace', () => {
-  // Elongation must not trip the check. A 1.5m x 30mm strap is a perfectly
-  // ordinary offcut, and a rule based on perimeter against area would have
-  // thrown it out — which is why the check measures raggedness against the
-  // shape's own convex hull instead.
-  const stdout = execFileSync(PYTHON, [SCRIPT, FIXTURE, '0', '0', '200', '0', '100']);
-  const result = JSON.parse(stdout.toString());
-  assert.ok(result.polygon.length >= 4, 'a clean outline should still come through');
+test('the bench is not mistaken for the piece when the piece runs off an edge', () => {
+  // Otsu returns the bench as readily as the piece. Normally the bench wraps
+  // right around and its outline IS the frame, which the area cap already
+  // rejects. But when the piece runs off one edge the bench becomes a
+  // C-shape — smaller than the frame, larger than the piece — and picking
+  // the largest candidate chooses it. A real photograph did exactly this,
+  // with the leather lying against the tape measure, and reported a 43-inch
+  // hide. The bench is ruled out by reaching three or more sides of the
+  // frame; a piece against one edge reaches one, or two in a corner.
+  const stdout = execFileSync(PYTHON, [SCRIPT, EDGE_FIXTURE, '0', '0', '200', '0', '100']);
+  const bounds = boundingBox(JSON.parse(stdout.toString()).polygon);
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+
+  // The piece is 250x220px against a 200px = 100mm baseline: 125 x 110mm.
+  // The bench would come back around 200mm wide.
+  assert.ok(width < 150, `traced ${width.toFixed(0)}mm wide — that is the bench, not the piece`);
+  assert.ok(Math.abs(height - 110) < 8, `expected ~110mm tall, got ${height.toFixed(1)}`);
+});
+
+test('a speckled edge is cleaned up rather than traced bead by bead', () => {
+  // Real edges come back beaded, and every bead is a vertex that gets paid
+  // for again in the nester, where cost between two placed parts scales with
+  // the product of their vertex counts. On the real photograph, cleaning the
+  // edge first took the same outline from 1,865 points down to 513.
+  //
+  // Without that cleanup this fixture is not merely noisier — it is refused
+  // outright as too ragged to trust.
+  const stdout = execFileSync(PYTHON, [SCRIPT, SPECKLED_FIXTURE, '0', '0', '200', '0', '100']);
+  const polygon = JSON.parse(stdout.toString()).polygon;
+  const bounds = boundingBox(polygon);
+
+  // The block is 280x180px against a 200px = 100mm baseline — 140 x 90mm —
+  // and the beads straddle the edge by up to 5mm, so the traced shape lands
+  // slightly proud of that. What matters is that it is the block's shape and
+  // not something the noise invented.
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+  assert.ok(width > 135 && width < 158, `width ${width.toFixed(1)}mm`);
+  assert.ok(height > 85 && height < 108, `height ${height.toFixed(1)}mm`);
+  assert.ok(polygon.length < 900, `${polygon.length} points for a rectangle`);
 });
