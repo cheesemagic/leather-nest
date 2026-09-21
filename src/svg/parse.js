@@ -1,4 +1,4 @@
-import { pointInPolygon, polygonArea } from '../nesting/geometry.js';
+import { pointInPolygon, polygonArea, simplifyPolygon } from '../nesting/geometry.js';
 // Turns one SVG shape into the flat point array the nester works in.
 //
 // Two accepted forms: a `points` attribute (<polygon>/<polyline>), which is
@@ -438,6 +438,11 @@ export function groupSubpaths(subpaths) {
 // ambiguous: bare numbers are user units, and Illustrator's are points while
 // this program has always assumed millimetres. On that pattern the difference
 // is a card wallet at 76x98mm versus a sheet of A4.
+// Shape error the nester will never notice, being far below the width the
+// beam itself removes — and the difference between placing eight pieces in a
+// second and in four minutes. See simplifyPolygon.
+export const DEFAULT_SIMPLIFY_MM = 0.25;
+
 export function unitOptions(svgString) {
   const stated = scaleFactor(svgString);
   const subpaths = allSubpaths(svgString);
@@ -471,7 +476,10 @@ export function unitOptions(svgString) {
 // what every component already in the library assumes — but the caller is
 // expected to ask, because the default is right for some files and three
 // times wrong for others.
-export function parseSVGComponents(svgString, { unit = 'mm', interiorKind = 'cut' } = {}) {
+export function parseSVGComponents(
+  svgString,
+  { unit = 'mm', interiorKind = 'cut', simplifyMm = DEFAULT_SIMPLIFY_MM } = {}
+) {
   refuseUnsupportedStyling(svgString);
 
   const stated = scaleFactor(svgString);
@@ -489,13 +497,17 @@ export function parseSVGComponents(svgString, { unit = 'mm', interiorKind = 'cut
   return components
     .sort((a, b) => a.index - b.index)
     .map((component) => ({
-      polygon: component.polygon,
+      polygon: simplifyPolygon(component.polygon, simplifyMm),
       // Every ring inside a piece is taken as something to cut. A stitch
       // guide that must NOT be cut looks identical in geometry, so this is
       // the caller's to override — it cannot be read off the file.
       interiorPaths: component.interior
         .sort((a, b) => a.index - b.index)
-        .map((ring) => ({ kind: interiorKind, closed: true, points: ring.points })),
+        .map((ring) => ({
+          kind: interiorKind,
+          closed: true,
+          points: simplifyPolygon(ring.points, simplifyMm),
+        })),
     }));
 }
 
