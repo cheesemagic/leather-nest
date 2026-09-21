@@ -106,10 +106,13 @@ export function fringedStrip({
 // the way through — the difference between them is only where they stop.
 export function fringeToSVG(strip) {
   const { lengthMm, widthMm, fringeDepthMm, slitPositions: positions } = strip;
+  // Drawn thickness only — the laser ignores it. A fixed hairline renders as
+  // a blank page on a large job; scaled to the drawing it is always visible.
+  const stroke = (Math.max(lengthMm, widthMm) / 600).toFixed(4);
 
   const outline =
     `  <polygon points="0,0 ${lengthMm},0 ${lengthMm},${widthMm} 0,${widthMm}" ` +
-    `stroke="${CUT_COLOR}" stroke-width="0.01" fill="none" />`;
+    `stroke="${CUT_COLOR}" stroke-width="${stroke}" fill="none" />`;
 
   // Each slit runs up from the bottom edge and stops at the header, leaving
   // the strip in one piece.
@@ -117,7 +120,7 @@ export function fringeToSVG(strip) {
     .map(
       (x) =>
         `  <line x1="${x}" y1="${widthMm}" x2="${x}" y2="${widthMm - fringeDepthMm}" ` +
-        `stroke="${CUT_COLOR}" stroke-width="0.01" />`
+        `stroke="${CUT_COLOR}" stroke-width="${stroke}" />`
     )
     .join('\n');
 

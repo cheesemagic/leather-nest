@@ -20,13 +20,28 @@ export const OUTLINE_COLOR = '#0000FF';
 // say about intent — the operator maps colour to power and speed at the
 // machine. Interior cuts share CUT_COLOR with the outline: both go all the
 // way through, and the difference between them is not the machine's problem.
+// How thick the lines are DRAWN. Nothing about cutting depends on this —
+// laser software reads the path and takes power and speed from the layer the
+// colour maps to, ignoring stroke width entirely. It matters only to the
+// person opening the file to check it.
+//
+// It was 0.01mm, chosen to mean "hairline". On a real job that came out
+// 1/82,000th of the drawing's width — 0.012 of a pixel on screen — so the
+// file opened as a blank white page with 841 shapes invisibly in it. Scaled
+// to the drawing instead, a line is always about the same thickness on
+// screen whether the job is a 50mm die or a metre of hide.
+const STROKE_DIVISOR = 600;
+
+const strokeWidthFor = (width, height) =>
+  (Math.max(width, height) / STROKE_DIVISOR).toFixed(4);
+
 export const INTERIOR_COLORS = {
   cut: CUT_COLOR,
   score: '#00A000',
   mark: '#FF00FF',
 };
 
-function interiorMarkup(part, placement, kerf) {
+function interiorMarkup(part, placement, kerf, stroke) {
   const paths = sortInteriorPaths(part.interiorPaths ?? []);
   if (!paths.length) return '';
 
@@ -49,13 +64,13 @@ function interiorMarkup(part, placement, kerf) {
 
     if (path.closed) {
       lines.push(
-        `  <polygon points="${polygonToSVGPoints(points)}" stroke="${colour}" stroke-width="0.01" fill="none" />`
+        `  <polygon points="${polygonToSVGPoints(points)}" stroke="${colour}" stroke-width="${stroke}" fill="none" />`
       );
     } else {
       const d = points
         .map((point, i) => `${i === 0 ? 'M' : 'L'} ${point.x},${point.y}`)
         .join(' ');
-      lines.push(`  <path d="${d}" stroke="${colour}" stroke-width="0.01" fill="none" />`);
+      lines.push(`  <path d="${d}" stroke="${colour}" stroke-width="${stroke}" fill="none" />`);
     }
   }
   return lines.join('\n');
@@ -72,6 +87,7 @@ export function exportToSVG(sheetPolygon, placements, parts, options = {}) {
   // Moving the cut outward by that much means what is LEFT after the burn is
   // the size that was drawn. Zero by default — see DEFAULT_KERF_MM.
   const kerf = kerfAllowanceMm(options);
+  const stroke = strokeWidthFor(width, height);
 
   // Spread consecutive cuts apart so heat has somewhere to go. Laser software
   // follows file order unless its own optimiser is on, so this is ours to set.
@@ -91,17 +107,17 @@ export function exportToSVG(sheetPolygon, placements, parts, options = {}) {
   const polygonsMarkup = orderForHeat(positioned, options)
     .map(({ placement, part, absolute }) => {
       const cutLine = kerf > 0 ? inflatePolygon(absolute, kerf) : absolute;
-      const outer = `  <polygon points="${polygonToSVGPoints(cutLine)}" stroke="${CUT_COLOR}" stroke-width="0.01" fill="none" />`;
+      const outer = `  <polygon points="${polygonToSVGPoints(cutLine)}" stroke="${CUT_COLOR}" stroke-width="${stroke}" fill="none" />`;
       // Interior first, outline last: cutting the outline frees the piece,
       // and anything cut after that goes into something loose enough to shift.
-      const interior = interiorMarkup(part, placement, kerf);
+      const interior = interiorMarkup(part, placement, kerf, stroke);
       return interior ? `${interior}\n${outer}` : outer;
     })
     .join('\n');
 
   // The hide outline goes in first, in its own colour, so the operator can
   // line the offcut up on the bed. It is a reference, never a cut path.
-  const outlineMarkup = `  <polygon points="${polygonToSVGPoints(sheetPolygon)}" stroke="${OUTLINE_COLOR}" stroke-width="0.01" fill="none" />`;
+  const outlineMarkup = `  <polygon points="${polygonToSVGPoints(sheetPolygon)}" stroke="${OUTLINE_COLOR}" stroke-width="${stroke}" fill="none" />`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}mm" height="${height}mm" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}">
   <!-- ${OUTLINE_COLOR} is the hide outline, for positioning only. It must be
