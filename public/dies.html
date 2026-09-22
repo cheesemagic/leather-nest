@@ -50,12 +50,79 @@
           <p class="text-muted" id="components-summary">Loading…</p>
         </div>
         <button type="button" class="btn btn-primary" id="open-add">Add a component</button>
+        <button type="button" class="btn btn-secondary" id="open-import">Import a pattern file</button>
       </div>
 
       <div class="components-toolbar">
         <input class="input" type="search" id="component-search" placeholder="Search by name or family…" />
         <div class="family-tags" id="family-tags"></div>
       </div>
+
+      <section class="card elev-sm" id="import-panel" hidden>
+        <h2 class="card-title">Import a pattern file</h2>
+        <p class="text-muted" style="margin-top:0">
+          A pattern file often holds several pieces at once. Each one becomes
+          its own component.
+        </p>
+
+        <div class="form-grid">
+          <div class="field">
+            <label class="label" for="pattern-input">Pattern file (.svg)</label>
+            <input class="input" type="file" id="pattern-input" accept=".svg,image/svg+xml" />
+          </div>
+        </div>
+
+        <div id="pattern-preview" hidden>
+          <div id="pattern-found" class="text-muted"></div>
+
+          <div class="field" id="pattern-unit-field">
+            <label class="label" for="pattern-unit">How big is it really?</label>
+            <select class="input" id="pattern-unit"></select>
+            <p class="text-muted" style="margin:0.25rem 0 0; font-size:0.85rem; line-height:1.4">
+              This file does not say what its numbers mean, and the choice
+              changes the size of everything in it. Pick whichever matches the
+              real piece.
+            </p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="pattern-interior">The holes inside each piece</label>
+            <select class="input" id="pattern-interior">
+              <option value="cut">Cut them out</option>
+              <option value="mark">Mark them only — punched or stitched later</option>
+            </select>
+            <p class="text-muted" style="margin:0.25rem 0 0; font-size:0.85rem; line-height:1.4">
+              A stitch guide and a hole to cut look identical in the file.
+              Getting this wrong cuts a line straight through the piece.
+            </p>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label class="label" for="pattern-name">Name</label>
+              <input class="input" type="text" id="pattern-name" placeholder="card wallet" />
+            </div>
+            <div class="field">
+              <label class="label" for="pattern-family">Product family</label>
+              <input class="input" type="text" id="pattern-family" placeholder="small-goods" />
+            </div>
+            <div class="field">
+              <label class="label" for="pattern-value">Value per piece</label>
+              <input class="input" type="number" step="0.01" min="0" id="pattern-value" />
+            </div>
+            <div class="field">
+              <label class="label" for="pattern-demand">Ordered</label>
+              <input class="input" type="number" step="1" min="0" id="pattern-demand" />
+            </div>
+          </div>
+        </div>
+
+        <div id="import-status" class="text-muted"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="submit-import" disabled>Import</button>
+          <button type="button" class="btn btn-secondary" id="cancel-import">Cancel</button>
+        </div>
+      </section>
 
       <section class="card elev-sm" id="add-panel" hidden>
         <h2 class="card-title">Add a component</h2>

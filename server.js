@@ -7,7 +7,7 @@ import formidable from 'formidable';
 import { createStore } from './src/skins/store.js';
 import { rankMatches } from './src/skins/similarity.js';
 import { createStore as createDieStore } from './src/dies/store.js';
-import { parseSVGPolygon } from './src/svg/parse.js';
+import { parseSVGPolygon, parseSVGComponents, unitOptions } from './src/svg/parse.js';
 import { createStore as createSessionStore } from './src/sessions/store.js';
 import { polygonArea } from './src/nesting/geometry.js';
 
@@ -497,6 +497,125 @@ function createDiesRoutes(dataDir) {
     });
   }
 
+  // What is in this pattern file? Answered without saving anything, because
+  // the operator has to settle two things a file cannot state.
+  //
+  // First, scale: a file that gives only a coordinate box is genuinely
+  // ambiguous. The real card-wallet pattern that drove this reads as 217mm
+  // across taken as millimetres and 76mm taken as points — near A4 against a
+  // card wallet. Guessing means cutting a pattern at triple size.
+  //
+  // Second, what the interior rings ARE: a stitch guide that must never be
+  // cut is geometrically identical to a hole that must be. Only the operator
+  // knows which.
+  async function handlePreviewPattern(req, res) {
+    let fields, files;
+    try {
+      ({ fields, files } = await parseForm(req));
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse upload.' });
+      return;
+    }
+
+    const svgFile = files.svg && files.svg[0];
+    if (!svgFile) {
+      cleanupFiles(files);
+      sendJSON(res, 400, { error: 'No svg file uploaded.' });
+      return;
+    }
+
+    const svgContent = fs.readFileSync(svgFile.filepath, 'utf8');
+    cleanupFiles(files);
+
+    try {
+      const units = unitOptions(svgContent);
+      // Parsed once per candidate unit so the operator sees real piece sizes
+      // rather than a scale factor they would have to apply themselves.
+      const pieces = parseSVGComponents(svgContent, {
+        unit: units.stated ? 'mm' : 'mm',
+      }).map((piece, index) => ({
+        index,
+        points: piece.polygon.length,
+        interiorCount: piece.interiorPaths.length,
+      }));
+      sendJSON(res, 200, { statesItsOwnSize: units.stated, units: units.options, pieces });
+    } catch (err) {
+      sendJSON(res, 422, { error: err.message });
+    }
+  }
+
+  // Import every piece in the file as its own component.
+  async function handleImportPattern(req, res) {
+    let fields, files;
+    try {
+      ({ fields, files } = await parseForm(req));
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse upload.' });
+      return;
+    }
+
+    const getField = (name) => fields[name] && fields[name][0];
+    const svgFile = files.svg && files.svg[0];
+    if (!svgFile) {
+      cleanupFiles(files);
+      sendJSON(res, 400, { error: 'No svg file uploaded.' });
+      return;
+    }
+
+    const svgContent = fs.readFileSync(svgFile.filepath, 'utf8');
+    cleanupFiles(files);
+
+    const baseName = getField('name');
+    if (!baseName) {
+      sendJSON(res, 400, { error: 'A name is required.' });
+      return;
+    }
+
+    const unit = getField('unit') || 'mm';
+    // 'cut' or 'mark'. The file cannot say, so it is asked.
+    const interiorKind = getField('interiorKind') === 'mark' ? 'mark' : 'cut';
+
+    let pieces;
+    try {
+      pieces = parseSVGComponents(svgContent, { unit, interiorKind });
+    } catch (err) {
+      sendJSON(res, 422, { error: err.message });
+      return;
+    }
+
+    const metadata = {
+      valuePerPiece: numberOrNull(getField('valuePerPiece')),
+      productFamily: getField('productFamily') || null,
+      allowedSpecies: speciesOrNull(getField('allowedSpecies')),
+      thicknessMinMm: numberOrNull(getField('thicknessMinMm')),
+      thicknessMaxMm: numberOrNull(getField('thicknessMaxMm')),
+      allowedRotations: rotationsOrUndefined(getField('allowedRotations')),
+      demand: numberOrNull(getField('demand')) ?? 0,
+    };
+    // Same magnitude rule the create path applies: numberOrNull passes a
+    // negative straight through, and the update route would refuse to set
+    // what this would otherwise create.
+    const negativeField = Object.entries(metadata).find(
+      ([, value]) => typeof value === 'number' && value < 0
+    );
+    if (negativeField) {
+      sendJSON(res, 400, { error: `${negativeField[0]} must not be negative.` });
+      return;
+    }
+
+    // One file, several components. Numbered only when there is more than
+    // one, so a single-piece pattern keeps the name the operator typed.
+    const created = pieces.map((piece, index) =>
+      store.create({
+        name: pieces.length > 1 ? `${baseName} ${index + 1}` : baseName,
+        polygon: piece.polygon,
+        interiorPaths: piece.interiorPaths,
+        ...metadata,
+      })
+    );
+    sendJSON(res, 200, created);
+  }
+
   function handleListDies(req, res) {
     sendJSON(res, 200, store.list());
   }
@@ -548,7 +667,14 @@ function createDiesRoutes(dataDir) {
     sendJSON(res, 200, updated);
   }
 
-  return { handleCreateDie, handleListDies, handleDeleteDie, handleUpdateDie };
+  return {
+    handleCreateDie,
+    handlePreviewPattern,
+    handleImportPattern,
+    handleListDies,
+    handleDeleteDie,
+    handleUpdateDie,
+  };
 }
 
 function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
@@ -828,6 +954,14 @@ export function createServer({
     }
     if (req.method === 'POST' && req.url === '/dies') {
       dies.handleCreateDie(req, res);
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/patterns/preview') {
+      dies.handlePreviewPattern(req, res);
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/patterns') {
+      dies.handleImportPattern(req, res);
       return;
     }
     if (req.method === 'GET' && req.url === '/dies') {

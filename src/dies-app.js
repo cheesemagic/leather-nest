@@ -324,3 +324,134 @@ document.getElementById('cancel-add').addEventListener('click', () => {
 });
 
 loadDies();
+
+// --- importing a whole pattern file -------------------------------------
+//
+// Two things have to be settled before anything is saved, and neither can be
+// read off the file.
+//
+// Scale: a file that carries only a coordinate box is genuinely ambiguous.
+// The real card-wallet pattern this was built against reads as 217mm wide
+// taken as millimetres and 76mm taken as points — near A4 against a card
+// wallet. So the preview shows what the drawing measures under each
+// candidate unit and the operator picks.
+//
+// And what the interior rings are: a stitch guide that must never be cut is
+// geometrically identical to a hole that must be. Cutting the wrong one
+// slits the piece in half.
+
+const importPanel = document.getElementById('import-panel');
+const patternInput = document.getElementById('pattern-input');
+const patternPreview = document.getElementById('pattern-preview');
+const patternFound = document.getElementById('pattern-found');
+const patternUnitField = document.getElementById('pattern-unit-field');
+const patternUnit = document.getElementById('pattern-unit');
+const importStatus = document.getElementById('import-status');
+const submitImport = document.getElementById('submit-import');
+
+let previewedPieces = 0;
+
+function resetImport() {
+  patternInput.value = '';
+  patternPreview.hidden = true;
+  importStatus.textContent = '';
+  submitImport.disabled = true;
+  previewedPieces = 0;
+}
+
+document.getElementById('open-import').addEventListener('click', () => {
+  document.getElementById('add-panel').hidden = true;
+  importPanel.hidden = false;
+  resetImport();
+});
+
+document.getElementById('cancel-import').addEventListener('click', () => {
+  importPanel.hidden = true;
+  resetImport();
+});
+
+patternInput.addEventListener('change', async () => {
+  const file = patternInput.files[0];
+  if (!file) return;
+
+  importStatus.textContent = 'Reading…';
+  submitImport.disabled = true;
+
+  const form = new FormData();
+  form.append('svg', file);
+  const response = await fetch('/patterns/preview', { method: 'POST', body: form });
+  const body = await response.json();
+
+  if (!response.ok) {
+    // The importer refuses a file it cannot read honestly rather than
+    // importing something wrong, so its message is the useful part.
+    importStatus.textContent = body.error;
+    patternPreview.hidden = true;
+    return;
+  }
+
+  previewedPieces = body.pieces.length;
+  const holes = body.pieces.reduce((total, piece) => total + piece.interiorCount, 0);
+  patternFound.textContent =
+    `${previewedPieces} piece${previewedPieces === 1 ? '' : 's'} in this file` +
+    (holes ? `, with ${holes} hole${holes === 1 ? '' : 's'} between them.` : '.');
+
+  // A file that states its own physical size leaves nothing to choose.
+  patternUnitField.hidden = body.statesItsOwnSize;
+  patternUnit.innerHTML = body.units
+    .map(
+      (option) =>
+        `<option value="${escapeHtml(option.unit)}">${escapeHtml(option.unit)} — ` +
+        `${option.widthMm.toFixed(0)} x ${option.heightMm.toFixed(0)} mm</option>`
+    )
+    .join('');
+  // Points first when nothing is stated: design tools export in points far
+  // more often than in millimetres, and it is the smaller reading, so a
+  // wrong guess here wastes a preview rather than a hide.
+  const points = body.units.findIndex((option) => option.unit === 'pt');
+  if (!body.statesItsOwnSize && points >= 0) patternUnit.selectedIndex = points;
+
+  patternPreview.hidden = false;
+  importStatus.textContent = '';
+  submitImport.disabled = false;
+});
+
+submitImport.addEventListener('click', async () => {
+  const file = patternInput.files[0];
+  const name = document.getElementById('pattern-name').value.trim();
+  if (!file) return;
+  if (!name) {
+    importStatus.textContent = 'Give it a name first.';
+    return;
+  }
+
+  submitImport.disabled = true;
+  importStatus.textContent = 'Importing…';
+
+  const form = new FormData();
+  form.append('svg', file);
+  form.append('name', name);
+  form.append('unit', patternUnit.value || 'mm');
+  form.append('interiorKind', document.getElementById('pattern-interior').value);
+  form.append('productFamily', document.getElementById('pattern-family').value.trim());
+  const value = document.getElementById('pattern-value').value;
+  const demand = document.getElementById('pattern-demand').value;
+  if (value !== '') form.append('valuePerPiece', value);
+  if (demand !== '') form.append('demand', demand);
+
+  const response = await fetch('/patterns', { method: 'POST', body: form });
+  const body = await response.json();
+
+  if (!response.ok) {
+    importStatus.textContent = body.error;
+    submitImport.disabled = false;
+    return;
+  }
+
+  importStatus.textContent = `Added ${body.length} component${body.length === 1 ? '' : 's'}.`;
+  await loadDies();
+  setTimeout(() => {
+    importPanel.hidden = true;
+    resetImport();
+  }, 1200);
+});
