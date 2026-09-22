@@ -1,4 +1,4 @@
-import { nest } from '../nesting/index.js';
+import { nestBestOrientation } from '../nesting/orient.js';
 import { polygonArea } from '../nesting/geometry.js';
 import { resolveClearances } from '../nesting/clearance.js';
 
@@ -40,7 +40,11 @@ export function evaluateCandidate(hide, candidate, options = {}) {
   // placement is still exact — the coarse layout is genuinely cuttable, it
   // just leaves more waste. Callers that want maximum yield pass 1.
   const gridStepMm = options.gridStepMm ?? DEFAULT_SEARCH_GRID_MM;
-  const { placements, noFit: noFitPartIds } = nest(hide.outlinePolygon, cuttable, {
+  // Nested at several hide orientations, best kept. Placement takes the
+  // first position a part fits, scanning bottom-left, so which way the hide
+  // faces decides the whole layout — measured at 47 pieces one way and 58
+  // another on the same real offcut. Costs one nest per orientation.
+  const { placements, noFit: noFitPartIds } = nestBestOrientation(hide.outlinePolygon, cuttable, {
     ...options,
     gridStepMm,
   });
