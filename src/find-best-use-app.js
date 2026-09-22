@@ -1,5 +1,6 @@
 import { SHORTLIST_SIZE } from './bestuse/candidates.js';
 import { componentIdOf } from './bestuse/evaluate.js';
+import { placedPolygon, boundingBox } from './nesting/geometry.js';
 import { RANKING_STRATEGIES } from './bestuse/ranking.js';
 import { runSearch, canRun, strategyForMode } from './bestuse/search.js';
 import { DEFAULT_KERF_MM } from './nesting/clearance.js';
@@ -394,13 +395,19 @@ function renderLayout(canvas, result, hide) {
   const width = maxX - minX;
   const height = maxY - minY;
 
+  // Room reserved along the bottom for the legend, so it never sits on the
+  // drawing.
+  const legendRows = new Set(placements.map((p) => componentIdOf(p.id))).size;
+  const legendBand = legendRows * 16 + 8;
+  const drawHeight = canvas.height - legendBand;
+
   const scale = Math.min(
     (canvas.width * 0.9) / (width || 1),
-    (canvas.height * 0.9) / (height || 1)
+    (drawHeight * 0.9) / (height || 1)
   );
 
   const toCanvasX = (x) => (x - minX) * scale + canvas.width * 0.05;
-  const toCanvasY = (y) => (y - minY) * scale + canvas.height * 0.05;
+  const toCanvasY = (y) => (y - minY) * scale + drawHeight * 0.05;
 
   // Draw hide outline
   ctx.strokeStyle = '#000';
@@ -422,55 +429,53 @@ function renderLayout(canvas, result, hide) {
   ];
 
   for (const placement of placements) {
-    const componentId = placement.id.slice(0, placement.id.lastIndexOf('#'));
+    const componentId = componentIdOf(placement.id);
     const colorIdx = componentIds.indexOf(componentId) % colors.length;
-    const color = colors[colorIdx];
-
     const component = state.components.find((c) => c.id === componentId);
     if (!component) continue;
 
-    const polygon = component.polygon;
+    // placedPolygon, not a rotate-and-translate written out here.
+    //
+    // This loop used to do its own rotate-then-translate and skipped the
+    // normalise-to-origin step in the middle, so every rotated piece was
+    // drawn offset from where it actually sits — which is why straps
+    // appeared to hang over the edge of the hide. The cut file was always
+    // correct; only the picture lied, which is the worse way round, because
+    // the picture is what gets checked before spending leather.
+    //
+    // geometry.js calls itself "the one place the placement transform is
+    // implemented... so all four stay in lockstep". This was the fifth
+    // place, quietly out of step.
+    const shape = placedPolygon(component, placement);
 
-    ctx.fillStyle = color;
+    ctx.fillStyle = colors[colorIdx];
     ctx.globalAlpha = 0.7;
     ctx.beginPath();
-
-    // Apply rotation and translation to each point
-    const cosR = Math.cos((placement.rotation * Math.PI) / 180);
-    const sinR = Math.sin((placement.rotation * Math.PI) / 180);
-
-    for (let j = 0; j < polygon.length; j++) {
-      const px = polygon[j].x;
-      const py = polygon[j].y;
-      const rotatedX = px * cosR - py * sinR;
-      const rotatedY = px * sinR + py * cosR;
-      const finalX = toCanvasX(placement.x + rotatedX);
-      const finalY = toCanvasY(placement.y + rotatedY);
-
-      if (j === 0) {
-        ctx.moveTo(finalX, finalY);
-      } else {
-        ctx.lineTo(finalX, finalY);
-      }
-    }
+    shape.forEach((point, index) => {
+      const x = toCanvasX(point.x);
+      const y = toCanvasY(point.y);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
     ctx.closePath();
     ctx.fill();
-
     ctx.globalAlpha = 1;
   }
 
-  // Draw legend
-  ctx.font = 'bold 12px sans-serif';
-  ctx.fillStyle = '#000';
-  let legendY = 15;
-  for (const componentId of componentIds) {
-    const colorIdx = componentIds.indexOf(componentId) % colors.length;
-    ctx.fillStyle = colors[colorIdx];
-    ctx.fillRect(canvas.width - 130, legendY, 12, 12);
-    ctx.fillStyle = '#000';
-    ctx.fillText(componentName(componentId), canvas.width - 110, legendY + 10);
-    legendY += 15;
-  }
+  // Legend, in a band along the bottom rather than over the drawing. It used
+  // to be drawn in the top-right corner, directly across the hide outline.
+  const rowHeight = 16;
+  const legendHeight = componentIds.length * rowHeight + 8;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, canvas.height - legendHeight, canvas.width, legendHeight);
+  ctx.font = '12px sans-serif';
+  componentIds.forEach((componentId, index) => {
+    const y = canvas.height - legendHeight + 6 + index * rowHeight;
+    ctx.fillStyle = colors[index % colors.length];
+    ctx.fillRect(8, y, 12, 12);
+    ctx.fillStyle = '#333';
+    ctx.fillText(componentName(componentId), 26, y + 11);
+  });
 }
 
 function attachEventListeners() {
