@@ -7,7 +7,7 @@ const calibrationContainer = document.getElementById('calibration-container');
 const regionContainer = document.getElementById('region-container');
 const createStatus = document.getElementById('create-status');
 const sessionSection = document.getElementById('session-section');
-const diePalette = document.getElementById('die-palette');
+const partPalette = document.getElementById('part-palette');
 const sessionPhoto = document.getElementById('session-photo');
 const placementsOverlay = document.getElementById('placements-overlay');
 const placementStatus = document.getElementById('placement-status');
@@ -18,7 +18,7 @@ let selectedPhoto = null;
 let calibration = null;
 let region = null;
 let currentSession = null;
-let dies = [];
+let parts = [];
 
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -87,30 +87,30 @@ async function openSession(id) {
   sessionSection.style.display = 'block';
   sessionPhoto.src = `/sessions/${id}/photo`;
   await sessionPhoto.decode().catch(() => {});
-  renderDiePalette();
+  renderPartPalette();
   renderPlacements();
 }
 
-function renderDiePalette() {
-  diePalette.innerHTML = dies
-    .map((die) => {
-      const bounds = boundingBox(die.polygon);
+function renderPartPalette() {
+  partPalette.innerHTML = parts
+    .map((part) => {
+      const bounds = boundingBox(part.polygon);
       const width = bounds.maxX - bounds.minX;
       const height = bounds.maxY - bounds.minY;
       return `
-    <div draggable="true" data-die-id="${die.id}" style="display: inline-block; cursor: grab">
+    <div draggable="true" data-part-id="${part.id}" style="display: inline-block; cursor: grab">
       <svg width="60" height="${(60 * height) / width}" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}">
-        <polygon points="${polygonToSVGPoints(die.polygon)}" stroke="#FF0000" stroke-width="${width / 60}" fill="none" />
+        <polygon points="${polygonToSVGPoints(part.polygon)}" stroke="#FF0000" stroke-width="${width / 60}" fill="none" />
       </svg>
-      <div>${escapeHtml(die.name)}</div>
+      <div>${escapeHtml(part.name)}</div>
     </div>
   `;
     })
     .join('');
 
-  for (const el of diePalette.querySelectorAll('[draggable="true"]')) {
+  for (const el of partPalette.querySelectorAll('[draggable="true"]')) {
     el.addEventListener('dragstart', (event) => {
-      event.dataTransfer.setData('text/plain', el.dataset.dieId);
+      event.dataTransfer.setData('text/plain', el.dataset.partId);
     });
   }
 }
@@ -140,8 +140,8 @@ function renderPlacements() {
 placementsOverlay.addEventListener('dragover', (event) => event.preventDefault());
 placementsOverlay.addEventListener('drop', async (event) => {
   event.preventDefault();
-  const dieId = event.dataTransfer.getData('text/plain');
-  if (!dieId || !currentSession) return;
+  const partId = event.dataTransfer.getData('text/plain');
+  if (!partId || !currentSession) return;
 
   const rect = sessionPhoto.getBoundingClientRect();
   const displayX = event.clientX - rect.left;
@@ -154,7 +154,7 @@ placementsOverlay.addEventListener('drop', async (event) => {
     const response = await fetch(`/sessions/${currentSession.id}/placements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dieId, x, y, rotation: 0 }),
+      body: JSON.stringify({ partId, x, y, rotation: 0 }),
     });
     const body = await response.json();
     if (!response.ok) {
@@ -172,10 +172,10 @@ placementsOverlay.addEventListener('drop', async (event) => {
   }
 });
 
-async function loadDies() {
-  const response = await fetch('/dies');
-  dies = await response.json();
-  renderDiePalette();
+async function loadParts() {
+  const response = await fetch('/parts');
+  parts = await response.json();
+  renderPartPalette();
 }
 
 async function loadSessions() {
@@ -223,6 +223,6 @@ async function loadHideOptions() {
   }
 }
 
-loadDies();
+loadParts();
 loadSessions();
 loadHideOptions();

@@ -13,7 +13,7 @@ import { pointInPolygon, polygonArea, simplifyPolygon } from '../nesting/geometr
 // viewBox="0 0 1000 1000" means each user unit is 0.1mm, and importing it
 // unscaled would be 10x out. scaleFactor() below reads that pair and converts.
 // A file that gives no physical unit is still taken as millimetres, because
-// nothing in it says otherwise and that is what every existing die record
+// nothing in it says otherwise and that is what every existing part record
 // already assumes.
 
 // One segment per millimetre of curve, clamped. Chord error for a circular arc
@@ -74,7 +74,7 @@ function flattenQuadratic(x0, y0, x1, y1, x2, y2) {
 }
 
 // Endpoint parameterisation -> centre parameterisation, per SVG 1.1 F.6.5.
-// Rounded corners on a die outline arrive as these, so refusing them would
+// Rounded corners on a part outline arrive as these, so refusing them would
 // close the door this change exists to open.
 function flattenArc(x1, y1, rx, ry, rotationDeg, largeArc, sweep, x2, y2) {
   if (x1 === x2 && y1 === y2) return [];
@@ -367,7 +367,7 @@ function scaleFactor(svgString) {
   // SMALLER ratio and letterboxes the remainder — so a width and height that
   // disagree is normal, not a malformed file, and min() is the spec answer
   // rather than a guess. "none" stretches the axes independently, which would
-  // distort the die; that one is refused in parseSVGPolygon.
+  // distort the part; that one is refused in parseSVGPolygon.
   if (sx === null) return sy;
   if (sy === null) return sx;
   return Math.min(sx, sy);
@@ -516,7 +516,7 @@ export function parseSVGComponents(
 // failure this importer can have.
 function refuseUnsupportedStyling(svgString) {
   // A transform on the shape or any ancestor <g> changes the geometry, and
-  // applying it is not implemented. Importing a die that is silently offset or
+  // applying it is not implemented. Importing a part that is silently offset or
   // scaled is worse than refusing it, so refuse.
   if (/\stransform\s*=\s*"/.test(svgString)) {
     throw new Error(
@@ -528,7 +528,7 @@ function refuseUnsupportedStyling(svgString) {
 
   // preserveAspectRatio="none" scales x and y by different factors, which
   // changes the shape rather than its size. Same reasoning as transforms:
-  // a die that imports distorted looks plausible and cuts wrong.
+  // a part that imports distorted looks plausible and cuts wrong.
   if (/[\s"']preserveAspectRatio\s*=\s*"\s*none\s*"/i.test(svgString)) {
     throw new Error(
       'SVG uses preserveAspectRatio="none", which stretches the drawing unevenly. ' +

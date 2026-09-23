@@ -167,6 +167,17 @@ def main():
 
     _, best_contour = max(candidates, key=lambda pair: pair[0])
 
+    # Colour sampled from inside the traced outline only -- the same photo
+    # already taken, restricted to the piece itself rather than the bench
+    # around it. Reuses the mask this function already has, rather than a
+    # second pass over the image.
+    mask = np.zeros(gray.shape, dtype=np.uint8)
+    cv2.drawContours(mask, [best_contour], -1, 255, -1)
+    mean_l, mean_a, mean_b = cv2.mean(lab, mask=mask)[:3]
+    colour_l = mean_l * 100 / 255
+    colour_a = mean_a - 128
+    colour_b = mean_b - 128
+
     scale_mm_per_px = real_distance_mm / pixel_distance
     epsilon = 0.5 / scale_mm_per_px
     approx = cv2.approxPolyDP(best_contour, epsilon, True)
@@ -180,7 +191,12 @@ def main():
     min_y = min(p["y"] for p in points_mm)
     normalized = [{"x": p["x"] - min_x, "y": p["y"] - min_y} for p in points_mm]
 
-    print(json.dumps({"polygon": normalized}))
+    print(json.dumps({
+        "polygon": normalized,
+        "colourL": colour_l,
+        "colourA": colour_a,
+        "colourB": colour_b,
+    }))
 
 
 if __name__ == "__main__":

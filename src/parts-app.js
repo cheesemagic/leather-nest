@@ -11,7 +11,7 @@ const svgInput = document.getElementById('svg-input');
 const photoInput = document.getElementById('photo-input');
 const calibrationContainer = document.getElementById('calibration-container');
 const regionContainer = document.getElementById('region-container');
-const submitButton = document.getElementById('submit-die');
+const submitButton = document.getElementById('submit-part');
 const addStatus = document.getElementById('add-status');
 const summaryEl = document.getElementById('components-summary');
 const gridEl = document.getElementById('component-grid');
@@ -89,7 +89,7 @@ submitButton.addEventListener('click', async () => {
     formData.append('svg', file);
   } else if (mode === 'photo') {
     if (!selectedPhoto || !calibration || !region) {
-      addStatus.textContent = 'Upload a photo, complete calibration, and select the die region first.';
+      addStatus.textContent = 'Upload a photo, complete calibration, and select the component region first.';
       return;
     }
     formData.append('photo', selectedPhoto);
@@ -116,7 +116,7 @@ submitButton.addEventListener('click', async () => {
   addStatus.textContent = 'Adding…';
 
   try {
-    const response = await fetch('/dies', { method: 'POST', body: formData });
+    const response = await fetch('/parts', { method: 'POST', body: formData });
     const body = await response.json();
     if (!response.ok) {
       addStatus.textContent = `Error: ${body.error}`;
@@ -140,7 +140,7 @@ submitButton.addEventListener('click', async () => {
     document.getElementById('thickness-min-input').value = '';
     document.getElementById('thickness-max-input').value = '';
     document.getElementById('rotations-input').value = '';
-    loadDies();
+    loadParts();
   } catch {
     addStatus.textContent = 'Error: could not reach the server. Please try again.';
   }
@@ -211,8 +211,8 @@ function renderGrid() {
     .join('');
 }
 
-async function loadDies() {
-  const response = await fetch('/dies');
+async function loadParts() {
+  const response = await fetch('/parts');
   components = await response.json();
   renderFamilyTags();
   renderGrid();
@@ -285,7 +285,7 @@ document.getElementById('save-edit').addEventListener('click', async () => {
 
   editStatus.textContent = 'Saving…';
   try {
-    const response = await fetch(`/dies/${editingId}`, {
+    const response = await fetch(`/parts/${editingId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -297,7 +297,7 @@ document.getElementById('save-edit').addEventListener('click', async () => {
     }
     editDialog.hidden = true;
     editingId = null;
-    await loadDies();
+    await loadParts();
   } catch {
     editStatus.textContent = 'Error: could not reach the server. Please try again.';
   }
@@ -312,8 +312,8 @@ gridEl.addEventListener('click', async (event) => {
   }
   const deleteId = event.target.dataset.deleteId;
   if (!deleteId) return;
-  await fetch(`/dies/${deleteId}`, { method: 'DELETE' });
-  loadDies();
+  await fetch(`/parts/${deleteId}`, { method: 'DELETE' });
+  loadParts();
 });
 
 document.getElementById('open-add').addEventListener('click', () => {
@@ -323,7 +323,7 @@ document.getElementById('cancel-add').addEventListener('click', () => {
   addPanel.hidden = true;
 });
 
-loadDies();
+loadParts();
 
 // --- importing a whole pattern file -------------------------------------
 //
@@ -449,7 +449,7 @@ submitImport.addEventListener('click', async () => {
   }
 
   importStatus.textContent = `Added ${body.length} component${body.length === 1 ? '' : 's'}.`;
-  await loadDies();
+  await loadParts();
   setTimeout(() => {
     importPanel.hidden = true;
     resetImport();

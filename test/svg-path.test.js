@@ -183,7 +183,7 @@ test('a degenerate arc radius falls back to a straight line', () => {
 // --- the two deliberate refusals ---------------------------------------
 
 test('a transform is refused rather than silently ignored', () => {
-  // Applying it is not implemented, and a die that imports offset would cut
+  // Applying it is not implemented, and a part that imports offset would cut
   // wrong while looking fine.
   assert.throws(
     () => parseSVGPolygon(path('M 0 0 L 40 0 L 40 20 Z', 'transform="translate(10,5)"')),
@@ -237,8 +237,8 @@ test('an explicit return to the start does not leave a duplicate vertex', () => 
   assert.equal(explicit.length, 4);
 });
 
-test('a rounded-corner die outline imports at the right size', () => {
-  // The shape a real export produces for a 60x40mm die with 5mm radius
+test('a rounded-corner part outline imports at the right size', () => {
+  // The shape a real export produces for a 60x40mm part with 5mm radius
   // corners: straight runs joined by quarter-circle arcs, relative commands,
   // no separators between a number and a following minus sign.
   const d =

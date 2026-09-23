@@ -29,7 +29,7 @@ export function isKnownKind(kind) {
 // Checks interior paths against the outline they belong to.
 //
 // Returns a list of problems rather than throwing on the first, because a
-// die imported with four bad paths should report four, not send the operator
+// part imported with four bad paths should report four, not send the operator
 // round the loop four times.
 export function validateInteriorPaths(polygon, paths) {
   const problems = [];

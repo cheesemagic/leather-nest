@@ -52,15 +52,15 @@ test('addPlacement() appends a placement with a cycled color and persists it', (
 
   const polygon = [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 60, y: 40 }, { x: 0, y: 40 }];
   const updated = store.addPlacement(record.id, {
-    dieId: 'die-1',
-    dieName: 'Vamp',
+    partId: 'part-1',
+    partName: 'Vamp',
     polygon,
     reference: { x: 100, y: 100, rotation: 0 },
     match: { x: 300, y: 250, rotation: 45, score: 0.01 },
   });
 
   assert.equal(updated.placements.length, 1);
-  assert.equal(updated.placements[0].dieId, 'die-1');
+  assert.equal(updated.placements[0].partId, 'part-1');
   assert.deepEqual(updated.placements[0].polygon, polygon);
   assert.ok(updated.placements[0].color);
 
@@ -76,7 +76,7 @@ test('addPlacement() cycles colors and returns null for an unknown session', () 
   const photoPath = makeTmpPhoto(dataDir);
   const record = store.create({ calibration: CALIBRATION, searchRegion: SEARCH_REGION, photoPath, photoExt: '.jpg' });
 
-  const placement = { dieId: 'd', dieName: 'D', polygon: [], reference: { x: 0, y: 0, rotation: 0 }, match: null };
+  const placement = { partId: 'd', partName: 'D', polygon: [], reference: { x: 0, y: 0, rotation: 0 }, match: null };
   let updated = record;
   for (let i = 0; i < 11; i++) {
     updated = store.addPlacement(updated.id, placement);

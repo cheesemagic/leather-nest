@@ -56,11 +56,11 @@ export function createStore(dataDir) {
     return record;
   }
 
-  function addPlacement(id, { dieId, dieName, polygon, reference, match }) {
+  function addPlacement(id, { partId, partName, polygon, reference, match }) {
     const record = readRecord(id);
     if (!record) return null;
     const color = PLACEMENT_COLORS[record.placements.length % PLACEMENT_COLORS.length];
-    record.placements.push({ dieId, dieName, polygon, color, reference, match });
+    record.placements.push({ partId, partName, polygon, color, reference, match });
     fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
     return record;
   }

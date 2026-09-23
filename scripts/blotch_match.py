@@ -43,16 +43,16 @@ def rotate_template_normalized(template, mask, angle_deg, poly_local=None):
     """Rotates template+mask around pixel (0,0), then shifts so the
     rotated CROP RECTANGLE's own bounding box starts at (0,0). This is
     NOT the same frame placedPolygon() uses in src/nesting/geometry.js --
-    that normalizes to bbox(rotate(the die's own polygon)), which for a
-    non-rectangular die sits inside and offset from the crop rectangle's
-    own rotated bbox. `poly_local`, when given, is the die's polygon in
+    that normalizes to bbox(rotate(the part's own polygon)), which for a
+    non-rectangular part sits inside and offset from the crop rectangle's
+    own rotated bbox. `poly_local`, when given, is the part's polygon in
     the template's local coordinate frame (i.e. points_px - [x0, y0] from
     the crop step); when provided, this also returns `offset` -- where
-    the die's own normalized-rotated origin sits within THIS function's
+    the part's own normalized-rotated origin sits within THIS function's
     rotated-raster frame. A caller must add `offset` to a found top-left
     raster position to get match.x/match.y in the placedPolygon() frame;
     using the raster's raw top-left directly (as if offset were always
-    (0,0)) is only correct when the die is itself a rectangle.
+    (0,0)) is only correct when the part is itself a rectangle.
     """
     h, w = template.shape[:2]
     corners = np.array([[0, 0], [w, 0], [w, h], [0, h]], dtype=np.float32)
@@ -105,7 +105,7 @@ def main():
         image_path = payload["imagePath"]
         calibration = payload["calibration"]
         search_region = payload["searchRegion"]
-        die_polygon = payload["diePolygon"]
+        part_polygon = payload["partPolygon"]
         reference = payload["referencePlacement"]
         occupied_placements = payload.get("occupied", [])
 
@@ -127,8 +127,8 @@ def main():
     except KeyError as err:
         fail(f"Missing required field: {err}")
 
-    if len(die_polygon) < 3:
-        fail("diePolygon must have at least 3 points.")
+    if len(part_polygon) < 3:
+        fail("partPolygon must have at least 3 points.")
 
     pixel_distance = math.hypot(p2x - p1x, p2y - p1y)
     if pixel_distance < 1e-6:
@@ -145,26 +145,26 @@ def main():
     if roi_x < 0 or roi_y < 0 or roi_x + roi_w > img_w or roi_y + roi_h > img_h:
         fail("Search region falls outside the photo bounds.")
 
-    die_points_px = polygon_to_px(die_polygon, mm_per_px)
-    # Normalize so the die's own bbox minimum is (0,0) -- true for
-    # photo-digitized dies already, but NOT guaranteed for SVG-uploaded
-    # dies (src/svg/parse.js doesn't normalize). Without this, ref_points
-    # below would be offset by the die's raw (un-normalized) bbox origin
+    part_points_px = polygon_to_px(part_polygon, mm_per_px)
+    # Normalize so the part's own bbox minimum is (0,0) -- true for
+    # photo-digitized parts already, but NOT guaranteed for SVG-uploaded
+    # parts (src/svg/parse.js doesn't normalize). Without this, ref_points
+    # below would be offset by the part's raw (un-normalized) bbox origin
     # instead of matching the placedPolygon() convention the browser uses.
-    die_points_px -= die_points_px.min(axis=0)
+    part_points_px -= part_points_px.min(axis=0)
 
-    # Reference template: crop the die's own footprint directly from the
+    # Reference template: crop the part's own footprint directly from the
     # full photo. Rotation is always 0 for a reference (v1 doesn't allow
     # rotating a reference placement), so this is a plain translated crop.
-    ref_points = die_points_px + [reference["x"], reference["y"]]
+    ref_points = part_points_px + [reference["x"], reference["y"]]
     ref_crop = crop_to_polygon(image, ref_points)
     if ref_crop is None:
         fail("Reference placement falls outside the photo bounds.")
     template_bgr, template_mask, (x0, y0) = ref_crop
     template_lab = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2LAB)
-    # The die's own polygon in the template's local frame (relative to the
+    # The part's own polygon in the template's local frame (relative to the
     # crop's own top-left corner) -- fed to rotate_template_normalized() so
-    # it can report where the die's own rotated-normalized origin lands
+    # it can report where the part's own rotated-normalized origin lands
     # within its rotated raster, not just the raster rectangle's own origin.
     poly_local = ref_points - [x0, y0]
 
@@ -180,7 +180,7 @@ def main():
         if polygon_mm_or_none is not None:
             base_px = polygon_to_px(polygon_mm_or_none, mm_per_px)
         else:
-            base_px = die_points_px
+            base_px = part_points_px
         rotated = rotate_points_deg(base_px, rotation)
         normalized = rotated - rotated.min(axis=0)
         placed = normalized + [x, y]

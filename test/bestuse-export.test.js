@@ -75,7 +75,7 @@ test('the exported SVG has one polygon per placement and no undefined points', (
 
 test('a component id containing a # still round-trips', () => {
   // componentIdOf splits on the LAST '#', so an id carrying one of its own
-  // must survive. Die names come from operator input, so this is reachable.
+  // must survive. Part names come from operator input, so this is reachable.
   const components = [comp('strap#2', 60, 20)];
   const candidate = {
     candidateId: 'c1', mode: 'explicit',

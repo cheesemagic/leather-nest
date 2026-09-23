@@ -2,6 +2,7 @@ import { filterEligible } from './eligibility.js';
 import { generateCandidates } from './candidates.js';
 import { evaluateCandidate } from './evaluate.js';
 import { rankCandidates } from './ranking.js';
+import { evaluateProductCandidate } from './products.js';
 
 // The whole search, from a hide and a library to ranked results.
 //
@@ -22,6 +23,7 @@ export function runSearch({
   strategy = null,
   quantities = undefined,
   shortlistSize = undefined,
+  products = undefined,
   method,
   laserClearanceMm,
   kerfMm,
@@ -44,6 +46,7 @@ export function runSearch({
       // instead is the exact bug this module exists to keep out.
       strategy: mode === 'explicit' ? undefined : strategy,
       shortlistSize,
+      products: mode === 'products' ? products : undefined,
     });
   } catch (err) {
     return { results: [], excluded, error: err.message };
@@ -53,8 +56,13 @@ export function runSearch({
     return { results: [], excluded, error: 'No valid candidates for these selections.' };
   }
 
+  // Products nest differently, not just score differently: evaluateCandidate
+  // does one nest of whatever quantities it's handed, but a product needs
+  // the largest number of WHOLE sets that fit together, found by search
+  // (see evaluateProductCandidate) -- there's no single quantity to hand it.
+  const evaluateOne = mode === 'products' ? evaluateProductCandidate : evaluateCandidate;
   const evaluated = candidates.map((candidate) =>
-    evaluateCandidate(hide, candidate, { method, laserClearanceMm, kerfMm, gridStepMm })
+    evaluateOne(hide, candidate, { method, laserClearanceMm, kerfMm, gridStepMm })
   );
 
   // Rank only when a strategy was actually named. "You Choose" produces one
@@ -75,14 +83,17 @@ export function runSearch({
 export function canRun({ hideId, mode, strategy, quantities }) {
   if (!hideId) return false;
   if (mode === 'explicit') return Object.keys(quantities ?? {}).length > 0;
-  // Fill Orders answers one fixed question, so there is nothing to choose.
-  if (mode === 'mix') return true;
+  // Fill Orders and Products each answer one fixed question, so there is
+  // nothing to choose.
+  if (mode === 'mix' || mode === 'products') return true;
   return strategy !== null && strategy !== undefined && strategy !== '';
 }
 
 // Picking a mode can settle the question it answers. Returns the strategy the
 // page should hold after a mode change, so the page never has to know that
-// Fill Orders means demand.
+// Fill Orders means demand, or that Products is always ranked by value.
 export function strategyForMode(mode) {
-  return mode === 'mix' ? 'demand' : null;
+  if (mode === 'mix') return 'demand';
+  if (mode === 'products') return 'value';
+  return null;
 }

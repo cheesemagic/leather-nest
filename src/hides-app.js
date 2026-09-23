@@ -14,6 +14,7 @@ const dialog = document.getElementById('add-hide-dialog');
 const labelInput = document.getElementById('hide-label');
 const speciesInput = document.getElementById('hide-species');
 const thicknessInput = document.getElementById('hide-thickness');
+const finishInput = document.getElementById('hide-finish');
 const photoInput = document.getElementById('hide-photo');
 const calibrationContainer = document.getElementById('hide-calibration-container');
 const regionContainer = document.getElementById('hide-region-container');
@@ -42,10 +43,32 @@ function hideFootprintAreaMm2(hide) {
   return polygonArea(hide.outlinePolygon);
 }
 
+// CIE LAB (D65) -> sRGB, for showing the sampled colour as a swatch. Standard
+// conversion, not calibrated against a spectrophotometer -- good enough for
+// "does this look like the leather," not for judging exact hex values.
+function labToCss(l, a, b) {
+  const fy = (l + 16) / 116;
+  const fx = fy + a / 500;
+  const fz = fy - b / 200;
+  const finv = (t) => (t ** 3 > 0.008856 ? t ** 3 : (t - 16 / 116) / 7.787);
+  const x = 0.95047 * finv(fx);
+  const y = finv(fy);
+  const z = 1.08883 * finv(fz);
+
+  const toSrgb = (c) => (c > 0.0031308 ? 1.055 * c ** (1 / 2.4) - 0.055 : 12.92 * c);
+  const r = toSrgb(x * 3.2406 + y * -1.5372 + z * -0.4986);
+  const g = toSrgb(x * -0.9689 + y * 1.8758 + z * 0.0415);
+  const bl = toSrgb(x * 0.0557 + y * -0.204 + z * 1.057);
+
+  const clamp = (c) => Math.max(0, Math.min(255, Math.round(c * 255)));
+  return `rgb(${clamp(r)}, ${clamp(g)}, ${clamp(bl)})`;
+}
+
 function resetAddForm() {
   labelInput.value = '';
   speciesInput.value = '';
   thicknessInput.value = '';
+  finishInput.value = '';
   photoInput.value = '';
   calibrationContainer.innerHTML = '';
   regionContainer.innerHTML = '';
@@ -100,6 +123,7 @@ submitButton.addEventListener('click', async () => {
   formData.append('label', label);
   formData.append('species', species);
   formData.append('thicknessMm', thicknessMm);
+  if (finishInput.value) formData.append('finish', finishInput.value);
   formData.append('photo', selectedPhoto);
   formData.append('p1x', calibration.p1x);
   formData.append('p1y', calibration.p1y);
@@ -163,14 +187,17 @@ function renderGrid() {
     .map((hide) => {
       const remaining = hide.remainingAreaPct ?? 100;
       const date = new Date(hide.createdAt).toLocaleDateString();
+      const swatch = hide.colourL != null
+        ? `<span class="colour-swatch" style="background:${labToCss(hide.colourL, hide.colourA, hide.colourB)}" title="sampled colour"></span>`
+        : '';
       return `
     <div class="card hide-card elev-sm">
       <img class="washed" src="/skins/${hide.id}/photo" alt="${escapeHtml(hide.label)}" />
       <div class="card-title">
-        <span>${escapeHtml(hide.species)}</span>
+        <span>${escapeHtml(hide.species)} ${swatch}</span>
         <span class="tag tag-outline">${hide.id.slice(0, 8)}</span>
       </div>
-      <p class="card-body">${escapeHtml(hide.label)} · ${hideSizeLabel(hide)}${hide.thicknessMm != null ? ` · ${hide.thicknessMm} mm thick` : ''}</p>
+      <p class="card-body">${escapeHtml(hide.label)} · ${hideSizeLabel(hide)}${hide.thicknessMm != null ? ` · ${hide.thicknessMm} mm thick` : ''}${hide.finish ? ` · ${escapeHtml(hide.finish)}` : ''}</p>
       <div class="area-bar"><div class="area-bar-fill" style="width: ${Math.max(0, Math.min(100, remaining))}%"></div></div>
       <div class="card-meta">${Math.round(remaining)}% remaining · captured ${date}</div>
     </div>

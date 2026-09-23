@@ -4,7 +4,7 @@ import { withServer } from './helpers/with-server.js';
 
 test('serves a static page when the URL carries a query string', async () => {
   await withServer(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/public/dies.html?hide=abc123`);
+    const response = await fetch(`${baseUrl}/public/parts.html?hide=abc123`);
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), 'text/html');
   });

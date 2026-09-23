@@ -28,13 +28,13 @@ test('lines are visible on a job the size of a real hide', () => {
   assert.ok(thinnestLineInPixels(svg) > 1, `renders at ${thinnestLineInPixels(svg).toFixed(3)}px`);
 });
 
-test('lines are visible on a job the size of a single die', () => {
+test('lines are visible on a job the size of a single part', () => {
   const svg = exportToSVG(rect(60, 60), PLACEMENTS, [PART]);
   assert.ok(thinnestLineInPixels(svg) > 1, `renders at ${thinnestLineInPixels(svg).toFixed(3)}px`);
 });
 
 test('a small job is not drawn absurdly heavily', () => {
-  // Scaling has to cut both ways: a thick line on a 60mm die would swamp it.
+  // Scaling has to cut both ways: a thick line on a 60mm part would swamp it.
   const svg = exportToSVG(rect(60, 60), PLACEMENTS, [PART]);
   const stroke = parseFloat(/stroke-width="([^"]+)"/.exec(svg)[1]);
   assert.ok(stroke < 1, `${stroke}mm of stroke on a 60mm job`);

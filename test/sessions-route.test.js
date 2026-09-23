@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CANVAS = path.join(__dirname, 'fixtures', 'test-blotch-canvas.png');
 
 function withServer(fn) {
-  return withServerBase(fn, { withDataDir: true, withDiesDataDir: true, withSessionsDataDir: true });
+  return withServerBase(fn, { withDataDir: true, withPartsDataDir: true, withSessionsDataDir: true });
 }
 
 async function postSession(baseUrl, overrides = {}) {
@@ -102,11 +102,11 @@ function postStatusSplit(baseUrl, id, status) {
   });
 }
 
-async function postDie(baseUrl) {
+async function postPart(baseUrl) {
   const formData = new FormData();
-  formData.append('name', 'Test die');
-  formData.append('svg', new Blob(['<polygon points="0,0 60,0 60,40 0,40" />']), 'die.svg');
-  const response = await fetch(`${baseUrl}/dies`, { method: 'POST', body: formData });
+  formData.append('name', 'Test part');
+  formData.append('svg', new Blob(['<polygon points="0,0 60,0 60,40 0,40" />']), 'part.svg');
+  const response = await fetch(`${baseUrl}/parts`, { method: 'POST', body: formData });
   return response.json();
 }
 
@@ -135,41 +135,41 @@ test('GET /sessions/:id/photo serves the stored photo', async () => {
 test('POST /sessions/:id/placements finds a match and appends it', async () => {
   await withServer(async (baseUrl) => {
     const session = await (await postSession(baseUrl)).json();
-    const die = await postDie(baseUrl);
+    const part = await postPart(baseUrl);
 
     const response = await fetch(`${baseUrl}/sessions/${session.id}/placements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dieId: die.id, x: 100, y: 100, rotation: 0 }),
+      body: JSON.stringify({ partId: part.id, x: 100, y: 100, rotation: 0 }),
     });
     assert.equal(response.status, 200);
     const updated = await response.json();
     assert.equal(updated.placements.length, 1);
     assert.ok(updated.placements[0].match);
     assert.ok(Math.abs(updated.placements[0].match.x - 300) <= 2);
-    assert.deepEqual(updated.placements[0].polygon, die.polygon);
+    assert.deepEqual(updated.placements[0].polygon, part.polygon);
   });
 });
 
 test('POST /sessions/:id/placements returns 404 for an unknown session', async () => {
   await withServer(async (baseUrl) => {
-    const die = await postDie(baseUrl);
+    const part = await postPart(baseUrl);
     const response = await fetch(`${baseUrl}/sessions/does-not-exist/placements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dieId: die.id, x: 100, y: 100, rotation: 0 }),
+      body: JSON.stringify({ partId: part.id, x: 100, y: 100, rotation: 0 }),
     });
     assert.equal(response.status, 404);
   });
 });
 
-test('POST /sessions/:id/placements returns 404 for an unknown die', async () => {
+test('POST /sessions/:id/placements returns 404 for an unknown part', async () => {
   await withServer(async (baseUrl) => {
     const session = await (await postSession(baseUrl)).json();
     const response = await fetch(`${baseUrl}/sessions/${session.id}/placements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dieId: 'does-not-exist', x: 100, y: 100, rotation: 0 }),
+      body: JSON.stringify({ partId: 'does-not-exist', x: 100, y: 100, rotation: 0 }),
     });
     assert.equal(response.status, 404);
   });
@@ -178,11 +178,11 @@ test('POST /sessions/:id/placements returns 404 for an unknown die', async () =>
 test('POST /sessions/:id/placements returns 422 when the reference placement is invalid', async () => {
   await withServer(async (baseUrl) => {
     const session = await (await postSession(baseUrl)).json();
-    const die = await postDie(baseUrl);
+    const part = await postPart(baseUrl);
     const response = await fetch(`${baseUrl}/sessions/${session.id}/placements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dieId: die.id, x: 480, y: 480, rotation: 0 }),
+      body: JSON.stringify({ partId: part.id, x: 480, y: 480, rotation: 0 }),
     });
     assert.equal(response.status, 422);
   });
@@ -209,11 +209,11 @@ test('cutting a job decrements the linked hide, un-cutting restores it exactly',
   await withServer(async (baseUrl) => {
     const hide = await postOutlineHide(baseUrl);
     const session = await (await postSession(baseUrl, { hideId: hide.id })).json();
-    const die = await postDie(baseUrl);
+    const part = await postPart(baseUrl);
     await fetch(`${baseUrl}/sessions/${session.id}/placements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dieId: die.id, x: 100, y: 100, rotation: 0 }),
+      body: JSON.stringify({ partId: part.id, x: 100, y: 100, rotation: 0 }),
     });
 
     assert.equal((await getHide(baseUrl, hide.id)).remainingAreaPct, 100);
@@ -226,7 +226,7 @@ test('cutting a job decrements the linked hide, un-cutting restores it exactly',
     assert.ok(cut.consumedAreaMm2 > 0);
 
     const afterCut = (await getHide(baseUrl, hide.id)).remainingAreaPct;
-    // 60x40 die (2400 mm²) with a matched twin -> 4800 mm² consumed, computed
+    // 60x40 part (2400 mm²) with a matched twin -> 4800 mm² consumed, computed
     // independently of consumedAreaMm2 so a units regression can't hide.
     const hideArea = polygonArea(hide.outlinePolygon);
     const expected = 100 - (4800 / hideArea) * 100;
@@ -250,11 +250,11 @@ test('deleting a cut job restores the hide area', async () => {
   await withServer(async (baseUrl) => {
     const hide = await postOutlineHide(baseUrl);
     const session = await (await postSession(baseUrl, { hideId: hide.id })).json();
-    const die = await postDie(baseUrl);
+    const part = await postPart(baseUrl);
     await fetch(`${baseUrl}/sessions/${session.id}/placements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dieId: die.id, x: 100, y: 100, rotation: 0 }),
+      body: JSON.stringify({ partId: part.id, x: 100, y: 100, rotation: 0 }),
     });
     await setStatus(baseUrl, session.id, 'cut');
     assert.ok((await getHide(baseUrl, hide.id)).remainingAreaPct < 100);
@@ -287,11 +287,11 @@ test('concurrent cut requests with the body split across chunks apply the decrem
   await withServer(async (baseUrl) => {
     const hide = await postOutlineHide(baseUrl);
     const session = await (await postSession(baseUrl, { hideId: hide.id })).json();
-    const die = await postDie(baseUrl);
+    const part = await postPart(baseUrl);
     await fetch(`${baseUrl}/sessions/${session.id}/placements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dieId: die.id, x: 100, y: 100, rotation: 0 }),
+      body: JSON.stringify({ partId: part.id, x: 100, y: 100, rotation: 0 }),
     });
 
     const [r1, r2] = await Promise.all([

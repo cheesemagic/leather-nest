@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { withServer as withServerBase } from './helpers/with-server.js';
 
 function withServer(fn) {
-  return withServerBase(fn, { withDiesDataDir: true });
+  return withServerBase(fn, { withPartsDataDir: true });
 }
 
 // Two pieces, each an outline plus a couple of stitch holes — the shape of a
@@ -44,8 +44,8 @@ test('preview reports what is in the file without saving anything', () => {
     assert.equal(body.pieces[1].interiorCount, 1);
 
     // Nothing was created.
-    const dies = await (await fetch(`${baseUrl}/dies`)).json();
-    assert.equal(dies.length, 0, 'preview must not save');
+    const parts = await (await fetch(`${baseUrl}/parts`)).json();
+    assert.equal(parts.length, 0, 'preview must not save');
   });
 });
 
@@ -78,8 +78,8 @@ test('one file becomes one component per piece', () => {
     assert.deepEqual(created.map((c) => c.name), ['card wallet 1', 'card wallet 2']);
     for (const component of created) assert.equal(component.demand, 4);
 
-    const dies = await (await fetch(`${baseUrl}/dies`)).json();
-    assert.equal(dies.length, 2);
+    const parts = await (await fetch(`${baseUrl}/parts`)).json();
+    assert.equal(parts.length, 2);
   });
 });
 

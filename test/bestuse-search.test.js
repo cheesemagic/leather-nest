@@ -28,6 +28,16 @@ const COMPONENTS = [
   comp('keeper', 30, 12, { valuePerPiece: 3, demand: 10 }),
   comp('pocket', 80, 60, { valuePerPiece: 18, demand: 4 }),
 ];
+const PRODUCTS = [
+  {
+    id: 'belt-product',
+    name: 'belt',
+    parts: [
+      { partId: 'strap', quantity: 1, mustMatch: true },
+      { partId: 'keeper', quantity: 2, mustMatch: true },
+    ],
+  },
+];
 const opts = { method: 'laser', laserClearanceMm: 1.0, gridStepMm: 15 };
 const search = (extra) =>
   runSearch({ hide: HIDE, components: COMPONENTS, ...opts, ...extra });
@@ -70,12 +80,30 @@ test('Fill Orders returns a layout mixing more than one component', () => {
 test('every mode the page can be in is covered above', () => {
   // A new mode button with no test here should fail loudly rather than
   // quietly ship unchecked, which is how You Choose stayed broken.
-  const tested = ['explicit', 'singles', 'mix'];
+  const tested = ['explicit', 'singles', 'mix', 'products'];
   for (const mode of tested) {
-    const strategy = mode === 'explicit' ? null : mode === 'mix' ? 'demand' : 'value';
-    const { error } = search({ mode, strategy, quantities: { strap: 1 } });
+    const strategy = mode === 'explicit' ? null : strategyForMode(mode) ?? 'value';
+    const { error } = search({ mode, strategy, quantities: { strap: 1 }, products: PRODUCTS });
     assert.equal(error, null, `mode ${mode} errored: ${error}`);
   }
+});
+
+test('Products nests only whole completed copies, never a leftover single piece', () => {
+  // The belt product needs 1 strap + 2 keepers. Placing straps and keepers
+  // independently (what the general nester does for every other mode) would
+  // likely leave a mismatched count of one or the other; this checks the
+  // set-at-a-time search replaced that with an exact, balanced ratio.
+  const { results, error } = search({ mode: 'products', strategy: 'value', products: PRODUCTS });
+
+  assert.equal(error, null, `Products errored: ${error}`);
+  assert.ok(results.length > 0);
+  const result = results[0];
+  assert.equal(result.productName, 'belt');
+  assert.ok(result.completeCount > 0, 'expected at least one complete belt');
+
+  assert.equal(result.counts.strap, result.completeCount * 1);
+  assert.equal(result.counts.keeper, result.completeCount * 2);
+  assert.equal(result.value, result.completeCount * (40 * 1 + 3 * 2));
 });
 
 // --- failures are reported, not thrown ----------------------------------
@@ -115,7 +143,7 @@ test('choosing nothing in You Choose is an explanation, not an empty screen', ()
 // --- the run button ------------------------------------------------------
 
 test('the Run button waits for a hide in every mode', () => {
-  for (const mode of ['explicit', 'singles', 'mix']) {
+  for (const mode of ['explicit', 'singles', 'mix', 'products']) {
     assert.equal(
       canRun({ hideId: null, mode, strategy: 'value', quantities: { strap: 1 } }),
       false,
@@ -131,6 +159,8 @@ test('Rank Singles waits for a strategy; Fill Orders does not', () => {
   assert.equal(canRun({ ...base, mode: 'singles', strategy: 'value' }), true);
   // Fill Orders answers one question, so there is nothing to wait for.
   assert.equal(canRun({ ...base, mode: 'mix', strategy: null }), true);
+  // So does Products -- it always considers every product definition.
+  assert.equal(canRun({ ...base, mode: 'products', strategy: null }), true);
 });
 
 test('You Choose waits for at least one component', () => {
@@ -139,8 +169,9 @@ test('You Choose waits for at least one component', () => {
   assert.equal(canRun({ ...base, quantities: { strap: 1 } }), true);
 });
 
-test('picking Fill Orders settles the strategy; the others leave it open', () => {
+test('picking Fill Orders or Products settles the strategy; the others leave it open', () => {
   assert.equal(strategyForMode('mix'), 'demand');
+  assert.equal(strategyForMode('products'), 'value');
   assert.equal(strategyForMode('singles'), null);
   assert.equal(strategyForMode('explicit'), null);
 });

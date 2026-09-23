@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>leather-nest — products</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="/public/styles.css" />
+    <style>
+      .page { max-width: 1000px; margin: 0 auto; padding: var(--space-6) var(--space-4); }
+      .products-header {
+        display: flex; flex-wrap: wrap; align-items: baseline;
+        justify-content: space-between; gap: var(--space-3);
+        margin-bottom: var(--space-4);
+      }
+      .product-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: var(--space-4);
+      }
+      .product-card .card-title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+      .product-parts { margin: var(--space-2) 0; padding-left: 1.1rem; }
+      .product-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+      #add-panel[hidden] { display: none; }
+      .form-grid { display: flex; flex-direction: column; gap: var(--space-3); }
+      .part-picker-row {
+        display: flex; align-items: center; gap: var(--space-2);
+        padding: var(--space-2); background: var(--color-bg); border-radius: var(--radius-sm);
+      }
+      .part-picker-row label { flex: 1; }
+      .part-picker-row input[type="number"] { width: 60px; }
+      #part-picker { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-2); }
+    </style>
+  </head>
+  <body>
+    <nav class="nav">
+      <span class="nav-brand">leather-nest</span>
+      <a href="/">Home</a>
+      <a href="/public/hides.html">Hides</a>
+      <a href="/public/jobs.html">Jobs</a>
+      <a href="/public/parts.html">Components</a>
+    </nav>
+
+    <main class="page">
+      <div class="products-header">
+        <div>
+          <h1>Products</h1>
+          <p class="text-muted" id="products-summary">Loading…</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="open-add-product">Add a product</button>
+      </div>
+
+      <section class="card elev-sm" id="add-panel" hidden>
+        <h2 class="card-title">Add a product</h2>
+        <div class="form-grid">
+          <div class="field">
+            <label for="name-input">Name</label>
+            <input class="input" type="text" id="name-input" placeholder="card wallet" />
+          </div>
+          <div class="field">
+            <label>Parts (check the ones this product needs, and how many of each)</label>
+            <div id="part-picker"></div>
+          </div>
+          <div id="add-status" class="text-muted"></div>
+          <div class="product-actions">
+            <button type="button" class="btn btn-primary" id="submit-product">Add to library</button>
+            <button type="button" class="btn btn-secondary" id="cancel-add">Cancel</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="product-grid" id="product-grid"></div>
+    </main>
+
+    <script type="module" src="/src/products-app.js"></script>
+  </body>
+</html>

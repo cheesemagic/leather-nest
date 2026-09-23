@@ -9,6 +9,7 @@ import { exportToSVG } from './svg/export.js';
 const state = {
   hides: [],
   components: [],
+  products: [],
   selectedHideId: null,
   mode: 'singles',
   quantities: {},
@@ -155,6 +156,7 @@ function updateModeUI() {
     explicit: document.getElementById('explicit-section'),
     singles: document.getElementById('singles-section'),
     mix: document.getElementById('mix-section'),
+    products: document.getElementById('products-section'),
   };
   for (const [mode, section] of Object.entries(sections)) {
     section.style.display = state.mode === mode ? 'block' : 'none';
@@ -207,6 +209,7 @@ async function run() {
       mode: state.mode,
       strategy: state.strategy,
       quantities: state.quantities,
+      products: state.products,
       shortlistSize: state.shortlistSize,
       method: state.method,
       laserClearanceMm: state.laserClearanceMm,
@@ -250,10 +253,14 @@ function renderResults({ results, hide, error }) {
     card.className = 'candidate-card';
 
     const header = document.createElement('h3');
-    const titleIds = Object.keys(result.counts).length
-      ? Object.keys(result.counts)
-      : [...result.noDie, ...result.noFit];
-    header.textContent = `#${i + 1}: ${componentNames(titleIds) || '(nothing placed)'}`;
+    if (result.productName != null) {
+      header.textContent = `#${i + 1}: ${result.productName} — ${result.completeCount} complete`;
+    } else {
+      const titleIds = Object.keys(result.counts).length
+        ? Object.keys(result.counts)
+        : [...result.noDie, ...result.noFit];
+      header.textContent = `#${i + 1}: ${componentNames(titleIds) || '(nothing placed)'}`;
+    }
     card.appendChild(header);
 
     const statsDiv = document.createElement('div');
@@ -267,10 +274,17 @@ function renderResults({ results, hide, error }) {
         <div class="stat-label">Utilization</div>
         <div class="stat-value">${(result.utilization * 100).toFixed(1)}%</div>
       </div>
-      <div class="stat">
-        <div class="stat-label">Demand</div>
-        <div class="stat-value">${result.demandSatisfied}</div>
-      </div>
+      ${
+        result.productName != null
+          ? `<div class="stat">
+               <div class="stat-label">Complete</div>
+               <div class="stat-value">${result.completeCount}</div>
+             </div>`
+          : `<div class="stat">
+               <div class="stat-label">Demand</div>
+               <div class="stat-value">${result.demandSatisfied}</div>
+             </div>`
+      }
     `;
     card.appendChild(statsDiv);
 
@@ -545,13 +559,16 @@ function attachEventListeners() {
 }
 
 async function init() {
-  // Fetch hides (skins) and components (dies) from server
+  // Fetch hides (skins) and components (parts) from server
   try {
     const skinsResp = await fetch('/skins');
     state.hides = await skinsResp.json();
 
-    const diesResp = await fetch('/dies');
-    state.components = await diesResp.json();
+    const partsResp = await fetch('/parts');
+    state.components = await partsResp.json();
+
+    const productsResp = await fetch('/products');
+    state.products = await productsResp.json();
 
     renderHideSelect();
     attachEventListeners();
