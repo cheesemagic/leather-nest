@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createStore } from '../src/dies/store.js';
+import { createStore } from '../src/parts/store.js';
 
 function makeTmpDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'dies-store-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'parts-store-test-'));
 }
 
 test('create() writes a JSON record, list() returns it', () => {

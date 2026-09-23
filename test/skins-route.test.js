@@ -182,6 +182,11 @@ test('POST /skins with captureType=outline creates a hide with outline/thickness
     assert.equal(created.thicknessMm, 1.4);
     assert.equal(created.remainingAreaPct, 100);
     assert.equal(created.dominantWavelengthMm, null);
+    // test-rectangle.png's piece is black on white -- near-zero on all three
+    // LAB axes, and nowhere near the white background's L~100.
+    assert.ok(Math.abs(created.colourL) < 10, `expected colourL near 0, got ${created.colourL}`);
+    assert.ok(Math.abs(created.colourA) < 5, `expected colourA near 0, got ${created.colourA}`);
+    assert.ok(Math.abs(created.colourB) < 5, `expected colourB near 0, got ${created.colourB}`);
   });
 });
 
@@ -200,6 +205,16 @@ test('POST /skins with captureType=outline returns 400 when thicknessMm is missi
     assert.equal(response.status, 400);
     const body = await response.json();
     assert.match(body.error, /thicknessMm/);
+  });
+});
+
+test('POST /skins with captureType=outline stores an operator-set finish label, null when omitted', async () => {
+  await withServer(async (baseUrl) => {
+    const withFinish = await (await postOutlineSkin(baseUrl, { finish: 'glossy' })).json();
+    assert.equal(withFinish.finish, 'glossy');
+
+    const withoutFinish = await (await postOutlineSkin(baseUrl)).json();
+    assert.equal(withoutFinish.finish, null);
   });
 });
 

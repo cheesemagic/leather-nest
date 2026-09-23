@@ -29,7 +29,7 @@ export const OUTLINE_COLOR = '#0000FF';
 // 1/82,000th of the drawing's width — 0.012 of a pixel on screen — so the
 // file opened as a blank white page with 841 shapes invisibly in it. Scaled
 // to the drawing instead, a line is always about the same thickness on
-// screen whether the job is a 50mm die or a metre of hide.
+// screen whether the job is a 50mm part or a metre of hide.
 const STROKE_DIVISOR = 600;
 
 const strokeWidthFor = (width, height) =>

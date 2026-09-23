@@ -47,7 +47,7 @@ test('inches, points, picas, centimetres and px all convert', () => {
 
 test('a unitless width does not scale — coordinates stay millimetres', () => {
   // Unitless is user units per spec: genuinely ambiguous, and every existing
-  // die record already assumes raw numbers are mm. Changing that silently
+  // part record already assumes raw numbers are mm. Changing that silently
   // would rescale a library that is currently correct.
   const [w, h] = size(parseSVGPolygon(doc('width="1000" height="600" viewBox="0 0 1000 600"')));
   close(w, 1000);

@@ -86,6 +86,10 @@ test('create() accepts outline/thickness fields, defaults remainingAreaPct, and 
       [10, 5],
       [0, 5],
     ],
+    colourL: 43.1,
+    colourA: 17.0,
+    colourB: 26.0,
+    finish: 'glossy',
     thicknessMm: 1.2,
     photoPath,
     photoExt: '.jpg',
@@ -97,6 +101,10 @@ test('create() accepts outline/thickness fields, defaults remainingAreaPct, and 
     [10, 5],
     [0, 5],
   ]);
+  assert.equal(outlineOnly.colourL, 43.1);
+  assert.equal(outlineOnly.colourA, 17.0);
+  assert.equal(outlineOnly.colourB, 26.0);
+  assert.equal(outlineOnly.finish, 'glossy');
   assert.equal(outlineOnly.thicknessMm, 1.2);
   assert.equal(outlineOnly.remainingAreaPct, 100);
   assert.equal(outlineOnly.dominantWavelengthMm, null);
@@ -114,6 +122,10 @@ test('create() accepts outline/thickness fields, defaults remainingAreaPct, and 
   assert.equal(signatureOnly.remainingAreaPct, 100);
   assert.equal(signatureOnly.outlinePolygon, null);
   assert.equal(signatureOnly.thicknessMm, null);
+  assert.equal(signatureOnly.colourL, null);
+  assert.equal(signatureOnly.colourA, null);
+  assert.equal(signatureOnly.colourB, null);
+  assert.equal(signatureOnly.finish, null);
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });

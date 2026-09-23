@@ -105,6 +105,7 @@
             <button class="button" data-mode="explicit">You Choose</button>
             <button class="button active" data-mode="singles">Rank Singles</button>
             <button class="button" data-mode="mix">Fill Orders</button>
+            <button class="button" data-mode="products">Products</button>
           </div>
         </div>
 
@@ -123,6 +124,19 @@
               usually earn less than Highest Value and use less of the hide —
               it is answering what can I ship, not what is this scrap worth.
               Components with no orders recorded are ignored.
+            </p>
+          </div>
+        </div>
+
+        <div id="products-section" style="display: none;">
+          <div class="control-group">
+            <p class="text-muted" style="margin: 0; font-size: 0.9rem; line-height: 1.5;">
+              Checks every product defined on the Products page against this
+              hide, one at a time. A product only counts its complete copies —
+              two thirds of a wallet is worth nothing, so those pieces are
+              reported as waste rather than value. Single hide only for now: a
+              product whose parts cannot all come from this one offcut is
+              skipped.
             </p>
           </div>
         </div>

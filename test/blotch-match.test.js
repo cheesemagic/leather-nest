@@ -13,7 +13,7 @@ const TRIANGLE_CANVAS = path.join(__dirname, 'fixtures', 'test-blotch-triangle-c
 
 // mm_per_px = 1: (0,0)-(100,0) over 100mm.
 const CALIBRATION = { p1x: 0, p1y: 0, p2x: 100, p2y: 0, realDistanceMm: 100 };
-const DIE_POLYGON = [
+const PART_POLYGON = [
   { x: 0, y: 0 }, { x: 60, y: 0 }, { x: 60, y: 40 }, { x: 0, y: 40 },
 ];
 const FULL_REGION = { roiX: 0, roiY: 0, roiWidth: 500, roiHeight: 500 };
@@ -28,7 +28,7 @@ test('blotch_match.py finds the true rotated match, translation and rotation', (
     imagePath: CANVAS,
     calibration: CALIBRATION,
     searchRegion: FULL_REGION,
-    diePolygon: DIE_POLYGON,
+    partPolygon: PART_POLYGON,
     referencePlacement: { x: 100, y: 100, rotation: 0 },
     occupied: [],
   });
@@ -40,20 +40,20 @@ test('blotch_match.py finds the true rotated match, translation and rotation', (
   assert.ok(result.match.score < 0.1, `expected a low score, got ${result.match.score}`);
 });
 
-test('blotch_match.py finds the true rotated match for a non-rectangular (triangular) die', () => {
+test('blotch_match.py finds the true rotated match for a non-rectangular (triangular) part', () => {
   // Regression coverage for the rotate_template_normalized() bug: for a
-  // non-rectangular die, the die's own rotated-normalized origin does not
+  // non-rectangular part, the part's own rotated-normalized origin does not
   // coincide with its bounding-rectangle crop's rotated-normalized origin.
-  // This die's rotated-vs-rectangle offset at 120 degrees is a non-zero
+  // This part's rotated-vs-rectangle offset at 120 degrees is a non-zero
   // (30, 0) -- see test/fixtures/generate-blotch-triangle-fixture.py --
   // so a match report that ignores the offset would be off by 30px.
-  const TRIANGLE_DIE_POLYGON = [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 0, y: 40 }];
+  const TRIANGLE_PART_POLYGON = [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 0, y: 40 }];
 
   const result = runMatch({
     imagePath: TRIANGLE_CANVAS,
     calibration: CALIBRATION,
     searchRegion: FULL_REGION,
-    diePolygon: TRIANGLE_DIE_POLYGON,
+    partPolygon: TRIANGLE_PART_POLYGON,
     referencePlacement: { x: 50, y: 50, rotation: 0 },
     occupied: [],
   });
@@ -69,8 +69,8 @@ test('blotch_match.py finds the true rotated match for a non-rectangular (triang
   // transform the browser uses (placedPolygon) must reproduce the polygon
   // at the exact position the fixture placed it -- not just "a match was
   // found somewhere nearby".
-  const expected = placedPolygon({ polygon: TRIANGLE_DIE_POLYGON }, { x: 300, y: 250, rotation: 120 });
-  const actual = placedPolygon({ polygon: TRIANGLE_DIE_POLYGON }, result.match);
+  const expected = placedPolygon({ polygon: TRIANGLE_PART_POLYGON }, { x: 300, y: 250, rotation: 120 });
+  const actual = placedPolygon({ polygon: TRIANGLE_PART_POLYGON }, result.match);
   for (let i = 0; i < expected.length; i++) {
     assert.ok(
       Math.abs(actual[i].x - expected[i].x) <= 2,
@@ -88,10 +88,10 @@ test('blotch_match.py returns no match when the only good spot is already occupi
     imagePath: CANVAS,
     calibration: CALIBRATION,
     searchRegion: FULL_REGION,
-    diePolygon: DIE_POLYGON,
+    partPolygon: PART_POLYGON,
     referencePlacement: { x: 100, y: 100, rotation: 0 },
     occupied: [
-      { polygon: DIE_POLYGON, x: 300, y: 250, rotation: 45 },
+      { polygon: PART_POLYGON, x: 300, y: 250, rotation: 45 },
     ],
   });
 
@@ -104,7 +104,7 @@ test('blotch_match.py returns no match when the search region has no free room',
     imagePath: CANVAS,
     calibration: CALIBRATION,
     searchRegion: { roiX: 90, roiY: 90, roiWidth: 70, roiHeight: 50 },
-    diePolygon: DIE_POLYGON,
+    partPolygon: PART_POLYGON,
     referencePlacement: { x: 100, y: 100, rotation: 0 },
     occupied: [],
   });
@@ -123,7 +123,7 @@ test('blotch_match.py fails clearly when the reference placement is out of bound
         imagePath: CANVAS,
         calibration: CALIBRATION,
         searchRegion: FULL_REGION,
-        diePolygon: DIE_POLYGON,
+        partPolygon: PART_POLYGON,
         referencePlacement: { x: 480, y: 480, rotation: 0 },
         occupied: [],
       }),

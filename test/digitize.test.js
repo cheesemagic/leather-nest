@@ -15,6 +15,7 @@ const GLARE_FIXTURE = path.join(__dirname, 'fixtures', 'test-glare.png');
 const RAGGED_FIXTURE = path.join(__dirname, 'fixtures', 'test-ragged.png');
 const EDGE_FIXTURE = path.join(__dirname, 'fixtures', 'test-edge-piece.png');
 const SPECKLED_FIXTURE = path.join(__dirname, 'fixtures', 'test-speckled.png');
+const COLOUR_FIXTURE = path.join(__dirname, 'fixtures', 'test-colour-rectangle.png');
 
 test('digitize.py extracts a known rectangle at the correct mm dimensions', () => {
   const stdout = execFileSync(PYTHON, [SCRIPT, FIXTURE, '0', '0', '200', '0', '100']);
@@ -166,4 +167,19 @@ test('a speckled edge is cleaned up rather than traced bead by bead', () => {
   assert.ok(width > 135 && width < 158, `width ${width.toFixed(1)}mm`);
   assert.ok(height > 85 && height < 108, `height ${height.toFixed(1)}mm`);
   assert.ok(polygon.length < 900, `${polygon.length} points for a rectangle`);
+});
+
+test('digitize.py samples colour from inside the traced outline only', () => {
+  // test-colour-rectangle.png is the rectangle fixture filled with BGR
+  // (60, 90, 140) on a white background -- the same colour as
+  // test-colour-brown.png, whose measured LAB (test/colour-sample.test.js)
+  // is L=43.1, a=17.0, b=26.0. A mean over the white background would read
+  // close to L=100, a=0, b=0, so this also proves the mask is restricted to
+  // the piece rather than the whole frame.
+  const stdout = execFileSync(PYTHON, [SCRIPT, COLOUR_FIXTURE, '0', '0', '200', '0', '100']);
+  const result = JSON.parse(stdout.toString());
+
+  assert.ok(Math.abs(result.colourL - 43.1) < 2, `expected L~43.1, got ${result.colourL}`);
+  assert.ok(Math.abs(result.colourA - 17.0) < 2, `expected a~17.0, got ${result.colourA}`);
+  assert.ok(Math.abs(result.colourB - 26.0) < 2, `expected b~26.0, got ${result.colourB}`);
 });

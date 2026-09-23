@@ -41,6 +41,7 @@
       <a href="/">Home</a>
       <a href="/public/hides.html">Hides</a>
       <a href="/public/jobs.html">Jobs</a>
+      <a href="/public/products.html">Products</a>
     </nav>
 
     <main class="page">
@@ -133,7 +134,7 @@
           </div>
           <div>
             <label class="radio"><input type="radio" name="add-mode" value="svg" checked /><span class="dot"></span> Upload SVG</label>
-            <label class="radio"><input type="radio" name="add-mode" value="photo" /><span class="dot"></span> Photograph a die</label>
+            <label class="radio"><input type="radio" name="add-mode" value="photo" /><span class="dot"></span> Photograph a component</label>
             <label class="radio"><input type="radio" name="add-mode" value="dimensions" /><span class="dot"></span> Enter dimensions</label>
           </div>
 
@@ -189,7 +190,7 @@
 
           <div id="add-status" class="text-muted"></div>
           <div class="component-actions">
-            <button type="button" class="btn btn-primary" id="submit-die">Add to library</button>
+            <button type="button" class="btn btn-primary" id="submit-part">Add to library</button>
             <button type="button" class="btn btn-secondary" id="cancel-add">Cancel</button>
           </div>
         </div>
@@ -249,6 +250,6 @@
       </div>
     </main>
 
-    <script type="module" src="/src/dies-app.js"></script>
+    <script type="module" src="/src/parts-app.js"></script>
   </body>
 </html>

@@ -6,7 +6,9 @@ import { execFile } from 'node:child_process';
 import formidable from 'formidable';
 import { createStore } from './src/skins/store.js';
 import { rankMatches } from './src/skins/similarity.js';
-import { createStore as createDieStore } from './src/dies/store.js';
+import { createStore as createPartStore } from './src/parts/store.js';
+import { createStore as createProductStore } from './src/products/store.js';
+import { createStore as createCalibrationStore } from './src/calibrations/store.js';
 import { parseSVGPolygon, parseSVGComponents, unitOptions } from './src/svg/parse.js';
 import { createStore as createSessionStore } from './src/sessions/store.js';
 import { polygonArea } from './src/nesting/geometry.js';
@@ -94,7 +96,7 @@ function rotationsOrUndefined(raw) {
   return list.length ? list : undefined;
 }
 
-// POST /dies/:id is the trust boundary for JSON updates — validate here so
+// POST /parts/:id is the trust boundary for JSON updates — validate here so
 // every caller inherits the check, store.update() stays a dumb writer.
 //
 // Do NOT reuse numberOrNull/speciesOrNull/rotationsOrUndefined above: they're
@@ -260,6 +262,7 @@ function createSkinsRoutes(dataDir) {
     }
 
     const captureType = getField('captureType') || 'signature';
+    const finish = getField('finish') || null;
     const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
 
     if (captureType === 'outline') {
@@ -289,12 +292,16 @@ function createSkinsRoutes(dataDir) {
           sendJSON(res, 422, { error: stderr.trim() || 'Digitization failed.' });
           return;
         }
-        const { polygon } = JSON.parse(stdout);
+        const { polygon, colourL, colourA, colourB } = JSON.parse(stdout);
         const record = store.create({
           label,
           species,
           thicknessMm: Number(thicknessMmRaw),
           outlinePolygon: polygon,
+          colourL,
+          colourA,
+          colourB,
+          finish,
           photoPath: photo.filepath,
           photoExt,
         });
@@ -337,6 +344,7 @@ function createSkinsRoutes(dataDir) {
         species,
         dominantWavelengthMm,
         radialSpectrum,
+        finish,
         photoPath: photo.filepath,
         photoExt,
       });
@@ -383,10 +391,10 @@ function createSkinsRoutes(dataDir) {
   return { handleCreateSkin, handleListSkins, handleMatchSkins, handleDeleteSkin, handleSkinPhoto };
 }
 
-function createDiesRoutes(dataDir) {
-  const store = createDieStore(dataDir);
+function createPartsRoutes(dataDir) {
+  const store = createPartStore(dataDir);
 
-  async function handleCreateDie(req, res) {
+  async function handleCreatePart(req, res) {
     let fields, files;
     try {
       ({ fields, files } = await parseForm(req));
@@ -469,7 +477,7 @@ function createDiesRoutes(dataDir) {
     const roiFields = ['roiX', 'roiY', 'roiWidth', 'roiHeight'];
     if (roiFields.some((field) => !getField(field))) {
       fs.unlink(photoFile.filepath, () => {});
-      sendJSON(res, 400, { error: 'roiX, roiY, roiWidth, and roiHeight are required when adding a die from a photo.' });
+      sendJSON(res, 400, { error: 'roiX, roiY, roiWidth, and roiHeight are required when adding a part from a photo.' });
       return;
     }
 
@@ -616,20 +624,20 @@ function createDiesRoutes(dataDir) {
     sendJSON(res, 200, created);
   }
 
-  function handleListDies(req, res) {
+  function handleListParts(req, res) {
     sendJSON(res, 200, store.list());
   }
 
-  function handleDeleteDie(req, res, id) {
+  function handleDeletePart(req, res, id) {
     if (!store.remove(id)) {
-      sendJSON(res, 404, { error: 'Die not found.' });
+      sendJSON(res, 404, { error: 'Part not found.' });
       return;
     }
     res.writeHead(204);
     res.end();
   }
 
-  async function handleUpdateDie(req, res, id) {
+  async function handleUpdatePart(req, res, id) {
     let body = '';
     for await (const chunk of req) body += chunk;
     let payload;
@@ -646,7 +654,7 @@ function createDiesRoutes(dataDir) {
 
     const existing = store.list().find((d) => d.id === id);
     if (!existing) {
-      sendJSON(res, 404, { error: 'Die not found.' });
+      sendJSON(res, 404, { error: 'Part not found.' });
       return;
     }
 
@@ -661,28 +669,169 @@ function createDiesRoutes(dataDir) {
     // jobs status route had to close.
     const updated = store.update(id, value);
     if (!updated) {
-      sendJSON(res, 404, { error: 'Die not found.' });
+      sendJSON(res, 404, { error: 'Part not found.' });
       return;
     }
     sendJSON(res, 200, updated);
   }
 
   return {
-    handleCreateDie,
+    handleCreatePart,
     handlePreviewPattern,
     handleImportPattern,
-    handleListDies,
-    handleDeleteDie,
-    handleUpdateDie,
+    handleListParts,
+    handleDeletePart,
+    handleUpdatePart,
   };
 }
 
-function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
+function createCalibrationsRoutes(dataDir) {
+  const store = createCalibrationStore(dataDir);
+
+  async function handleCreateCalibration(req, res) {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+    if (!payload || typeof payload !== 'object') {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+
+    const name = typeof payload.name === 'string' ? payload.name.trim() : '';
+    if (!name) {
+      sendJSON(res, 400, { error: 'name is required.' });
+      return;
+    }
+
+    const numericFields = ['p1x', 'p1y', 'p2x', 'p2y', 'realDistanceMm', 'photoWidth', 'photoHeight'];
+    for (const field of numericFields) {
+      if (typeof payload[field] !== 'number' || !Number.isFinite(payload[field])) {
+        sendJSON(res, 400, { error: `${field} must be a finite number.` });
+        return;
+      }
+    }
+    if (payload.realDistanceMm <= 0) {
+      sendJSON(res, 400, { error: 'realDistanceMm must be positive.' });
+      return;
+    }
+    if (!Number.isInteger(payload.photoWidth) || payload.photoWidth <= 0 ||
+        !Number.isInteger(payload.photoHeight) || payload.photoHeight <= 0) {
+      sendJSON(res, 400, { error: 'photoWidth and photoHeight must be positive integers.' });
+      return;
+    }
+
+    sendJSON(res, 200, store.create({
+      name,
+      p1x: payload.p1x,
+      p1y: payload.p1y,
+      p2x: payload.p2x,
+      p2y: payload.p2y,
+      realDistanceMm: payload.realDistanceMm,
+      photoWidth: payload.photoWidth,
+      photoHeight: payload.photoHeight,
+    }));
+  }
+
+  function handleListCalibrations(req, res) {
+    sendJSON(res, 200, store.list());
+  }
+
+  function handleDeleteCalibration(req, res, id) {
+    if (!store.remove(id)) {
+      sendJSON(res, 404, { error: 'Calibration not found.' });
+      return;
+    }
+    res.writeHead(204);
+    res.end();
+  }
+
+  return { handleCreateCalibration, handleListCalibrations, handleDeleteCalibration };
+}
+
+function createProductsRoutes(dataDir, partsDataDir) {
+  const store = createProductStore(dataDir);
+  const partStore = createPartStore(partsDataDir);
+
+  // The trust boundary for a product's part list: every partId must name a
+  // real part, and every quantity a positive integer, or a product could
+  // silently ask the search to place a part that no longer exists.
+  function validateParts(parts) {
+    if (!Array.isArray(parts) || parts.length === 0) {
+      return { error: 'parts must be a non-empty array.' };
+    }
+    const knownIds = new Set(partStore.list().map((p) => p.id));
+    for (const part of parts) {
+      if (!part || typeof part.partId !== 'string' || !knownIds.has(part.partId)) {
+        return { error: `partId ${JSON.stringify(part?.partId)} does not name an existing part.` };
+      }
+      if (!Number.isInteger(part.quantity) || part.quantity <= 0) {
+        return { error: 'quantity must be a positive integer.' };
+      }
+      if ('mustMatch' in part && typeof part.mustMatch !== 'boolean') {
+        return { error: 'mustMatch must be a boolean.' };
+      }
+    }
+    return { value: parts };
+  }
+
+  async function handleCreateProduct(req, res) {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+    if (!payload || typeof payload !== 'object') {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+
+    const name = typeof payload.name === 'string' ? payload.name.trim() : '';
+    if (!name) {
+      sendJSON(res, 400, { error: 'name is required.' });
+      return;
+    }
+
+    const partsResult = validateParts(payload.parts);
+    if (partsResult.error) {
+      sendJSON(res, 400, { error: partsResult.error });
+      return;
+    }
+
+    sendJSON(res, 200, store.create({ name, parts: partsResult.value }));
+  }
+
+  function handleListProducts(req, res) {
+    sendJSON(res, 200, store.list());
+  }
+
+  function handleDeleteProduct(req, res, id) {
+    if (!store.remove(id)) {
+      sendJSON(res, 404, { error: 'Product not found.' });
+      return;
+    }
+    res.writeHead(204);
+    res.end();
+  }
+
+  return { handleCreateProduct, handleListProducts, handleDeleteProduct };
+}
+
+function createSessionsRoutes(dataDir, partsDataDir, skinsDataDir) {
   const store = createSessionStore(dataDir);
-  const dieStore = createDieStore(diesDataDir);
+  const partStore = createPartStore(partsDataDir);
   const skinStore = createStore(skinsDataDir);
 
-  // Rotation and translation preserve area, so the raw die polygon is
+  // Rotation and translation preserve area, so the raw part polygon is
   // exact for every placement of it. A placement is one instance, plus a
   // second when the blotch search found a matching twin.
   function consumedAreaMm2(session) {
@@ -858,10 +1007,10 @@ function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
       return;
     }
 
-    const { dieId, x, y, rotation } = payload;
-    const die = dieStore.list().find((d) => d.id === dieId);
-    if (!die) {
-      sendJSON(res, 404, { error: 'Die not found.' });
+    const { partId, x, y, rotation } = payload;
+    const part = partStore.list().find((d) => d.id === partId);
+    if (!part) {
+      sendJSON(res, 404, { error: 'Part not found.' });
       return;
     }
 
@@ -876,7 +1025,7 @@ function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
       imagePath: store.photoPath(id),
       calibration: session.calibration,
       searchRegion: session.searchRegion,
-      diePolygon: die.polygon,
+      partPolygon: part.polygon,
       referencePlacement: { x, y, rotation },
       occupied,
     };
@@ -894,9 +1043,9 @@ function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
         return;
       }
       const updated = store.addPlacement(id, {
-        dieId,
-        dieName: die.name,
-        polygon: die.polygon,
+        partId,
+        partName: part.name,
+        polygon: part.polygon,
         reference: { x, y, rotation },
         match,
       });
@@ -918,12 +1067,16 @@ function createSessionsRoutes(dataDir, diesDataDir, skinsDataDir) {
 
 export function createServer({
   dataDir = path.join(__dirname, 'data', 'skins'),
-  diesDataDir = path.join(__dirname, 'data', 'dies'),
+  partsDataDir = path.join(__dirname, 'data', 'parts'),
   sessionsDataDir = path.join(__dirname, 'data', 'sessions'),
+  productsDataDir = path.join(__dirname, 'data', 'products'),
+  calibrationsDataDir = path.join(__dirname, 'data', 'calibrations'),
 } = {}) {
   const skins = createSkinsRoutes(dataDir);
-  const dies = createDiesRoutes(diesDataDir);
-  const sessions = createSessionsRoutes(sessionsDataDir, diesDataDir, dataDir);
+  const parts = createPartsRoutes(partsDataDir);
+  const sessions = createSessionsRoutes(sessionsDataDir, partsDataDir, dataDir);
+  const products = createProductsRoutes(productsDataDir, partsDataDir);
+  const calibrations = createCalibrationsRoutes(calibrationsDataDir);
 
   return http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/digitize') {
@@ -952,30 +1105,56 @@ export function createServer({
       skins.handleDeleteSkin(req, res, skinDeleteMatch[1]);
       return;
     }
-    if (req.method === 'POST' && req.url === '/dies') {
-      dies.handleCreateDie(req, res);
+    if (req.method === 'POST' && req.url === '/parts') {
+      parts.handleCreatePart(req, res);
       return;
     }
     if (req.method === 'POST' && req.url === '/patterns/preview') {
-      dies.handlePreviewPattern(req, res);
+      parts.handlePreviewPattern(req, res);
       return;
     }
     if (req.method === 'POST' && req.url === '/patterns') {
-      dies.handleImportPattern(req, res);
+      parts.handleImportPattern(req, res);
       return;
     }
-    if (req.method === 'GET' && req.url === '/dies') {
-      dies.handleListDies(req, res);
+    if (req.method === 'GET' && req.url === '/parts') {
+      parts.handleListParts(req, res);
       return;
     }
-    const dieUpdateMatch = req.method === 'POST' && req.url.match(/^\/dies\/([^/]+)$/);
-    if (dieUpdateMatch) {
-      dies.handleUpdateDie(req, res, dieUpdateMatch[1]);
+    const partUpdateMatch = req.method === 'POST' && req.url.match(/^\/parts\/([^/]+)$/);
+    if (partUpdateMatch) {
+      parts.handleUpdatePart(req, res, partUpdateMatch[1]);
       return;
     }
-    const dieDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/dies\/([^/]+)$/);
-    if (dieDeleteMatch) {
-      dies.handleDeleteDie(req, res, dieDeleteMatch[1]);
+    const partDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/parts\/([^/]+)$/);
+    if (partDeleteMatch) {
+      parts.handleDeletePart(req, res, partDeleteMatch[1]);
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/products') {
+      products.handleCreateProduct(req, res);
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/products') {
+      products.handleListProducts(req, res);
+      return;
+    }
+    const productDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/products\/([^/]+)$/);
+    if (productDeleteMatch) {
+      products.handleDeleteProduct(req, res, productDeleteMatch[1]);
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/calibrations') {
+      calibrations.handleCreateCalibration(req, res);
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/calibrations') {
+      calibrations.handleListCalibrations(req, res);
+      return;
+    }
+    const calibrationDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/calibrations\/([^/]+)$/);
+    if (calibrationDeleteMatch) {
+      calibrations.handleDeleteCalibration(req, res, calibrationDeleteMatch[1]);
       return;
     }
     if (req.method === 'POST' && req.url === '/sessions') {

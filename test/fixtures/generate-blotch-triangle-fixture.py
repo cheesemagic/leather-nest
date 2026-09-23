@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generates the non-rectangular-die fixture used by
+"""Generates the non-rectangular-part fixture used by
 test/blotch-match.test.js to cover the rotate_template_normalized()
 polygon-vs-rectangle offset fix. Run manually with the project's venv if
 the fixture ever needs regenerating:
     venv/bin/python3 test/fixtures/generate-blotch-triangle-fixture.py
 
-Unlike a rectangular die, a triangular die's own polygon bbox does not
+Unlike a rectangular part, a triangular part's own polygon bbox does not
 coincide with its bounding-rectangle crop's bbox once rotated -- that
 mismatch is exactly the bug this fixture exists to catch. The rotated
 match patch below is placed using rotate_template_normalized()'s own
@@ -24,7 +24,7 @@ fixtures_dir = os.path.dirname(__file__)
 
 canvas = np.full((500, 500, 3), 200, dtype=np.uint8)
 
-# Die: a right triangle, (0,0)-(60,0)-(0,40) in the patch's own local
+# Part: a right triangle, (0,0)-(60,0)-(0,40) in the patch's own local
 # frame -- asymmetric under rotation, and (unlike a rectangle) its own
 # rotated bbox diverges from its 60x40 bounding-rectangle crop's rotated
 # bbox for many angles (verified separately: at 120 degrees the offset
@@ -45,7 +45,7 @@ canvas[REF_Y:REF_Y + 40, REF_X:REF_X + 60] = np.where(
 )
 
 # True match: same pattern, rotated 120 degrees (a multiple of
-# ROTATION_STEP_DEG), with the die's own normalized-rotated origin
+# ROTATION_STEP_DEG), with the part's own normalized-rotated origin
 # (i.e. what match.x/match.y must report) placed at canvas (300, 250).
 TARGET_X, TARGET_Y, TARGET_ROTATION = 300, 250, 120
 rotated, rotated_mask, offset = rotate_template_normalized(patch, patch_mask, TARGET_ROTATION, TRIANGLE_LOCAL)

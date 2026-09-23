@@ -250,7 +250,7 @@ export function inflatePolygon(polygon, mm) {
 }
 
 // Shoelace formula. Absolute value so winding order doesn't matter, and
-// rotation/translation preserve area — so a die's raw polygon area is
+// rotation/translation preserve area — so a part's raw polygon area is
 // exact for every placement of it, no transform needed first.
 export function polygonArea(polygon) {
   let sum = 0;

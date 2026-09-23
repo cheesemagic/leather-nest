@@ -75,9 +75,10 @@ wrong because the program does the arithmetic.
 
 - **Species must be equal.** Already how the existing matcher treats it — an
   absolute rule, not a weighting.
-- **Colour must be within a tolerance.** Compared in a perceptual colour space
-  (LAB) rather than RGB, because RGB distance does not correspond to what the
-  eye judges as "the same brown".
+- **Colour must be within a tolerance.** Compared on LAB's hue/chroma axes
+  (a*, b*) rather than RGB, because RGB distance does not correspond to what
+  the eye judges as "the same brown" — and lightness (L*) is excluded, because
+  it tracks exposure and glare more than dye (measured below).
 - **Finish must be equal when both are recorded.** An unrecorded finish does
   not block, on the same principle the eligibility rules already use: missing
   data is reported as unverified rather than treated as a failure.
@@ -158,3 +159,22 @@ step 1 if it fails.
 
 Given two estimates in the packing spec were withdrawn after measurement,
 that check comes before the build, not after.
+
+**Measured, 2026-09-22.** Two real phone photos of the same green offcut,
+different lighting (`scripts/colour_sample.py`, mean LAB over a same-region
+patch):
+
+| | L* (lightness) | a* | b* |
+|---|---|---|---|
+| Photo A | 28–30 | −10 to −11.5 | 4.9–5.2 |
+| Photo B | 47–50 | −9.2 to −10.3 | 3.0–3.5 |
+
+Lightness swung by ~20 — driven by exposure and this leather's glossy
+specular glare, not the dye. Hue/chroma (a*, b*) held within ~1–2, close to
+the "just noticeable difference" threshold. **The colour itself is stable
+across photos; brightness is not.**
+
+Consequence: `hidesMatch`'s tolerance check must compare on a*/b* only and
+ignore or heavily discount L*, or two photos of the same piece of leather
+will fail their own match. Plain LAB deltaE (the design above) would not have
+survived this test unmodified.
