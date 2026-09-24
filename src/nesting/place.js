@@ -41,8 +41,11 @@ export function place(sheetPolygon, parts, options = {}) {
   // just the cheap vertex/edge checks). The axis-aligned bounds below are
   // kept only as a free pre-filter — they reject far-outside positions
   // before any real work, but they are never the authority on whether a
-  // part fits. Part-vs-part overlap is a separate story: it still goes
-  // through computeNFP (nfp.js), which is exact for convex parts only.
+  // part fits. Part-vs-part overlap goes through computeNFP (nfp.js), which
+  // is exact for concave parts too -- measured, see nfp.js and
+  // test/nfp.test.js. The limitation with concave parts is in the scan
+  // below, not in the geometry: it takes the FIRST position where a part
+  // fits, and that is almost never an interlocked one.
   const placed = [];
   const placements = [];
   const noFit = [];

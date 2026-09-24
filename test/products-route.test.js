@@ -104,6 +104,43 @@ test('POST /products returns 400 for a non-boolean mustMatch', async () => {
   });
 });
 
+test('POST /products defaults demand to 0, accepts an explicit target', async () => {
+  await withServer(async (baseUrl) => {
+    const back = await postPart(baseUrl);
+
+    const noTarget = await (
+      await postProduct(baseUrl, { name: 'card wallet', parts: [{ partId: back.id, quantity: 1 }] })
+    ).json();
+    assert.equal(noTarget.demand, 0);
+
+    const withTarget = await (
+      await postProduct(baseUrl, { name: 'belt', parts: [{ partId: back.id, quantity: 1 }], demand: 5 })
+    ).json();
+    assert.equal(withTarget.demand, 5);
+  });
+});
+
+test('POST /products returns 400 for a negative or non-numeric demand', async () => {
+  await withServer(async (baseUrl) => {
+    const back = await postPart(baseUrl);
+
+    const negative = await postProduct(baseUrl, {
+      name: 'x',
+      parts: [{ partId: back.id, quantity: 1 }],
+      demand: -1,
+    });
+    assert.equal(negative.status, 400);
+    assert.match((await negative.json()).error, /demand/);
+
+    const nonNumeric = await postProduct(baseUrl, {
+      name: 'x',
+      parts: [{ partId: back.id, quantity: 1 }],
+      demand: 'five',
+    });
+    assert.equal(nonNumeric.status, 400);
+  });
+});
+
 test('DELETE /products/:id removes it, GET /products no longer lists it', async () => {
   await withServer(async (baseUrl) => {
     const back = await postPart(baseUrl);

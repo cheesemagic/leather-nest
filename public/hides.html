@@ -18,6 +18,8 @@
         margin-bottom: var(--space-4);
       }
       .hides-toolbar .input { max-width: 260px; }
+      .sort-control { display: flex; align-items: center; gap: var(--space-2); }
+      .sort-control select { max-width: 170px; }
       .species-tags { display: flex; flex-wrap: wrap; gap: 6px; }
       .species-tags .tag { cursor: pointer; border: 1px solid transparent; }
       .species-tags .tag[aria-pressed='true'] { border-color: var(--color-accent); }
@@ -37,7 +39,19 @@
         border: 1px solid var(--color-neutral-300); vertical-align: middle;
       }
       #add-hide-dialog[hidden] { display: none; }
+      #redigitize-dialog[hidden] { display: none; }
+      #measure-dialog[hidden] { display: none; }
+      #delete-dialog[hidden] { display: none; }
+      .btn-danger { background: #8c2f1a; color: #fff2eb; border-color: #8c2f1a; }
+      .delete-losses { margin: var(--space-2) 0 0; padding-left: 1.1rem; }
+      .delete-losses li { margin-bottom: 2px; }
+      .delete-warning { color: #8c2f1a; font-weight: 600; }
       .form-grid { display: flex; flex-direction: column; gap: var(--space-3); }
+      .hide-card .card-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+      .toggle-row { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+      .toggle-row input { margin: 0; }
+      .field-hint { font-size: 0.85rem; margin: 4px 0 0; }
+      #hide-matching-region-wrapper[hidden] { display: none; }
     </style>
   </head>
   <body>
@@ -60,6 +74,17 @@
 
       <div class="hides-toolbar">
         <input class="input" type="search" id="hide-search" placeholder="Search by label or species…" />
+        <label class="sort-control" for="hide-sort">
+          <span class="text-muted">Sort</span>
+          <select class="input" id="hide-sort">
+            <option value="added">Date added</option>
+            <option value="remaining">Most remaining</option>
+            <option value="size">Largest first</option>
+            <option value="colour">Colour</option>
+            <option value="species">Species (A–Z)</option>
+            <option value="thickness">Thinnest first</option>
+          </select>
+        </label>
         <div class="species-tags" id="species-tags"></div>
       </div>
 
@@ -77,7 +102,11 @@
             </div>
             <div class="field">
               <label for="hide-species">Species</label>
-              <input class="input" type="text" id="hide-species" />
+              <!-- Options come from src/skins/species.js so this list and the
+                   ones on Components and Matching cannot drift apart. -->
+              <select class="input" id="hide-species">
+                <option value="">-- Choose species --</option>
+              </select>
             </div>
             <div class="field">
               <label for="hide-thickness">Thickness (mm)</label>
@@ -98,12 +127,89 @@
             </div>
             <div id="hide-calibration-container"></div>
             <div id="hide-region-container"></div>
+            <div class="field">
+              <label class="toggle-row" for="hide-for-matching">
+                <input type="checkbox" id="hide-for-matching" />
+                <span>Also measure this hide for matching</span>
+              </label>
+              <p class="text-muted field-hint">
+                Lets this hide be paired against others on the Matching page. Needs a clear
+                patch of scales, marked separately from the outline.
+              </p>
+            </div>
+            <div id="hide-matching-region-wrapper" hidden>
+              <label>Drag a patch of scales to measure</label>
+              <div id="hide-matching-region-container"></div>
+            </div>
             <div id="add-hide-status" class="text-muted"></div>
           </div>
         </div>
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" id="cancel-add-hide">Cancel</button>
           <button type="button" class="btn btn-primary" id="submit-hide">Add to library</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-backdrop" id="redigitize-dialog" hidden>
+      <div class="dialog">
+        <h3 class="dialog-title">Update remaining shape</h3>
+        <div class="dialog-body">
+          <div class="form-grid">
+            <p class="text-muted">
+              Photograph what's left of this hide after cutting. This replaces its outline and
+              colour and resets remaining area to 100% -- species, thickness, and finish stay the same.
+            </p>
+            <div class="field">
+              <label for="redigitize-photo">Photo</label>
+              <input class="input" type="file" accept="image/*" id="redigitize-photo" />
+            </div>
+            <div id="redigitize-calibration-container"></div>
+            <div id="redigitize-region-container"></div>
+            <div id="redigitize-status" class="text-muted"></div>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-redigitize">Cancel</button>
+          <button type="button" class="btn btn-primary" id="submit-redigitize">Update</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-backdrop" id="measure-dialog" hidden>
+      <div class="dialog">
+        <h3 class="dialog-title">Measure for matching</h3>
+        <div class="dialog-body">
+          <div class="form-grid">
+            <p class="text-muted">
+              Measures the scale pattern on this hide's existing photo, so it can be paired
+              against others on the Matching page. Nothing else about the hide changes.
+              Mark two points a known distance apart, then drag a patch of scales.
+            </p>
+            <div id="measure-calibration-container"></div>
+            <div id="measure-region-container"></div>
+            <div id="measure-status" class="text-muted"></div>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-measure">Cancel</button>
+          <button type="button" class="btn btn-primary" id="submit-measure">Measure</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-backdrop" id="delete-dialog" hidden>
+      <div class="dialog">
+        <h3 class="dialog-title">Delete this hide?</h3>
+        <div class="dialog-body">
+          <p id="delete-summary"></p>
+          <p class="text-muted">This cannot be undone. You would lose:</p>
+          <ul class="delete-losses text-muted" id="delete-losses"></ul>
+          <p class="delete-warning" id="delete-jobs-warning" hidden></p>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-delete">Keep it</button>
+          <button type="button" class="btn btn-danger" id="confirm-delete">Delete hide</button>
         </div>
       </div>
     </div>

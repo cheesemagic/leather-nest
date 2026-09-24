@@ -1,6 +1,21 @@
 import { attachCalibration } from './calibration-ui.js';
 import { attachRegionSelect } from './region-select-ui.js';
 import { boundingBox, polygonToSVGPoints } from './nesting/geometry.js';
+import { SPECIES, speciesLabel } from './skins/species.js';
+
+// Suggestions for the two comma-separated "allowed species" fields. A
+// datalist rather than a select because those fields hold a LIST, and
+// because the supplier's catalogue grows -- an unknown species should stay
+// typeable, just not be the default path.
+const speciesOptions = document.getElementById('species-options');
+if (speciesOptions) {
+  for (const value of SPECIES) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = speciesLabel(value);
+    speciesOptions.appendChild(option);
+  }
+}
 
 const nameInput = document.getElementById('name-input');
 const modeRadios = document.querySelectorAll('input[name="add-mode"]');

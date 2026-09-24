@@ -173,7 +173,7 @@
           </div>
           <div class="field">
             <label for="species-input">Allowed species (comma-separated, blank = any)</label>
-            <input class="input" type="text" id="species-input" placeholder="cayman, crocodile" />
+            <input class="input" type="text" id="species-input" placeholder="caiman, python" list="species-options" />
           </div>
           <div class="field">
             <label for="thickness-min-input">Thickness min (mm)</label>
@@ -221,7 +221,7 @@
               </div>
               <div class="field">
                 <label for="edit-species">Allowed species (comma-separated, blank = any)</label>
-                <input class="input" type="text" id="edit-species" placeholder="cayman, crocodile" />
+                <input class="input" type="text" id="edit-species" placeholder="caiman, python" list="species-options" />
               </div>
               <div class="field">
                 <label for="edit-thickness-min">Thickness min (mm)</label>
@@ -249,6 +249,11 @@
         </div>
       </div>
     </main>
+
+    <!-- Suggestions only, not a restriction: these fields take a
+         comma-separated list, and the supplier's catalogue will grow. Filled
+         from src/skins/species.js. -->
+    <datalist id="species-options"></datalist>
 
     <script type="module" src="/src/parts-app.js"></script>
   </body>

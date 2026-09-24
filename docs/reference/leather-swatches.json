@@ -1,0 +1,379 @@
+{
+  "what": "Supplier swatch-chart catalogue: the species/cut/finish taxonomy and every colour name, transcribed from photographed sample charts.",
+  "whyItExists": "The app measures a hide's colour but has no name for it. These are the names the operator and Magna actually use ('reads closest to Cognac'). The charts also carry a far richer taxonomy than the app models today -- see taxonomyGaps.",
+  "lastUpdated": "2026-09-24",
+  "status": "PARTIAL -- more charts still being added. 39 chart sections, 413 swatches so far, plus a non-leather section for stitching.",
+  "caveats": [
+    "Colour NAMES only. No measured LAB values yet -- the source images are not in this repo, see sourceImages.",
+    "Transcribed by reading the chart photos. Worth spot-checking against the originals before anything depends on exact spelling.",
+    "Spelling is recorded as printed, not normalised, and the catalogue contradicts itself in at least four places: 'Terracota' (Italian Pebble 1) vs 'Terra Cota' (Italian Pebble 2) -- same colour, same product line, two spellings; 'Fuschia' (Anaconda) vs 'Fuchsia' (Italian Pebble 2); 'Rosewood' (Italian Pebble 1) vs 'Rose Wood' (Alligator Glazed 2); 'Turqoise' (Ostrich Leg Glossy) vs 'Turquoise' (Alligator Glazed 1). Which spelling is canonical is the supplier's call, not ours, but any name-matching has to survive these.",
+    "NOT ALL OF THIS IS EXOTIC. Italian Calf is a plain bovine hide, and Pebble, Suede and Nappa name a grain, a surface and a tannage respectively -- none of them a species, and none of those charts states one. Recorded as species: null rather than guessed at.",
+    "FINISH IS SOMETIMES INSIDE THE COLOUR NAME, not the chart heading. Shark lists 'Brown' and 'Brown Suede' side by side on one chart; Lizard 2 has 'Matte Black' and 'Matte Pewter'; Python Glossy has 'Silver Metallic' and 'Gold Metallic'; Ostrich Leg Suede has 'Matte Black'. So the same dye can appear under two unrelated-looking names, and a colour vocabulary built on these strings alone would treat 'Brown' and 'Brown Suede' as different colours. Splitting them needs the supplier's confirmation, not a regex.",
+    "Fields are null where the chart does not state them. The alligator glossy/matte/suede charts name no cut; belly is the likely default but the charts do not say so, and guessing is not recording.",
+    "'NATURAL' IS NOT A COLOUR, it is the absence of dye -- the animal's own markings. It appears across cobra, radiated snake, viper, flower snake, western diamond rattlesnake and banded water snake, and a Natural cobra looks nothing like a Natural viper. So the SAME colour name means different actual colours depending on species, which any lookup built on these names has to account for.",
+    "NOT usable for scale matching: the charts carry no scale reference, so pixels cannot be converted to millimetres. One number would fix that -- the real physical size of a swatch patch on the sample card.",
+    "Glossy charts have heavy specular blowout on the saturated colours (Royal Blue, Orange, Yellow, Turquoise). Blown pixels lose chroma, so anything sampled off those will read desaturated. Matte and suede are much cleaner."
+  ],
+  "sourceImages": {
+    "inRepo": false,
+    "note": "The chart photos arrived as chat attachments and could not be written to disk from there. To measure LAB per swatch, save the originals into docs/reference/swatches/ and they can be sampled from there."
+  },
+  "taxonomyGaps": {
+    "note": "The app models a hide as species + finish, where finish is glossy/matte/semi-gloss. These charts show that is wrong in four ways.",
+    "cutIsNotFinish": "Hornback, belly, tail, leg and full quill are CUTS -- different parts of the animal, with different scale geometry. Hornback is the back ridge with raised scutes; ostrich leg is scaled like a reptile while ostrich full quill is the bumpy follicle body. Two hides could both be 'alligator, cognac' and never pair because one is hornback. Cut belongs in the model, and it matters for scale matching specifically.",
+    "treatmentIsNotFinish": "Suede is the flesh side; hand-painted is a surface treatment, sometimes two-tone. Neither is a gloss level.",
+    "gradeExists": "'Gnarly' is a grade -- large skins with scars and natural marks, sold deliberately for a rustic look.",
+    "originExists": "Argentine, American, Australian all appear as qualifiers and plausibly track real differences in the skin.",
+    "semiGlossUnconfirmed": "'Semi-gloss' appears in the app but in none of the supplier's charts. Possibly invented on our side."
+  },
+  "charts": [
+    {
+      "chartName": "Alligator Glazed 1",
+      "species": "alligator", "origin": null, "cut": null, "finish": "glossy", "grade": null,
+      "colours": [
+        "Black", "Cognac", "Brown", "Burgundy",
+        "Navy Blue", "Olive", "Grey", "Forest Green",
+        "Denim", "Cocoa", "Royal Blue", "Turquoise",
+        "Red", "Sky Blue", "Light Grey", "Latte"
+      ]
+    },
+    {
+      "chartName": "Alligator Glazed 2",
+      "species": "alligator", "origin": null, "cut": null, "finish": "glossy", "grade": null,
+      "colours": [
+        "Rose Wood", "Ivory", "Pink", "Aqua",
+        "Yellow", "Apple Green", "Orange", "Purple",
+        "Meadow Green", "Tanzanite", "Lime Green", "Magenta",
+        "Lilac", "Autumn", "Purple Blondie"
+      ]
+    },
+    {
+      "chartName": "Alligator Matte 1",
+      "species": "alligator", "origin": null, "cut": null, "finish": "matte", "grade": null,
+      "colours": [
+        "Black", "Cognac", "Brown", "Dark Cognac",
+        "Grey", "Tan", "Navy Blue", "Burgundy",
+        "Black Cherry", "Light Grey"
+      ]
+    },
+    {
+      "chartName": "Alligator Matte 2",
+      "species": "alligator", "origin": null, "cut": null, "finish": "matte", "grade": null,
+      "colours": [
+        "Royal Blue", "Aqua", "White", "Olive",
+        "Purple", "Red", "Grass Green", "Mandarina"
+      ]
+    },
+    {
+      "chartName": "Alligator Hornback",
+      "species": "alligator", "origin": null, "cut": "hornback", "finish": null, "grade": null,
+      "colours": ["Black", "Navy Blue", "Cognac", "Brown"]
+    },
+    {
+      "chartName": "Alligator Suede",
+      "species": "alligator", "origin": null, "cut": null, "finish": "suede", "grade": null,
+      "colours": [
+        "Black", "Cognac", "Navy Blue", "Brown",
+        "Grey", "Tan", "Red", "Sage Green", "Royal Blue"
+      ]
+    },
+    {
+      "chartName": "Alligator Hand Painted",
+      "species": "alligator", "origin": null, "cut": null, "finish": "hand-painted", "grade": null,
+      "colours": [
+        "Black & White", "Blackened Grey", "Blackened Tan", "Blackened Brown",
+        "Blackened Cognac", "Blackened Green", "Blackened Tiff Blue", "Blackened Blue",
+        "Blue & White", "Grey & White", "Copper River", "Tan / Cognac",
+        "Tortuga", "Antique Bone", "Camo"
+      ]
+    },
+    {
+      "chartName": "Argentine Caiman Belly Matte",
+      "species": "caiman", "origin": "Argentine", "cut": "belly", "finish": "matte", "grade": null,
+      "colours": ["Black", "Dark Cognac", "Brown", "Light Cognac", "Grey"]
+    },
+    {
+      "chartName": "Gnarly American Alligator Matte",
+      "species": "alligator", "origin": "American", "cut": null, "finish": "matte", "grade": "gnarly",
+      "gradeNote": "Cut from very large skins that have scars and natural marks; no holes or open cuts are used. For a more rustic or rugged look.",
+      "colours": ["Black", "Cognac", "Brown", "Navy", "Grey"]
+    },
+    {
+      "chartName": "Australian Hornback Saltwater Crocodile",
+      "species": "saltwater crocodile", "origin": "Australian", "cut": "hornback", "finish": null, "grade": null,
+      "colours": [
+        "Black", "Cognac", "Brown", "Grey", "Burnished Cognac",
+        "Navy Blue", "Burgundy", "Indigo", "Lime Green", "Denim",
+        "Orange", "Pink", "Red", "Royal Blue", "White",
+        "Antique Grey", "Black & White", "Antique Blue", "Blue & White", "Antique Brown"
+      ]
+    },
+    {
+      "chartName": "Ostrich Full Quill",
+      "species": "ostrich", "origin": null, "cut": "full quill", "finish": null, "grade": null,
+      "colours": [
+        "Black", "Cognac", "Brown", "Denim", "Antique Saddle",
+        "Grey", "Burgundy", "Dark Brown", "Navy Blue", "Red",
+        "Sand", "Forest Green", "Ivory", "Purple", "Pink",
+        "White", "Orange", "Lime Green", "Buttercup"
+      ]
+    },
+    {
+      "chartName": "Argentine Caiman Hand Painted",
+      "species": "caiman", "origin": "Argentine", "cut": null, "finish": "hand-painted", "grade": null,
+      "colours": [
+        "Black & White", "Grey & White", "Navy Blue & White", "Cognac & White",
+        "Blackened Blue", "Olive & White", "Tortuga", "Blackened Grey",
+        "Forest Green & White", "Red & White", "Sky Blue & White", "Orange & White",
+        "Copper River", "Lime Green & White", "Pink & White", "Purple & White"
+      ]
+    },
+    {
+      "chartName": "Caiman Tail Matte 1",
+      "species": "caiman", "origin": null, "cut": "tail", "finish": "matte", "grade": null,
+      "colours": [
+        "Black", "Cognac", "Brown", "Burgundy",
+        "Navy Blue", "Chestnut", "Denim", "Dark Grey",
+        "Light Grey", "Olive", "Tan", "Purple"
+      ]
+    },
+    {
+      "chartName": "Caiman Tail Matte 2",
+      "species": "caiman", "origin": null, "cut": "tail", "finish": "matte", "grade": null,
+      "colours": [
+        "Orange", "Ivory", "Dark Green", "Sky Blue",
+        "Grass Green", "Yellow", "Pink", "Buttercup",
+        "Red", "Royal Blue", "White", "Lime Green"
+      ]
+    },
+    {
+      "chartName": "Ostrich Leg Glossy",
+      "species": "ostrich", "origin": null, "cut": "leg", "finish": "glossy", "grade": null,
+      "colours": [
+        "Black", "Cognac", "Brown", "Dark Grey", "Light Grey",
+        "Navy Blue", "Tan", "Forest Green", "Denim", "Teal",
+        "Ivory", "Tiff Blue", "Sand", "Royal Blue", "Red",
+        "Orange", "Turqoise", "Purple", "Brilliant Green", "Yellow"
+      ]
+    },
+    {
+      "chartName": "Ostrich Leg Suede",
+      "species": "ostrich", "origin": null, "cut": "leg", "finish": "suede", "grade": null,
+      "colours": [
+        "Cognac", "Grey", "Tan", "Brown", "Navy Blue",
+        "Denim", "Olive", "Red", "Matte Black"
+      ]
+    },
+    {
+      "chartName": "Ostrich Leg Hand Painted Two-Tone",
+      "species": "ostrich", "origin": null, "cut": "leg", "finish": "hand-painted two-tone", "grade": null,
+      "colours": [
+        "White/Black", "White/Dark Grey", "White/Navy", "White/Light Grey", "Safari",
+        "White/Olive", "White/Red", "White/Aqua", "White/Ombre Blue", "White/Pink",
+        "White/Orange"
+      ]
+    },
+    {
+      "chartName": "Shark",
+      "species": "shark", "origin": null, "cut": null, "finish": null, "grade": null,
+      "finishNote": "One chart, two finishes: the first ten carry no finish, the last six name suede in the colour itself.",
+      "colours": [
+        "Black", "Grey", "Navy Blue", "Brown",
+        "Burgundy", "White", "Grass Green", "Red",
+        "Orange", "Royal Blue", "Brown Suede", "Navy Suede",
+        "Grey Suede", "Cognac Suede", "Tan Suede", "Denim Suede"
+      ]
+    },
+    {
+      "chartName": "Lizard 1",
+      "species": "lizard", "origin": null, "cut": null, "finish": null, "grade": null,
+      "colours": [
+        "Black", "Cognac", "Grey", "Brown", "Tan",
+        "Light Cognac", "Navy Blue", "Sky Blue", "Burgundy", "Denim",
+        "Chestnut", "Olive", "Taupe", "Forest Green", "Royal Blue",
+        "Turquoise", "Orange", "Lime", "Red", "Yellow"
+      ]
+    },
+    {
+      "chartName": "Lizard 2",
+      "species": "lizard", "origin": null, "cut": null, "finish": null, "grade": null,
+      "finishNote": "'Matte Black' and 'Matte Pewter' carry the finish in the colour name. 'Ring-marked Natural' is a natural marking, not a dye.",
+      "colours": [
+        "Matte Black", "Ivory", "Pewter", "Matte Pewter", "White",
+        "Pink", "Purple", "Red & Black", "Tan & Black", "Olive & Black",
+        "Black & White", "Pink & Black", "Ring-marked Natural"
+      ]
+    },
+    {
+      "chartName": "Python Glossy",
+      "species": "python", "origin": null, "cut": null, "finish": "glossy", "grade": null,
+      "finishNote": "'Silver Metallic' and 'Gold Metallic' name a finish the chart heading does not.",
+      "colours": [
+        "Black & White", "Cognac", "Grey", "Pink", "Baby Blue",
+        "Orange", "Yellow", "Turquoise", "Lime Green", "Red",
+        "Royal Blue", "Silver Metallic", "Gold Metallic"
+      ]
+    },
+    {
+      "chartName": "Anaconda",
+      "species": "anaconda", "origin": null, "cut": null, "finish": null, "grade": null,
+      "colours": [
+        "Black & White", "Royal Blue", "Grey", "Cognac", "Pink",
+        "Green", "Red", "Fuschia", "Tan", "Mustard",
+        "Palomino"
+      ]
+    },
+    {
+      "chartName": "More Snakes -- Cobra",
+      "species": "cobra", "origin": null, "cut": null, "finish": null, "grade": null,
+      "sourceChart": "Snakes Various",
+      "colours": ["Natural", "Black", "Cognac", "Brown"]
+    },
+    {
+      "chartName": "More Snakes -- Radiated Snake",
+      "species": "radiated snake", "origin": null, "cut": null, "finish": null, "grade": null,
+      "sourceChart": "Snakes Various",
+      "colours": ["Navy Blue", "Cognac", "Natural", "Brown", "Grey"]
+    },
+    {
+      "chartName": "More Snakes -- Viper",
+      "species": "viper", "origin": null, "cut": null, "finish": null, "grade": null,
+      "sourceChart": "Snakes Various",
+      "colours": ["Natural"]
+    },
+    {
+      "chartName": "More Snakes -- Flower Snake",
+      "species": "flower snake", "origin": null, "cut": null, "finish": null, "grade": null,
+      "sourceChart": "Snakes Various",
+      "colours": ["Natural"]
+    },
+    {
+      "chartName": "More Snakes -- Western Diamond Rattle Snake",
+      "species": "western diamond rattle snake", "origin": null, "cut": null, "finish": null, "grade": null,
+      "sourceChart": "Snakes Various",
+      "colours": ["Natural"]
+    },
+    {
+      "chartName": "More Snakes -- Banded Water Snake",
+      "species": "banded water snake", "origin": null, "cut": null, "finish": null, "grade": null,
+      "sourceChart": "Snakes Various",
+      "colours": ["Natural"]
+    },
+    {
+      "chartName": "Python Matte",
+      "species": "python", "origin": null, "cut": null, "finish": "matte", "grade": null,
+      "colours": [
+        "Black", "Black & White", "Grey", "Red", "Navy Blue",
+        "Royal Blue", "Orange", "Baby Blue"
+      ]
+    },
+    {
+      "chartName": "Arapaima Piracucu Fish",
+      "species": "arapaima", "origin": null, "cut": null, "finish": null, "grade": null,
+      "speciesNote": "Printed as 'Arapaima Piracucu Fish'. The app's species list has only a generic 'fish'.",
+      "colours": [
+        "Newspaper", "Cognac", "Antique Saddle", "Two-tone Cognac Tan",
+        "Brown", "Denim"
+      ]
+    },
+    {
+      "chartName": "Stingray",
+      "species": "stingray", "origin": null, "cut": null, "finish": null, "grade": null,
+      "colours": [
+        "Black", "Grey", "Denim", "Brown",
+        "Burgundy", "Navy Blue", "Tan", "Buttercup",
+        "Grass Green", "Orange", "Red", "Pink",
+        "Royal Blue", "Purple"
+      ]
+    },
+    {
+      "chartName": "Multispine Stingray",
+      "species": "stingray", "origin": null, "cut": "multispine", "finish": null, "grade": null,
+      "cutNote": "Sold as its own line. More of the spine ridge shows, so the surface pattern differs from plain stingray -- a cut/grade distinction like hornback vs belly.",
+      "colours": [
+        "Black", "Grey", "Brown", "Navy Blue",
+        "Burgundy", "Denim", "Red", "Purple",
+        "Royal Blue", "Pink", "Sky Blue", "Green"
+      ]
+    },
+    {
+      "chartName": "American Bison",
+      "species": "bison", "origin": "American", "cut": null, "finish": null, "grade": null,
+      "finishNote": "Suede carried in the colour name, same pattern as Shark.",
+      "colours": [
+        "Black", "Brown", "Cognac",
+        "Black Suede", "Brown Suede", "Cognac Suede"
+      ]
+    },
+    {
+      "chartName": "Elephant",
+      "species": "elephant", "origin": null, "cut": null, "finish": null, "grade": null,
+      "colours": ["Black", "Grey", "Tan", "Ivory", "Chestnut"]
+    },
+    {
+      "chartName": "Italian Calf",
+      "species": "calf", "origin": "Italian", "cut": null, "finish": null, "grade": null,
+      "speciesNote": "Plain bovine, not exotic. The first non-exotic species in the catalogue.",
+      "colours": [
+        "Black", "Cognac", "Navy Blue", "Dark Brown",
+        "Tan", "Chestnut", "Grey", "Burgundy",
+        "White", "Forest Green", "Red", "Purple"
+      ]
+    },
+    {
+      "chartName": "Italian Pebble 1",
+      "species": null, "origin": "Italian", "cut": null, "finish": "pebble grain", "grade": null,
+      "speciesNote": "Pebble is a GRAIN, not a species, and the chart names no animal. Most likely calf or cow, but that is inference, not what the chart says.",
+      "colours": [
+        "Black", "Cocoa", "Navy Blue", "Wedgewood Grey", "Chocolate Brown",
+        "Bordeaux", "Pale Mocha", "Original Red", "Bone", "Loden Green",
+        "Nude", "Cobalt", "Antique Tan", "Rosewood", "White",
+        "Veg", "Orange", "Grape", "Parisimmon", "Terracota"
+      ]
+    },
+    {
+      "chartName": "Italian Pebble 2",
+      "species": null, "origin": "Italian", "cut": null, "finish": "pebble grain", "grade": null,
+      "speciesNote": "Same line as Italian Pebble 1; no species stated.",
+      "colours": [
+        "Teal", "Perfect Lawn", "Red Berry", "Magenta", "Corallo",
+        "Terra Cota", "Lime", "Yellow", "Spring Orchid", "Capri",
+        "Radiant Gold", "Bubble Gum", "Fuchsia",
+        "Metallic Rose Gold", "Metallic Silver", "Metallic Gold",
+        "Camo Green", "Camo Pink", "Camo Grey", "Camo Blue"
+      ]
+    },
+    {
+      "chartName": "Suede Leather",
+      "species": null, "origin": null, "cut": null, "finish": "suede", "grade": null,
+      "speciesNote": "No species stated -- suede is the surface, not the animal.",
+      "colours": [
+        "Olive", "Black", "Brown", "Grey", "Navy Blue",
+        "Camel", "Burgundy", "Cognac", "Red", "Royal Blue",
+        "Purple", "Sky Blue", "Apple Green", "Yellow"
+      ]
+    },
+    {
+      "chartName": "Italian Nappa Leather",
+      "species": null, "origin": "Italian", "cut": null, "finish": "nappa", "grade": null,
+      "speciesNote": "Nappa is a tannage, not a species. Typically lamb or calf, but the chart does not say.",
+      "colours": ["Black", "Black Brown", "Navy Blue", "Grey"]
+    }
+  ],
+  "nonLeatherOptions": {
+    "note": "Deliberately NOT in the charts array. These are product construction options, not hide materials -- mixing thread colours into a leather colour vocabulary would corrupt it.",
+    "stitching": {
+      "chartName": "Stitch Type & Color Options",
+      "stitchTypes": ["Regular Stitch", "Hand Pick Stitch"],
+      "threadColours": [
+        "Black", "White", "Brown", "Light Grey", "Cognac", "Light Blue",
+        "Sand", "Green", "Lime Green", "Purple", "Yellow", "Dark Grey",
+        "Beige", "Burgundy", "Orange", "Cobalt Blue", "Red", "Navy Blue"
+      ]
+    },
+    "monogram": {
+      "maxInitials": 4,
+      "note": "Chart shows 'UP TO 4 INITIALS', blind-embossed."
+    }
+  }
+}

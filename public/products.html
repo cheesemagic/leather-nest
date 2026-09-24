@@ -60,6 +60,10 @@
             <label>Parts (check the ones this product needs, and how many of each)</label>
             <div id="part-picker"></div>
           </div>
+          <div class="field">
+            <label for="demand-input">How many do you need? (optional -- leave at 0 for no target)</label>
+            <input class="input" type="number" min="0" step="1" id="demand-input" value="0" />
+          </div>
           <div id="add-status" class="text-muted"></div>
           <div class="product-actions">
             <button type="button" class="btn btn-primary" id="submit-product">Add to library</button>

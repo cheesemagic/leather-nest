@@ -5,6 +5,7 @@ const cancelAddButton = document.getElementById('cancel-add');
 const submitButton = document.getElementById('submit-product');
 const addPanel = document.getElementById('add-panel');
 const nameInput = document.getElementById('name-input');
+const demandInput = document.getElementById('demand-input');
 const partPickerEl = document.getElementById('part-picker');
 const addStatus = document.getElementById('add-status');
 
@@ -23,6 +24,7 @@ function partName(id) {
 
 function resetAddForm() {
   nameInput.value = '';
+  demandInput.value = '0';
   selectedParts = {};
   addStatus.textContent = '';
   renderPartPicker();
@@ -96,6 +98,7 @@ submitButton.addEventListener('click', async () => {
       body: JSON.stringify({
         name,
         parts: partEntries.map(([partId, quantity]) => ({ partId, quantity })),
+        demand: parseInt(demandInput.value, 10) || 0,
       }),
     });
     const body = await response.json();
@@ -124,7 +127,7 @@ function renderGrid() {
       return `
     <div class="card product-card elev-sm">
       <div class="card-title">
-        <span>${escapeHtml(product.name)}</span>
+        <span>${escapeHtml(product.name)}${product.demand > 0 ? ` <span class="tag tag-accent">need ${product.demand}</span>` : ''}</span>
         <span class="tag tag-outline">${product.id.slice(0, 8)}</span>
       </div>
       <ul class="product-parts">${partLines}</ul>

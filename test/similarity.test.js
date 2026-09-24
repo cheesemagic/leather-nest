@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scaleDifferenceMm, spectrumCorrelation, rankMatches } from '../src/skins/similarity.js';
+import { scaleDifferenceMm, spectrumCorrelation, rankMatches, colourDifference } from '../src/skins/similarity.js';
 
 test('scaleDifferenceMm returns the absolute difference in mm', () => {
   assert.equal(scaleDifferenceMm({ dominantWavelengthMm: 5 }, { dominantWavelengthMm: 8 }), 3);
@@ -53,6 +53,52 @@ test('rankMatches never produces a cross-species pair', () => {
   for (const group of groups) {
     assert.equal(group.pairs.length, 0);
   }
+});
+
+test('colourDifference ignores lightness, uses only a*/b*', () => {
+  const a = { colourL: 10, colourA: 0, colourB: 0 };
+  const b = { colourL: 90, colourA: 3, colourB: 4 };
+  assert.equal(colourDifference(a, b), 5); // 3-4-5 triangle, lightness (10 vs 90) irrelevant
+});
+
+test('rankMatches weighs scale and colour equally -- a well-rounded pair beats one that is best on only one axis', () => {
+  // Pairwise scale gaps (a,b,c sorted 4.0/4.5/9.0): (a,b)=0.5 best,
+  // (b,c)=4.5 middle, (a,c)=5.0 worst.
+  // Pairwise colour gaps, chosen independently: (b,c)=7.07 best,
+  // (a,c)=63.6 middle, (a,b)=70.7 worst.
+  // (a,b) is the outright best on scale but the outright worst on colour;
+  // (b,c) is only middling on scale but the best on colour. Rank-summed,
+  // (b,c) wins (1+0=1) over (a,b) (0+2=2) -- neither metric alone decides it.
+  const skins = [
+    { id: 'a', species: 'cayman', dominantWavelengthMm: 4.0, radialSpectrum: [1, 0, 0], colourA: 0, colourB: 0 },
+    { id: 'b', species: 'cayman', dominantWavelengthMm: 4.5, radialSpectrum: [1, 0, 0], colourA: 50, colourB: 50 },
+    { id: 'c', species: 'cayman', dominantWavelengthMm: 9.0, radialSpectrum: [1, 0, 0], colourA: 45, colourB: 45 },
+  ];
+
+  const groups = rankMatches(skins);
+  const pairs = groups.find((g) => g.species === 'cayman').pairs;
+  const top = pairs[0];
+  assert.ok(
+    (top.skinAId === 'b' && top.skinBId === 'c') || (top.skinAId === 'c' && top.skinBId === 'b'),
+    `expected the well-rounded pair (b, c) first, got (${top.skinAId}, ${top.skinBId})`
+  );
+});
+
+test('rankMatches puts a pair missing colour on either side after every pair it can judge on colour', () => {
+  const skins = [
+    { id: 'a', species: 'cayman', dominantWavelengthMm: 4.0, radialSpectrum: [1, 0, 0], colourA: 0, colourB: 0 },
+    { id: 'b', species: 'cayman', dominantWavelengthMm: 4.1, radialSpectrum: [1, 0, 0], colourA: 50, colourB: 50 },
+    // c has no colour recorded (an older signature, or colour_sample.py failed).
+    { id: 'c', species: 'cayman', dominantWavelengthMm: 4.05, radialSpectrum: [1, 0, 0], colourA: null, colourB: null },
+  ];
+
+  const groups = rankMatches(skins);
+  const pairs = groups.find((g) => g.species === 'cayman').pairs;
+  const withColour = pairs.filter((p) => p.colourDifference != null);
+  const withoutColour = pairs.filter((p) => p.colourDifference == null);
+  assert.equal(withColour.length, 1);
+  assert.equal(withoutColour.length, 2);
+  assert.equal(pairs.indexOf(withColour[0]), 0, 'the judgeable pair should sort first');
 });
 
 test('rankMatches skips signature-less skins entirely, producing no NaN', () => {

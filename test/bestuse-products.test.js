@@ -89,6 +89,29 @@ test('evaluateProductCandidate treats an unpriced part as contributing 0 to valu
   assert.equal(result.value, result.completeCount * (0 + 4 * 2));
 });
 
+test('evaluateProductCandidate reports demandSatisfied equal to completeCount when no demand is set (the default)', () => {
+  const candidates = productCandidates([elig(BACK), elig(POCKET)], { hide: HIDE, products: [WALLET] });
+  const result = evaluateProductCandidate(HIDE, candidates[0], { method: 'laser', gridStepMm: 15 });
+  assert.equal(WALLET.demand, undefined, 'sanity check: this fixture names no demand');
+  assert.equal(result.demandSatisfied, result.completeCount);
+});
+
+test('evaluateProductCandidate caps demandSatisfied at demand when fewer are wanted than fit', () => {
+  const wallet = { ...WALLET, demand: 1 };
+  const candidates = productCandidates([elig(BACK), elig(POCKET)], { hide: HIDE, products: [wallet] });
+  const result = evaluateProductCandidate(HIDE, candidates[0], { method: 'laser', gridStepMm: 15 });
+  assert.ok(result.completeCount > 1, 'a 600x400 hide should fit more than 1 wallet');
+  assert.equal(result.demandSatisfied, 1);
+});
+
+test('evaluateProductCandidate reports demandSatisfied equal to completeCount when demand exceeds what fits', () => {
+  const wallet = { ...WALLET, demand: 1000 };
+  const candidates = productCandidates([elig(BACK), elig(POCKET)], { hide: HIDE, products: [wallet] });
+  const result = evaluateProductCandidate(HIDE, candidates[0], { method: 'laser', gridStepMm: 15 });
+  assert.equal(result.demandSatisfied, result.completeCount);
+  assert.ok(result.demandSatisfied < 1000);
+});
+
 test('evaluateProductCandidate reports noDie and 0 complete sets when a part has no recorded die clearance', () => {
   const candidates = productCandidates([elig(BACK), elig(POCKET)], { hide: HIDE, products: [WALLET] });
   const result = evaluateProductCandidate(HIDE, candidates[0], { method: 'die', gridStepMm: 15 });

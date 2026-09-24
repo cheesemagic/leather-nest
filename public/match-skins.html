@@ -15,7 +15,14 @@
       <div id="region-container"></div>
       <div id="add-form" style="display: none">
         <label>Label: <input type="text" id="label-input" /></label>
-        <label>Species: <input type="text" id="species-input" /></label>
+        <!-- A select, not free text: matching groups hides by their exact
+             species string, so a typo here makes a hide that can never pair
+             with anything. Options come from src/skins/species.js. -->
+        <label>Species:
+          <select id="species-input">
+            <option value="">-- Choose species --</option>
+          </select>
+        </label>
         <button type="button" id="submit-skin">Add to inventory</button>
       </div>
       <div id="add-status"></div>

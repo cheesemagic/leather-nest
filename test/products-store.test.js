@@ -50,6 +50,19 @@ test('a part explicitly marked mustMatch: false keeps that value', () => {
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
+test('create() defaults demand to 0, stores an explicit target', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+
+  const noTarget = store.create({ name: 'card wallet', parts: [{ partId: 'back-1', quantity: 1 }] });
+  assert.equal(noTarget.demand, 0);
+
+  const withTarget = store.create({ name: 'belt', parts: [{ partId: 'strap-1', quantity: 1 }], demand: 5 });
+  assert.equal(withTarget.demand, 5);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
 test('remove() deletes the record and returns true, false for an unknown id', () => {
   const dataDir = makeTmpDir();
   const store = createStore(dataDir);
