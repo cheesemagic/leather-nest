@@ -1,5 +1,6 @@
 import { attachCalibration } from './calibration-ui.js';
 import { attachRegionSelect } from './region-select-ui.js';
+import { populateSpeciesSelect } from './skins/species.js';
 
 const photoInput = document.getElementById('photo-input');
 const calibrationContainer = document.getElementById('calibration-container');
@@ -12,12 +13,40 @@ const addStatus = document.getElementById('add-status');
 const inventoryEl = document.getElementById('inventory');
 const matchesEl = document.getElementById('matches');
 
+populateSpeciesSelect(speciesInput);
+
 let selectedFile = null;
 let calibration = null;
 let region = null;
 
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// CIE LAB (D65) -> sRGB, for showing sampled colour as a swatch. Standard
+// conversion, not calibrated against a spectrophotometer -- good enough for
+// "does this look like the leather," not for judging exact hex values.
+function labToCss(l, a, b) {
+  const fy = (l + 16) / 116;
+  const fx = fy + a / 500;
+  const fz = fy - b / 200;
+  const finv = (t) => (t ** 3 > 0.008856 ? t ** 3 : (t - 16 / 116) / 7.787);
+  const x = 0.95047 * finv(fx);
+  const y = finv(fy);
+  const z = 1.08883 * finv(fz);
+
+  const toSrgb = (c) => (c > 0.0031308 ? 1.055 * c ** (1 / 2.4) - 0.055 : 12.92 * c);
+  const r = toSrgb(x * 3.2406 + y * -1.5372 + z * -0.4986);
+  const g = toSrgb(x * -0.9689 + y * 1.8758 + z * 0.0415);
+  const bl = toSrgb(x * 0.0557 + y * -0.204 + z * 1.057);
+
+  const clamp = (c) => Math.max(0, Math.min(255, Math.round(c * 255)));
+  return `rgb(${clamp(r)}, ${clamp(g)}, ${clamp(bl)})`;
+}
+
+function swatch(skin) {
+  if (skin.colourL == null) return '';
+  return `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${labToCss(skin.colourL, skin.colourA, skin.colourB)};vertical-align:middle;margin:0 4px;"></span>`;
 }
 
 photoInput.addEventListener('change', () => {
@@ -90,7 +119,7 @@ async function loadInventory() {
       (skin) => `
     <div>
       <img src="/skins/${skin.id}/photo" width="80" height="80" style="object-fit: cover" />
-      <strong>${escapeHtml(skin.label)}</strong> (${escapeHtml(skin.species)})${skin.dominantWavelengthMm != null ? ` — ${skin.dominantWavelengthMm.toFixed(2)}mm` : ' — outline only'}
+      <strong>${escapeHtml(skin.label)}</strong> (${escapeHtml(skin.species)})${swatch(skin)}${skin.dominantWavelengthMm != null ? ` — ${skin.dominantWavelengthMm.toFixed(2)}mm` : ' — outline only'}
       <button type="button" data-delete-id="${skin.id}">Delete</button>
     </div>
   `
@@ -108,18 +137,29 @@ inventoryEl.addEventListener('click', async (event) => {
 document.getElementById('refresh-inventory').addEventListener('click', loadInventory);
 
 document.getElementById('refresh-matches').addEventListener('click', async () => {
-  const response = await fetch('/skins/matches');
-  const groups = await response.json();
+  const [matchesResponse, skinsResponse] = await Promise.all([
+    fetch('/skins/matches'),
+    fetch('/skins'),
+  ]);
+  const groups = await matchesResponse.json();
+  const skins = await skinsResponse.json();
+  const byId = new Map(skins.map((s) => [s.id, s]));
+  const nameOf = (id) => escapeHtml(byId.get(id)?.label || id.slice(0, 8));
+  const swatchOf = (id) => (byId.get(id) ? swatch(byId.get(id)) : '');
+
   matchesEl.innerHTML = groups
     .map(
       (group) => `
     <h3>${escapeHtml(group.species)}</h3>
     <ul>
       ${group.pairs
-        .map(
-          (pair) =>
-            `<li>${pair.skinAId.slice(0, 8)} &harr; ${pair.skinBId.slice(0, 8)}: ${pair.scaleDifferenceMm.toFixed(2)}mm difference, correlation ${pair.spectrumCorrelation.toFixed(2)}</li>`
-        )
+        .map((pair) => {
+          const colourText =
+            pair.colourDifference != null
+              ? `colour difference ${pair.colourDifference.toFixed(1)}`
+              : 'colour not recorded on one or both -- ranked by scale only';
+          return `<li>${nameOf(pair.skinAId)}${swatchOf(pair.skinAId)} &harr; ${nameOf(pair.skinBId)}${swatchOf(pair.skinBId)}: ${colourText}, ${pair.scaleDifferenceMm.toFixed(2)}mm scale difference</li>`;
+        })
         .join('')}
     </ul>
   `

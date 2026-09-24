@@ -18,6 +18,7 @@ const PORT = 8080;
 const PYTHON = path.join(__dirname, 'venv', 'bin', 'python3');
 const DIGITIZE_SCRIPT = path.join(__dirname, 'scripts', 'digitize.py');
 const SKIN_SIGNATURE_SCRIPT = path.join(__dirname, 'scripts', 'skin_signature.py');
+const COLOUR_SAMPLE_SCRIPT = path.join(__dirname, 'scripts', 'colour_sample.py');
 const BLOTCH_MATCH_SCRIPT = path.join(__dirname, 'scripts', 'blotch_match.py');
 
 const MIME_TYPES = {
@@ -293,20 +294,71 @@ function createSkinsRoutes(dataDir) {
           return;
         }
         const { polygon, colourL, colourA, colourB } = JSON.parse(stdout);
-        const record = store.create({
-          label,
-          species,
-          thicknessMm: Number(thicknessMmRaw),
-          outlinePolygon: polygon,
-          colourL,
-          colourA,
-          colourB,
-          finish,
-          photoPath: photo.filepath,
-          photoExt,
+
+        const save = (signature, warning) => {
+          const record = store.create({
+            label,
+            species,
+            thicknessMm: Number(thicknessMmRaw),
+            outlinePolygon: polygon,
+            colourL,
+            colourA,
+            colourB,
+            finish,
+            dominantWavelengthMm: signature?.dominantWavelengthMm,
+            radialSpectrum: signature?.radialSpectrum,
+            photoPath: photo.filepath,
+            photoExt,
+          });
+          fs.unlink(photo.filepath, () => {});
+          // The warning rides on the response only, never onto the record --
+          // it describes this capture attempt, not the hide.
+          sendJSON(res, 200, warning ? { ...record, warning } : record);
+        };
+
+        // A hide is matchable exactly when it carries a scale signature, so
+        // the operator's "also measure this for matching" toggle has to
+        // actually produce one -- a stored flag on its own would mark hides
+        // that rankMatches() then filters straight back out.
+        //
+        // The patch is its own region, not the outline's: the outline region
+        // answers "where is the hide", while skin_signature.py needs a clean
+        // stretch of scales, which it centre-crops to a square and runs an
+        // FFT over.
+        const matchRoiFields = ['matchRoiX', 'matchRoiY', 'matchRoiWidth', 'matchRoiHeight'];
+        if (getField('captureForMatching') !== 'true') {
+          save(null, null);
+          return;
+        }
+        if (!matchRoiFields.every((field) => getField(field))) {
+          save(null, 'Hide saved. No scale patch was marked, so it will not appear in matching.');
+          return;
+        }
+
+        const signatureArgs = [
+          SKIN_SIGNATURE_SCRIPT,
+          photo.filepath,
+          ...matchRoiFields.map(getField),
+          getField('p1x'),
+          getField('p1y'),
+          getField('p2x'),
+          getField('p2y'),
+          getField('realDistanceMm'),
+        ];
+        execFile(PYTHON, signatureArgs, (signatureErr, signatureStdout, signatureStderr) => {
+          if (signatureErr) {
+            // Losing the whole hide over an optional second measurement would
+            // throw away the calibration and outline work with it. Save it,
+            // say what failed, and let a better patch be marked later.
+            save(
+              null,
+              'Hide saved, but the matching measurement failed, so it will not appear in ' +
+                `matching: ${signatureStderr.trim() || 'could not measure the scale pattern.'}`
+            );
+            return;
+          }
+          save(JSON.parse(signatureStdout), null);
         });
-        fs.unlink(photo.filepath, () => {});
-        sendJSON(res, 200, record);
       });
       return;
     }
@@ -339,18 +391,35 @@ function createSkinsRoutes(dataDir) {
       }
 
       const { dominantWavelengthMm, radialSpectrum } = JSON.parse(stdout);
-      const record = store.create({
-        label,
-        species,
-        dominantWavelengthMm,
-        radialSpectrum,
-        finish,
-        photoPath: photo.filepath,
-        photoExt,
-      });
-      fs.unlink(photo.filepath, () => {});
 
-      sendJSON(res, 200, record);
+      // Same ROI already collected for the scale signature -- colour needs
+      // no calibration, just the region. Matching by scale alone ranks on
+      // the one attribute the operator didn't name; see the products spec.
+      const colourArgs = [
+        COLOUR_SAMPLE_SCRIPT,
+        photo.filepath,
+        getField('roiX'),
+        getField('roiY'),
+        getField('roiWidth'),
+        getField('roiHeight'),
+      ];
+      execFile(PYTHON, colourArgs, (colourErr, colourStdout) => {
+        const colour = colourErr ? {} : JSON.parse(colourStdout);
+        const record = store.create({
+          label,
+          species,
+          dominantWavelengthMm,
+          radialSpectrum,
+          colourL: colour.l,
+          colourA: colour.a,
+          colourB: colour.b,
+          finish,
+          photoPath: photo.filepath,
+          photoExt,
+        });
+        fs.unlink(photo.filepath, () => {});
+        sendJSON(res, 200, record);
+      });
     });
   }
 
@@ -388,7 +457,129 @@ function createSkinsRoutes(dataDir) {
     });
   }
 
-  return { handleCreateSkin, handleListSkins, handleMatchSkins, handleDeleteSkin, handleSkinPhoto };
+  // Same digitize.py pipeline as the initial outline capture (captureType
+  // 'outline'), but overwrites the existing record instead of creating a
+  // new one -- see store.redigitize() for why that's the right operation
+  // once real leather has actually been cut.
+  async function handleRedigitizeSkin(req, res, id) {
+    const existing = store.list().find((s) => s.id === id);
+    if (!existing) {
+      sendJSON(res, 404, { error: 'Skin not found.' });
+      return;
+    }
+
+    let fields, files;
+    try {
+      ({ fields, files } = await parseForm(req));
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse upload.' });
+      return;
+    }
+
+    const photo = files.photo && files.photo[0];
+    if (!photo) {
+      cleanupFiles(files);
+      sendJSON(res, 400, { error: 'No photo uploaded.' });
+      return;
+    }
+
+    const getField = (name) => fields[name] && fields[name][0];
+    const roiFields = ['roiX', 'roiY', 'roiWidth', 'roiHeight'];
+    const hasROI = roiFields.every((field) => getField(field));
+    const args = [
+      DIGITIZE_SCRIPT,
+      photo.filepath,
+      getField('p1x'),
+      getField('p1y'),
+      getField('p2x'),
+      getField('p2y'),
+      getField('realDistanceMm'),
+      ...(hasROI ? roiFields.map(getField) : []),
+    ];
+    const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
+
+    execFile(PYTHON, args, (err, stdout, stderr) => {
+      if (err) {
+        fs.unlink(photo.filepath, () => {});
+        sendJSON(res, 422, { error: stderr.trim() || 'Digitization failed.' });
+        return;
+      }
+      const { polygon, colourL, colourA, colourB } = JSON.parse(stdout);
+      const record = store.redigitize(id, {
+        outlinePolygon: polygon,
+        colourL,
+        colourA,
+        colourB,
+        photoPath: photo.filepath,
+        photoExt,
+      });
+      fs.unlink(photo.filepath, () => {});
+      sendJSON(res, 200, record);
+    });
+  }
+
+  // Makes a hide already in the library matchable, without re-adding it.
+  //
+  // Measures the photo the hide ALREADY has rather than taking a new upload:
+  // it is the same hide, and re-shooting it is redigitize's job. What can't
+  // be reused is the calibration -- it is spent at capture time converting
+  // the outline to millimetres and never stored -- so the operator marks two
+  // points again here.
+  async function handleMeasureSkinSignature(req, res, id) {
+    const existing = store.list().find((s) => s.id === id);
+    if (!existing) {
+      sendJSON(res, 404, { error: 'Skin not found.' });
+      return;
+    }
+    const storedPhoto = store.photoPath(id);
+    if (!storedPhoto || !fs.existsSync(storedPhoto)) {
+      sendJSON(res, 422, { error: 'This hide has no stored photo to measure.' });
+      return;
+    }
+
+    let fields, files;
+    try {
+      ({ fields, files } = await parseForm(req));
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse request.' });
+      return;
+    }
+    cleanupFiles(files);
+
+    const getField = (name) => fields[name] && fields[name][0];
+    const required = [
+      'roiX', 'roiY', 'roiWidth', 'roiHeight',
+      'p1x', 'p1y', 'p2x', 'p2y', 'realDistanceMm',
+    ];
+    if (required.some((field) => getField(field) === undefined)) {
+      sendJSON(res, 400, { error: 'A calibration and a scale patch are both required.' });
+      return;
+    }
+
+    const args = [SKIN_SIGNATURE_SCRIPT, storedPhoto, ...required.map(getField)];
+    execFile(PYTHON, args, (err, stdout, stderr) => {
+      if (err) {
+        // Nothing to lose here, unlike the create path -- the hide already
+        // exists and is untouched, so a failed measurement is just an error.
+        sendJSON(res, 422, {
+          error: stderr.trim() || 'Could not measure the scale pattern.',
+        });
+        return;
+      }
+      const { dominantWavelengthMm, radialSpectrum } = JSON.parse(stdout);
+      sendJSON(res, 200, store.setSignature(id, { dominantWavelengthMm, radialSpectrum }));
+    });
+  }
+
+  return {
+    handleCreateSkin,
+    handleListSkins,
+    handleMatchSkins,
+    handleDeleteSkin,
+    handleSkinPhoto,
+    handleRedigitizeSkin,
+    handleMeasureSkinSignature,
+  };
 }
 
 function createPartsRoutes(dataDir) {
@@ -807,7 +998,20 @@ function createProductsRoutes(dataDir, partsDataDir) {
       return;
     }
 
-    sendJSON(res, 200, store.create({ name, parts: partsResult.value }));
+    // How many of this product are actually wanted -- 0 (the default) means
+    // no order to fill, and evaluateProductCandidate's demandSatisfied is
+    // just the count made, uncapped by any target.
+    let demand = 0;
+    if ('demand' in payload) {
+      const { demand: demandRaw } = payload;
+      if (!(typeof demandRaw === 'number' && Number.isFinite(demandRaw)) || demandRaw < 0) {
+        sendJSON(res, 400, { error: 'demand must be a finite number >= 0.' });
+        return;
+      }
+      demand = demandRaw;
+    }
+
+    sendJSON(res, 200, store.create({ name, parts: partsResult.value, demand }));
   }
 
   function handleListProducts(req, res) {
@@ -1103,6 +1307,16 @@ export function createServer({
     const skinDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/skins\/([^/]+)$/);
     if (skinDeleteMatch) {
       skins.handleDeleteSkin(req, res, skinDeleteMatch[1]);
+      return;
+    }
+    const redigitizeMatch = req.method === 'POST' && req.url.match(/^\/skins\/([^/]+)\/redigitize$/);
+    if (redigitizeMatch) {
+      skins.handleRedigitizeSkin(req, res, redigitizeMatch[1]);
+      return;
+    }
+    const signatureMatch = req.method === 'POST' && req.url.match(/^\/skins\/([^/]+)\/signature$/);
+    if (signatureMatch) {
+      skins.handleMeasureSkinSignature(req, res, signatureMatch[1]);
       return;
     }
     if (req.method === 'POST' && req.url === '/parts') {

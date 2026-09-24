@@ -278,7 +278,7 @@ function renderResults({ results, hide, error }) {
         result.productName != null
           ? `<div class="stat">
                <div class="stat-label">Complete</div>
-               <div class="stat-value">${result.completeCount}</div>
+               <div class="stat-value">${result.completeCount}${result.demand > 0 ? ` <span class="text-muted">/ ${result.demand} needed</span>` : ''}</div>
              </div>`
           : `<div class="stat">
                <div class="stat-label">Demand</div>

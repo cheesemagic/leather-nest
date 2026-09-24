@@ -105,6 +105,7 @@ export function evaluateProductCandidate(hide, candidate, options = {}) {
       mode: 'products',
       productId: product.id,
       productName: product.name,
+      demand: product.demand ?? 0,
       completeCount: 0,
       placements: [],
       counts: {},
@@ -158,12 +159,20 @@ export function evaluateProductCandidate(hide, candidate, options = {}) {
     mode: 'products',
     productId: product.id,
     productName: product.name,
+    demand: product.demand ?? 0,
     completeCount: best.sets,
     placements: best.placements,
     counts,
     value: best.sets * unitValue,
     utilization: hideArea > 0 ? placedArea / hideArea : 0,
-    demandSatisfied: 0,
+    // Unlike a part's demand in Fill Orders mode (evaluate.js), a product's
+    // demand never caps how many sets get nested -- this always searches
+    // for the true max (see the binary search above). So demand: 0 (no
+    // order placed) can't reuse Math.min(count, 0)'s "always zero": that
+    // would report demandSatisfied: 0 next to a nonzero completeCount,
+    // which reads as a bug, not as "no order." No target set just reports
+    // what got made; a real target caps at it the same way parts do.
+    demandSatisfied: product.demand > 0 ? Math.min(best.sets, product.demand) : best.sets,
     noFit: [],
     noDie: [],
     unverified: [...new Set(entries.flatMap((e) => e.unverified ?? []))],

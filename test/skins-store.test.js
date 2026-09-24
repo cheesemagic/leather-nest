@@ -151,3 +151,115 @@ test('setRemainingAreaPct() persists the true value without clamping, and return
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+test('setSignature() adds a measurement to an existing hide without disturbing anything else', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+  const photoPath = makeTmpPhoto(dataDir);
+
+  const record = store.create({
+    label: 'Cayman #11',
+    species: 'cayman',
+    outlinePolygon: [
+      [0, 0],
+      [10, 0],
+      [10, 5],
+      [0, 5],
+    ],
+    colourL: 43.1,
+    colourA: 17.0,
+    colourB: 26.0,
+    thicknessMm: 1.2,
+    photoPath,
+    photoExt: '.jpg',
+  });
+  // Part-way cut. This is the property that separates setSignature from
+  // redigitize: making a hide matchable must not hand it back its whole area.
+  store.setRemainingAreaPct(record.id, 40);
+
+  const updated = store.setSignature(record.id, {
+    dominantWavelengthMm: 4.2,
+    radialSpectrum: [0.1, 0.5, 1],
+  });
+
+  assert.equal(updated.dominantWavelengthMm, 4.2);
+  assert.deepEqual(updated.radialSpectrum, [0.1, 0.5, 1]);
+  assert.equal(updated.remainingAreaPct, 40, 'a part-cut hide must stay part-cut');
+  assert.deepEqual(updated.outlinePolygon, record.outlinePolygon);
+  assert.equal(updated.colourL, 43.1);
+  assert.equal(updated.thicknessMm, 1.2);
+  assert.equal(updated.createdAt, record.createdAt);
+
+  assert.equal(store.list().find((r) => r.id === record.id).dominantWavelengthMm, 4.2);
+  assert.equal(
+    store.setSignature('does-not-exist', { dominantWavelengthMm: 1, radialSpectrum: [] }),
+    null
+  );
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('redigitize() replaces outline/colour/photo and resets remainingAreaPct to 100, even if it had drifted', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+  const photoPath = makeTmpPhoto(dataDir);
+
+  const record = store.create({
+    label: 'Cayman #10',
+    species: 'cayman',
+    outlinePolygon: [
+      [0, 0],
+      [10, 0],
+      [10, 5],
+      [0, 5],
+    ],
+    colourL: 43.1,
+    colourA: 17.0,
+    colourB: 26.0,
+    photoPath,
+    photoExt: '.jpg',
+  });
+  store.setRemainingAreaPct(record.id, 40);
+
+  const newPhotoPath = path.join(dataDir, 'remainder.png');
+  fs.writeFileSync(newPhotoPath, 'new-fake-photo-bytes');
+
+  const updated = store.redigitize(record.id, {
+    outlinePolygon: [
+      [0, 0],
+      [4, 0],
+      [4, 3],
+      [0, 3],
+    ],
+    colourL: 50,
+    colourA: 5,
+    colourB: -5,
+    photoPath: newPhotoPath,
+    photoExt: '.png',
+  });
+
+  assert.equal(updated.id, record.id);
+  assert.deepEqual(updated.outlinePolygon, [
+    [0, 0],
+    [4, 0],
+    [4, 3],
+    [0, 3],
+  ]);
+  assert.equal(updated.colourL, 50);
+  assert.equal(updated.colourA, 5);
+  assert.equal(updated.colourB, -5);
+  // The whole point: a hide part-way cut (40% left) gets re-measured and its
+  // NEW outline is the new 100%, not still-40%-of-the-old-one.
+  assert.equal(updated.remainingAreaPct, 100);
+  assert.equal(updated.photoExt, '.png');
+
+  assert.equal(fs.existsSync(path.join(dataDir, `${record.id}.jpg`)), false);
+  assert.ok(fs.existsSync(path.join(dataDir, `${record.id}.png`)));
+
+  assert.equal(
+    store.redigitize('does-not-exist', { outlinePolygon: [], photoPath: newPhotoPath, photoExt: '.png' }),
+    null
+  );
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});

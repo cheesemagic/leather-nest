@@ -199,6 +199,17 @@ test('POST /skins with captureType omitted still creates a signature hide (defau
   });
 });
 
+test('POST /skins with captureType=signature also samples colour from the same region', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postSkin(baseUrl)).json();
+    // The scale-matching path used to have no colour at all -- this is the
+    // fix for match-skins.html ranking on the wrong attribute.
+    assert.equal(typeof created.colourL, 'number');
+    assert.equal(typeof created.colourA, 'number');
+    assert.equal(typeof created.colourB, 'number');
+  });
+});
+
 test('POST /skins with captureType=outline returns 400 when thicknessMm is missing', async () => {
   await withServer(async (baseUrl) => {
     const response = await postOutlineSkin(baseUrl, { thicknessMm: undefined });
@@ -240,6 +251,239 @@ test('POST /skins with captureType=outline and no ROI fields still succeeds (omi
     assert.ok(Array.isArray(created.outlinePolygon));
     assert.ok(created.outlinePolygon.length >= 3);
     assert.equal(created.thicknessMm, 1.4);
+  });
+});
+
+test('POST /skins with captureType=outline and a scale patch also measures the hide for matching', async () => {
+  await withServer(async (baseUrl) => {
+    // This fixture is a bounded shape WITH scale-like texture inside it --
+    // the only one that exercises both scripts at once, which is exactly
+    // what adding a hide "for matching" does.
+    const fileBuffer = await readFile(path.join(__dirname, 'fixtures', 'test-textured-hide.png'));
+    const formData = new FormData();
+    formData.append('photo', new Blob([fileBuffer]), 'hide.png');
+    const fields = {
+      captureType: 'outline',
+      label: 'Matchable Hide',
+      species: 'python',
+      thicknessMm: 1.4,
+      // 100px between the calibration points over 100mm -> 1mm per pixel.
+      p1x: 0, p1y: 0, p2x: 100, p2y: 0, realDistanceMm: 100,
+      captureForMatching: 'true',
+      // A patch inside the shape, on the texture -- not the outline region.
+      matchRoiX: 100, matchRoiY: 100, matchRoiWidth: 160, matchRoiHeight: 160,
+    };
+    for (const [key, value] of Object.entries(fields)) formData.append(key, String(value));
+
+    const response = await fetch(`${baseUrl}/skins`, { method: 'POST', body: formData });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+
+    // Both measurements on one record: the outline it was added for, and the
+    // scale signature that makes it visible to matching.
+    assert.ok(Array.isArray(created.outlinePolygon), 'should still capture the outline');
+    assert.ok(Array.isArray(created.radialSpectrum));
+    assert.equal(created.warning, undefined);
+    // The fixture's grid is 10px at 1mm/px, so a correct measurement is 10mm
+    // -- asserting the value, not merely that one was produced.
+    assert.ok(
+      Math.abs(created.dominantWavelengthMm - 10) < 1,
+      `expected ~10mm scale from the fixture's grid, got ${created.dominantWavelengthMm}`
+    );
+
+    // The real point -- a hide added through the Hides page now reaches the
+    // matching page, which filters on exactly this field.
+    const matches = await (await fetch(`${baseUrl}/skins/matches`)).json();
+    assert.ok(
+      matches.find((g) => g.species === 'python'),
+      'a hide added through the Hides page should reach matching'
+    );
+  });
+});
+
+test('POST /skins with captureType=outline and no scale patch stays unmatchable, as before', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl)).json();
+    assert.ok(Array.isArray(created.outlinePolygon));
+    assert.equal(created.dominantWavelengthMm, null);
+    assert.equal(created.warning, undefined);
+  });
+});
+
+test('a scale patch that cannot be measured still saves the hide, with a warning', async () => {
+  await withServer(async (baseUrl) => {
+    // A 5x5 region is under skin_signature.py's 32px floor, so the
+    // measurement fails -- but the outline and calibration work behind it
+    // must not be thrown away with it.
+    const response = await postOutlineSkin(baseUrl, {
+      captureForMatching: 'true',
+      matchRoiX: 0, matchRoiY: 0, matchRoiWidth: 5, matchRoiHeight: 5,
+    });
+    assert.equal(response.status, 200, 'the hide itself should still be created');
+    const created = await response.json();
+
+    assert.ok(Array.isArray(created.outlinePolygon), 'the outline survives');
+    assert.equal(created.dominantWavelengthMm, null, 'but it is not matchable');
+    assert.match(created.warning, /matching/i);
+
+    // The warning describes the attempt, not the hide -- it must not persist.
+    const stored = (await (await fetch(`${baseUrl}/skins`)).json())[0];
+    assert.equal(stored.warning, undefined);
+  });
+});
+
+function postSignature(baseUrl, id, overrides = {}) {
+  const formData = new FormData();
+  const fields = {
+    // 100px over 100mm -> 1mm per pixel, matching the fixture's 10px grid.
+    p1x: 0, p1y: 0, p2x: 100, p2y: 0, realDistanceMm: 100,
+    roiX: 100, roiY: 100, roiWidth: 160, roiHeight: 160,
+    ...overrides,
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    formData.append(key, String(value));
+  }
+  return fetch(`${baseUrl}/skins/${id}/signature`, { method: 'POST', body: formData });
+}
+
+async function postTexturedHide(baseUrl, overrides = {}) {
+  const fileBuffer = await readFile(path.join(__dirname, 'fixtures', 'test-textured-hide.png'));
+  const formData = new FormData();
+  formData.append('photo', new Blob([fileBuffer]), 'hide.png');
+  const fields = {
+    captureType: 'outline',
+    label: 'Textured Hide',
+    species: 'python',
+    thicknessMm: 1.4,
+    p1x: 0, p1y: 0, p2x: 100, p2y: 0, realDistanceMm: 100,
+    ...overrides,
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    formData.append(key, String(value));
+  }
+  return fetch(`${baseUrl}/skins`, { method: 'POST', body: formData });
+}
+
+test('POST /skins/:id/signature measures an existing hide from its stored photo, making it matchable', async () => {
+  await withServer(async (baseUrl) => {
+    // A hide added WITHOUT the matching toggle -- the case this route exists
+    // for: already in the library, and not matchable.
+    const created = await (await postTexturedHide(baseUrl)).json();
+    assert.equal(created.dominantWavelengthMm, null, 'starts out unmatchable');
+
+    const response = await postSignature(baseUrl, created.id);
+    assert.equal(response.status, 200);
+    const measured = await response.json();
+
+    // The fixture's grid is 10px at 1mm/px, so a correct measurement is 10mm.
+    assert.ok(
+      Math.abs(measured.dominantWavelengthMm - 10) < 1,
+      `expected ~10mm, got ${measured.dominantWavelengthMm}`
+    );
+    assert.ok(Array.isArray(measured.radialSpectrum));
+  });
+});
+
+test('POST /skins/:id/signature leaves everything else about the hide alone', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postTexturedHide(baseUrl, { finish: 'matte' })).json();
+    const measured = await (await postSignature(baseUrl, created.id)).json();
+
+    assert.deepEqual(measured.outlinePolygon, created.outlinePolygon);
+    assert.equal(measured.label, created.label);
+    assert.equal(measured.finish, 'matte');
+    assert.equal(measured.thicknessMm, created.thicknessMm);
+    assert.equal(measured.colourL, created.colourL);
+    assert.equal(measured.remainingAreaPct, created.remainingAreaPct);
+    assert.equal(measured.createdAt, created.createdAt);
+  });
+});
+
+test('POST /skins/:id/signature returns 422 and changes nothing when the patch cannot be measured', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postTexturedHide(baseUrl)).json();
+    // Under skin_signature.py's 32px floor.
+    const response = await postSignature(baseUrl, created.id, { roiWidth: 5, roiHeight: 5 });
+    assert.equal(response.status, 422);
+
+    const stored = (await (await fetch(`${baseUrl}/skins`)).json())[0];
+    assert.equal(stored.dominantWavelengthMm, null, 'a failed measurement must not be stored');
+  });
+});
+
+test('POST /skins/:id/signature returns 404 for an unknown id and 400 without a calibration', async () => {
+  await withServer(async (baseUrl) => {
+    assert.equal((await postSignature(baseUrl, 'does-not-exist')).status, 404);
+
+    const created = await (await postTexturedHide(baseUrl)).json();
+    const missingCalibration = await postSignature(baseUrl, created.id, {
+      p1x: undefined, p1y: undefined, p2x: undefined, p2y: undefined, realDistanceMm: undefined,
+    });
+    assert.equal(missingCalibration.status, 400);
+  });
+});
+
+async function postRedigitize(baseUrl, id, overrides = {}) {
+  const fileBuffer = await readFile(path.join(__dirname, 'fixtures', 'test-rectangle.png'));
+  const formData = new FormData();
+  formData.append('photo', new Blob([fileBuffer]), 'remainder.png');
+  const fields = {
+    p1x: 0,
+    p1y: 0,
+    p2x: 200,
+    p2y: 0,
+    realDistanceMm: 100,
+    roiX: 0,
+    roiY: 0,
+    roiWidth: 400,
+    roiHeight: 300,
+    ...overrides,
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    formData.append(key, String(value));
+  }
+  return fetch(`${baseUrl}/skins/${id}/redigitize`, { method: 'POST', body: formData });
+}
+
+test('POST /skins/:id/redigitize replaces outline/colour and resets remainingAreaPct, keeping the same id', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl)).json();
+
+    const response = await postRedigitize(baseUrl, created.id);
+    assert.equal(response.status, 200);
+    const updated = await response.json();
+
+    assert.equal(updated.id, created.id);
+    assert.ok(Array.isArray(updated.outlinePolygon));
+    assert.ok(updated.outlinePolygon.length >= 3);
+    assert.equal(updated.remainingAreaPct, 100);
+    assert.equal(typeof updated.colourL, 'number');
+
+    const list = await (await fetch(`${baseUrl}/skins`)).json();
+    assert.equal(list.length, 1, 'redigitize updates the existing record rather than creating a new one');
+  });
+});
+
+test('POST /skins/:id/redigitize returns 404 for an unknown id', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postRedigitize(baseUrl, 'does-not-exist');
+    assert.equal(response.status, 404);
+  });
+});
+
+test('POST /skins/:id/redigitize returns 400 when no photo is uploaded', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl)).json();
+    const formData = new FormData();
+    formData.append('p1x', '0');
+    const response = await fetch(`${baseUrl}/skins/${created.id}/redigitize`, {
+      method: 'POST',
+      body: formData,
+    });
+    assert.equal(response.status, 400);
   });
 });
 

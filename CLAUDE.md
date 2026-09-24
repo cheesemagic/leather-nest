@@ -88,11 +88,21 @@ database.
 
 **Nesting engine** (`src/nesting/`) is the original, separate v0 feature —
 geometric bin-packing, unrelated to the blotch-matching session flow above.
-`nfp.js` computes no-fit-polygons via `clipper-lib`'s `Clipper.MinkowskiSum`
-(exact for convex polygons only — see the licensing note in
-`docs/superpowers/specs/2026-08-24-leather-nesting-design.md` for why this
-project does *not* use SVGnest's orbiting-NFP code). `place.js` is a
-first-fit placement scan; `index.js` just orchestrates the two.
+`nfp.js` computes no-fit-polygons via `clipper-lib`'s `Clipper.MinkowskiSum`,
+which is **exact for concave parts too** — this file claimed "convex only"
+for months, a convex decomposition was built on that claim, measured, found
+to change nothing, and deleted. Do not rebuild it; `test/nfp.test.js` guards
+the real behaviour. (See the licensing note in
+`docs/superpowers/specs/2026-08-24-leather-nesting-design.md` for the separate
+reason this project does *not* use SVGnest's orbiting-NFP code.) `place.js` is
+a first-fit placement scan; `index.js` just orchestrates the two.
+
+The real concave limitation is in `place.js`, not the geometry: it takes the
+first position where a part fits, scanning from the bottom left, which is
+almost never an interlocked one. Measured — a deeply concave L places exactly
+as many pieces as its convex hull, despite the hull being 32% larger. That is
+"stage two" in `docs/superpowers/specs/2026-09-21-packing-density-design.md`,
+deliberately deferred until exotics are actually being cut.
 
 **Photo pipeline shared across features:** `src/calibration-ui.js` (click
 two points of known real-world distance to get a px→mm scale) and
@@ -104,8 +114,15 @@ and `src/hides-app.js` do.
 
 **Frontend:** no framework, no bundler. Each `public/*.html` page pairs with
 one `src/*-app.js` module loaded directly as an ES module. `public/index.html`
-is the public landing page; the nesting tool itself lives at `public/app.html`.
-`server.js`'s `serveStatic` serves any file under the repo root by path
+is the public landing page, linking to `public/hides.html` as the real
+starting point of the actual workflow (photograph a hide → add components on
+`public/parts.html` → optionally group them into a product on
+`public/products.html` → run the search on `public/find-best-use.html`).
+`public/app.html` is NOT that tool — it's the original v0 nesting-engine
+demo (one hardcoded rectangle, two hardcoded parts), predating the hide/part
+library entirely, disconnected from any real data. Kept only as a minimal
+sanity check of `src/nesting/index.js` in isolation; nothing links to it
+anymore. `server.js`'s `serveStatic` serves any file under the repo root by path
 (with a path-traversal guard), so `public/`, `src/`, and their assets are all
 directly browser-reachable — no separate static/build directory.
 

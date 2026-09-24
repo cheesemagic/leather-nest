@@ -25,7 +25,7 @@ export function createStore(dataDir) {
   // parts' mustMatch has no effect yet -- it only matters once a product can
   // span more than one hide (see the products spec's "Order of work"), which
   // this store predates. Stored now so that step doesn't need a migration.
-  function create({ name, parts }) {
+  function create({ name, parts, demand }) {
     ensureDir();
     const id = crypto.randomUUID();
     const record = {
@@ -36,6 +36,9 @@ export function createStore(dataDir) {
         quantity: p.quantity,
         mustMatch: p.mustMatch ?? true,
       })),
+      // How many of this product are actually wanted -- 0 (the default)
+      // means no order to fill; see evaluateProductCandidate's demandSatisfied.
+      demand: demand ?? 0,
       createdAt: new Date().toISOString(),
     };
     fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));

@@ -66,6 +66,59 @@ test('two known rectangles nest onto a sheet without overlapping and within boun
   assert.ok(overlap < 1e-3, `expected no overlap, got area ${overlap}`);
 });
 
+test('concave parts never overlap once placed -- every pair checked', () => {
+  // The safety property, and the only one that can ruin material: two pieces
+  // cut into the same leather. Rectangles already cover this above; concave
+  // parts exercise a different path, because part-vs-part rejection runs
+  // through the NFP rather than through the sheet-containment test.
+  //
+  // This guards the search, not the geometry. Changing how positions are
+  // scanned -- stage two of the packing-density spec, the one piece of
+  // nesting work still open -- is exactly the change that could start
+  // producing overlapping layouts, and nothing else in this suite would
+  // notice on a concave shape.
+  const sheet = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 200 }, { x: 0, y: 200 }];
+  const L = [
+    { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 15 },
+    { x: 15, y: 15 }, { x: 15, y: 40 }, { x: 0, y: 40 },
+  ];
+  // A U is a genuine socket -- a shape another piece could sit inside, which
+  // an L is not.
+  const U = [
+    { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 40 }, { x: 30, y: 40 },
+    { x: 30, y: 12 }, { x: 10, y: 12 }, { x: 10, y: 40 }, { x: 0, y: 40 },
+  ];
+
+  const parts = [];
+  for (let i = 0; i < 8; i++) {
+    parts.push({ id: `L${i}`, polygon: L, allowedRotations: [0, 90, 180, 270] });
+    parts.push({ id: `U${i}`, polygon: U, allowedRotations: [0, 90, 180, 270] });
+  }
+
+  const result = nest(sheet, parts, { gridStepMm: 5 });
+  assert.equal(result.noFit.length, 0, 'all 16 should fit on a 200x200 sheet');
+
+  const byId = new Map(parts.map((p) => [p.id, p]));
+  const placed = result.placements.map((placement) => ({
+    id: placement.id,
+    poly: placedPolygon(byId.get(placement.id), placement),
+  }));
+
+  for (const { id, poly } of placed) {
+    assert.ok(polygonContains(sheet, poly), `${id} was placed outside the sheet`);
+  }
+
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      const overlap = intersectionArea(placed[i].poly, placed[j].poly);
+      assert.ok(
+        overlap < 1e-6,
+        `${placed[i].id} and ${placed[j].id} overlap by ${overlap} mm^2`
+      );
+    }
+  }
+});
+
 test('an oversized part produces noFit instead of throwing', () => {
   const sheet = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }];
   const partC = {
