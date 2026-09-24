@@ -3,3 +3,15 @@ venv/
 data/
 .worktrees/
 .superpowers/
+
+# macOS junk
+.DS_Store
+
+# Editor/agent config, including the local dev-server definition. Stays on
+# disk (the preview server reads launch.json) but is not shared --
+# settings.local.json is per-machine by design.
+.claude/
+
+# A 712KB generated architecture render from 2026-09-01. Kept locally to look
+# at; too large and too stale to carry in the repo.
+docs/architecture.html
