@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scaleDifferenceMm, spectrumCorrelation, rankMatches, colourDifference } from '../src/skins/similarity.js';
+import {
+  scaleDifferenceMm,
+  spectrumCorrelation,
+  rankMatches,
+  colourDifference,
+  cutsCanPair,
+} from '../src/skins/similarity.js';
 
 test('scaleDifferenceMm returns the absolute difference in mm', () => {
   assert.equal(scaleDifferenceMm({ dominantWavelengthMm: 5 }, { dominantWavelengthMm: 8 }), 3);
@@ -118,4 +124,93 @@ test('rankMatches skips signature-less skins entirely, producing no NaN', () => 
     assert.ok(!Number.isNaN(pair.scaleDifferenceMm));
     assert.ok(!Number.isNaN(pair.spectrumCorrelation));
   }
+});
+
+// Two hides differing ONLY in cut, so nothing but the gate can separate them.
+function pairOfCuts(cutA, cutB) {
+  const base = {
+    species: 'caiman',
+    radialSpectrum: [0.1, 0.5, 1, 0.5, 0.1],
+    colourA: 12,
+    colourB: 20,
+  };
+  return [
+    { ...base, id: 'a', cut: cutA, dominantWavelengthMm: 3.2 },
+    { ...base, id: 'b', cut: cutB, dominantWavelengthMm: 3.25 },
+  ];
+}
+
+test('cutsCanPair refuses two known different cuts and allows everything else', () => {
+  assert.equal(cutsCanPair({ cut: 'tail' }, { cut: 'belly' }), false);
+  assert.equal(cutsCanPair({ cut: 'tail' }, { cut: 'tail' }), true);
+  // An unknown cut cannot rule a pair out -- it can only leave it unverified.
+  assert.equal(cutsCanPair({ cut: 'tail' }, { cut: null }), true);
+  assert.equal(cutsCanPair({ cut: null }, { cut: null }), true);
+  // A record predating the field entirely, not just one holding a null.
+  assert.equal(cutsCanPair({ cut: 'tail' }, {}), true);
+});
+
+test('a caiman tail and a caiman belly never pair, however close their scales', () => {
+  // The whole reason this field exists. The supplier sells "Caiman Tail
+  // Matte" and "Argentine Caiman Belly Matte", both as species "caiman", so
+  // without the gate these two rank as a good match on a close measurement.
+  const groups = rankMatches(pairOfCuts('tail', 'belly'));
+  assert.equal(groups.length, 1, 'the species group still exists');
+  assert.equal(groups[0].species, 'caiman');
+  assert.deepEqual(groups[0].pairs, [], 'but it contains no pair');
+});
+
+test('two hides of the same cut pair, with nothing unverified', () => {
+  const groups = rankMatches(pairOfCuts('tail', 'tail'));
+  assert.equal(groups[0].pairs.length, 1);
+  assert.deepEqual(groups[0].pairs[0].unverified, []);
+});
+
+test('an unknown cut on either side pairs, but says it could not be checked', () => {
+  assert.deepEqual(rankMatches(pairOfCuts('tail', null))[0].pairs[0].unverified, ['cut']);
+  assert.deepEqual(rankMatches(pairOfCuts(null, null))[0].pairs[0].unverified, ['cut']);
+});
+
+test('pairs with an unverified cut sort after every fully-judged pair', () => {
+  // The flagged pairs are deliberately the BEST on scale, so only the
+  // partition can put them last -- otherwise they would rank first.
+  const base = {
+    species: 'caiman',
+    radialSpectrum: [0.1, 0.5, 1, 0.5, 0.1],
+    colourA: 12,
+    colourB: 20,
+  };
+  const groups = rankMatches([
+    { ...base, id: 'known-1', cut: 'tail', dominantWavelengthMm: 3.0 },
+    { ...base, id: 'known-2', cut: 'tail', dominantWavelengthMm: 3.9, colourA: 19 },
+    { ...base, id: 'unknown', cut: null, dominantWavelengthMm: 3.01 },
+  ]);
+
+  const pairs = groups[0].pairs;
+  assert.equal(pairs.length, 3, 'tail+tail, and each tail with the unknown');
+  assert.deepEqual(pairs[0].unverified, [], 'the judged pair comes first');
+  assert.equal(pairs[0].scaleDifferenceMm.toFixed(2), '0.90');
+  assert.ok(
+    pairs.slice(1).every((p) => p.unverified.length > 0),
+    'both flagged pairs follow it, despite being closer on scale'
+  );
+});
+
+test('flagged pairs are still ranked among themselves', () => {
+  const base = {
+    species: 'python',
+    cut: null,
+    radialSpectrum: [0.2, 0.6, 1, 0.6, 0.2],
+    colourA: 5,
+    colourB: 9,
+  };
+  const groups = rankMatches([
+    { ...base, id: 'p1', dominantWavelengthMm: 5.0 },
+    { ...base, id: 'p2', dominantWavelengthMm: 5.1 },
+    { ...base, id: 'p3', dominantWavelengthMm: 9.0 },
+  ]);
+
+  const pairs = groups[0].pairs;
+  assert.ok(pairs.every((p) => p.unverified.length > 0));
+  assert.equal(pairs[0].scaleDifferenceMm.toFixed(2), '0.10', 'closest first within the partition');
 });
