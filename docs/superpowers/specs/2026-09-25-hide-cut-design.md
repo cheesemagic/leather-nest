@@ -33,7 +33,8 @@ should not be capable of proposing otherwise.
 
 ## What the charts say a cut is
 
-Ten of the supplier's 39 charts name a cut. Six distinct values:
+Ten of the supplier's 39 charts put something in a cut field. Nine of
+them name an actual cut, across five distinct values:
 
 | Cut | Charts | Note |
 |---|---|---|
@@ -42,10 +43,19 @@ Ten of the supplier's 39 charts name a cut. Six distinct values:
 | `tail` | caiman (x2) | |
 | `leg` | ostrich (x3) | ostrich leg is scaled like a reptile |
 | `full quill` | ostrich | the bumpy follicle body — nothing like ostrich leg |
-| `multispine` | stingray | |
 
-The other 29 charts name no cut at all. That absence is itself a value:
-a whole skin. It gets the name `whole`.
+The tenth is "Multispine Stingray", and `multispine` is deliberately
+**not** in this vocabulary. It is not a cut and not a treatment — it
+describes a stingray that grew two spine rows rather than one, a trait of
+that individual animal, possibly to do with maturity (operator, 2026-09-25;
+nobody is certain). A multispine hide is a whole stingray skin. Putting it
+in `CUTS` would assert that it came from a different part of the body,
+which is false, and would block it from pairing with any other stingray on
+that false basis.
+
+So thirty of the 39 charts describe a whole skin — the 29 that name no cut
+at all, plus the multispine stingray. That is itself a value, and it gets
+the name `whole`.
 
 Ostrich is the clearest case for why this matters. "Ostrich leg" and
 "ostrich full quill" are the same animal and the same species string, and
@@ -60,7 +70,7 @@ of raised follicles. Matching them on a scale wavelength is meaningless.
 `cutLabel()`, and `populateCutSelect()`.
 
 ```
-whole, belly, full quill, hornback, leg, multispine, tail
+whole, belly, full quill, hornback, leg, tail
 ```
 
 `whole` leads because it is overwhelmingly the common case; the rest are
@@ -171,8 +181,8 @@ common, that is the fix, not a special case in this function.
   `forMatchingInput.checked`.
 - The auto-generated name must include cut, or a caiman tail and a caiman
   belly generate identical names. It abbreviates to two characters like
-  the other fields, and all seven values differ in their first two
-  letters — BE, FU, HO, LE, MU, TA, WH — so the claim that code's comment
+  the other fields, and all six values differ in their first two
+  letters — BE, FU, HO, LE, TA, WH — so the claim that code's comment
   already makes about species holds for cuts.
 - The Matching page's own add-a-hide form takes cut, required, since
   everything it creates is a signature capture.
@@ -196,11 +206,11 @@ closes the hole; step 5 makes it usable.
 ## Non-goals
 
 - **`allowedCuts` on a component.** A component might one day require a
-  specific cut — a vamp that must be hornback for the look. Nothing says
-  one does yet, so it is not built. It would go beside the
-  `allowedSpecies` check in `src/bestuse/eligibility.js`, as a hard
-  exclusion with `reason: 'cut'`, and would need no change to this
-  design.
+  specific cut — a vamp that must be hornback for the look. Asked
+  directly, 2026-09-25: the operator knows of no component that needs
+  one. So it is not built. It would go beside the `allowedSpecies` check
+  in `src/bestuse/eligibility.js`, as a hard exclusion with
+  `reason: 'cut'`, and would need no change to this design.
 - **Repairing `finish`.** The charts show treatment (suede, hand-painted,
   nappa), grade (gnarly), origin and grain as separate axes, and
   "semi-gloss" appears in no chart at all. Cut is separated out here
@@ -222,6 +232,13 @@ closes the hole; step 5 makes it usable.
   wrong and the right answer is a compatibility relation between cuts
   rather than equality. Nothing suggests that yet, and equality is the
   trade's own rule.
+- **Multispine stingrays pairing badly.** Excluding `multispine` from
+  `CUTS` means two stingray hides can pair whether or not they have the
+  same number of spine rows, and a spine row is a visible band of raised
+  denticles — so this may turn out to be a real false positive, just not a
+  false positive about *cuts*. If it does, the answer is a field for it on
+  its own terms, not a value smuggled into this one. Worth asking the
+  supplier what multispine actually means before modelling it.
 - **`whole` proving too coarse.** A whole caiman skin contains belly and
   hornback regions, so two hides labelled `whole` are only comparable if
   their measured patches were dragged from corresponding places. The
