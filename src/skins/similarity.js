@@ -30,6 +30,51 @@ export function colourDifference(a, b) {
   return Math.hypot(a.colourA - b.colourA, a.colourB - b.colourB);
 }
 
+// Two hides from different parts of the animal are not a match and never will
+// be: a tail's scales and a belly's scales are different geometry, and the
+// supplier sells both under species "caiman", so species alone does not
+// separate them. The trade's own rule is the same one -- a pair of alligator
+// skins makes two pairs of boots, one from the matching tails and one from the
+// matching bellies.
+//
+// False ONLY when both cuts are known and differ. An unknown cut cannot rule a
+// pair out; it can only leave the pair unverified, which is what rankMatches()
+// reports on the pair itself.
+export function cutsCanPair(a, b) {
+  const cutA = a.cut ?? null;
+  const cutB = b.cut ?? null;
+  return !(cutA && cutB && cutA !== cutB);
+}
+
+// The scale/colour ordering, lifted out of rankMatches() so it can be applied
+// to more than one partition of pairs. Nothing in here changed when cut
+// arrived -- it is the original ranking, verbatim.
+function orderByScaleAndColour(pairs) {
+  // Scale and colour both matter for a matched pair -- neither dominates.
+  // Combined by RANK POSITION rather than raw magnitude, because
+  // millimetres and LAB units aren't convertible into one another without
+  // real calibration data (which doesn't exist yet): "2nd-closest on
+  // scale, 1st-closest on colour" needs no conversion, a weighted sum of
+  // "4.2mm" and "11.3 LAB units" would need an invented one.
+  const withColour = pairs.filter((p) => p.colourDifference != null);
+  const withoutColour = pairs.filter((p) => p.colourDifference == null);
+
+  const byScale = [...withColour].sort((x, y) => x.scaleDifferenceMm - y.scaleDifferenceMm);
+  const byColour = [...withColour].sort((x, y) => x.colourDifference - y.colourDifference);
+  const scaleRank = new Map(byScale.map((p, i) => [p, i]));
+  const colourRank = new Map(byColour.map((p, i) => [p, i]));
+  withColour.sort(
+    (x, y) => scaleRank.get(x) + colourRank.get(x) - (scaleRank.get(y) + colourRank.get(y))
+  );
+
+  // A pair missing colour on either side (an older skin, captured before
+  // this) can't be judged on it at all, so it falls back to scale alone
+  // and sorts after every pair that could be fully judged.
+  withoutColour.sort((x, y) => x.scaleDifferenceMm - y.scaleDifferenceMm);
+
+  return [...withColour, ...withoutColour];
+}
+
 export function rankMatches(skins) {
   skins = skins.filter((s) => s.dominantWavelengthMm != null);
 
@@ -47,39 +92,38 @@ export function rankMatches(skins) {
       for (let j = i + 1; j < group.length; j++) {
         const a = group[i];
         const b = group[j];
+        // No pair at all, rather than a pair ranked badly: a ranking carries
+        // no warning, so a wrong pair sitting in the list is a confidently
+        // wrong answer. Leaving it out is the only honest option.
+        if (!cutsCanPair(a, b)) continue;
+
         const bothHaveColour = a.colourA != null && a.colourB != null && b.colourA != null && b.colourB != null;
+        // eligibility.js's word for "this constraint could not be checked",
+        // reused rather than reinvented. Colour keeps its own existing signal
+        // (colourDifference: null) instead of being folded in here -- two
+        // representations of one state is how they drift apart.
+        const bothHaveCut = (a.cut ?? null) !== null && (b.cut ?? null) !== null;
         pairs.push({
           skinAId: a.id,
           skinBId: b.id,
           scaleDifferenceMm: scaleDifferenceMm(a, b),
           spectrumCorrelation: spectrumCorrelation(a.radialSpectrum, b.radialSpectrum),
           colourDifference: bothHaveColour ? colourDifference(a, b) : null,
+          unverified: bothHaveCut ? [] : ['cut'],
         });
       }
     }
-    // Scale and colour both matter for a matched pair -- neither dominates.
-    // Combined by RANK POSITION rather than raw magnitude, because
-    // millimetres and LAB units aren't convertible into one another without
-    // real calibration data (which doesn't exist yet): "2nd-closest on
-    // scale, 1st-closest on colour" needs no conversion, a weighted sum of
-    // "4.2mm" and "11.3 LAB units" would need an invented one.
-    const withColour = pairs.filter((p) => p.colourDifference != null);
-    const withoutColour = pairs.filter((p) => p.colourDifference == null);
 
-    const byScale = [...withColour].sort((x, y) => x.scaleDifferenceMm - y.scaleDifferenceMm);
-    const byColour = [...withColour].sort((x, y) => x.colourDifference - y.colourDifference);
-    const scaleRank = new Map(byScale.map((p, i) => [p, i]));
-    const colourRank = new Map(byColour.map((p, i) => [p, i]));
-    withColour.sort(
-      (x, y) => scaleRank.get(x) + colourRank.get(x) - (scaleRank.get(y) + colourRank.get(y))
-    );
+    // Two nested partitions: cut-known before cut-unknown on the outside, and
+    // colour-present before colour-missing within each (that inner split lives
+    // in orderByScaleAndColour). A pair missing both sorts last.
+    const judged = pairs.filter((p) => p.unverified.length === 0);
+    const flagged = pairs.filter((p) => p.unverified.length > 0);
 
-    // A pair missing colour on either side (an older skin, captured before
-    // this) can't be judged on it at all, so it falls back to scale alone
-    // and sorts after every pair that could be fully judged.
-    withoutColour.sort((x, y) => x.scaleDifferenceMm - y.scaleDifferenceMm);
-
-    result.push({ species, pairs: [...withColour, ...withoutColour] });
+    result.push({
+      species,
+      pairs: [...orderByScaleAndColour(judged), ...orderByScaleAndColour(flagged)],
+    });
   }
   return result;
 }

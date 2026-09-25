@@ -19,6 +19,7 @@ async function postSkin(baseUrl, overrides = {}) {
   const fields = {
     label: 'Test Skin',
     species: 'cayman',
+    cut: 'tail',
     roiX: 0,
     roiY: 0,
     roiWidth: 256,
@@ -31,6 +32,7 @@ async function postSkin(baseUrl, overrides = {}) {
     ...overrides,
   };
   for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
     formData.append(key, String(value));
   }
   return fetch(`${baseUrl}/skins`, { method: 'POST', body: formData });
@@ -270,6 +272,7 @@ test('POST /skins with captureType=outline and a scale patch also measures the h
       // 100px between the calibration points over 100mm -> 1mm per pixel.
       p1x: 0, p1y: 0, p2x: 100, p2y: 0, realDistanceMm: 100,
       captureForMatching: 'true',
+      cut: 'whole',
       // A patch inside the shape, on the texture -- not the outline region.
       matchRoiX: 100, matchRoiY: 100, matchRoiWidth: 160, matchRoiHeight: 160,
     };
@@ -317,6 +320,7 @@ test('a scale patch that cannot be measured still saves the hide, with a warning
     // must not be thrown away with it.
     const response = await postOutlineSkin(baseUrl, {
       captureForMatching: 'true',
+      cut: 'whole',
       matchRoiX: 0, matchRoiY: 0, matchRoiWidth: 5, matchRoiHeight: 5,
     });
     assert.equal(response.status, 200, 'the hide itself should still be created');
@@ -373,7 +377,7 @@ test('POST /skins/:id/signature measures an existing hide from its stored photo,
     const created = await (await postTexturedHide(baseUrl)).json();
     assert.equal(created.dominantWavelengthMm, null, 'starts out unmatchable');
 
-    const response = await postSignature(baseUrl, created.id);
+    const response = await postSignature(baseUrl, created.id, { cut: 'whole' });
     assert.equal(response.status, 200);
     const measured = await response.json();
 
@@ -389,7 +393,7 @@ test('POST /skins/:id/signature measures an existing hide from its stored photo,
 test('POST /skins/:id/signature leaves everything else about the hide alone', async () => {
   await withServer(async (baseUrl) => {
     const created = await (await postTexturedHide(baseUrl, { finish: 'matte' })).json();
-    const measured = await (await postSignature(baseUrl, created.id)).json();
+    const measured = await (await postSignature(baseUrl, created.id, { cut: 'whole' })).json();
 
     assert.deepEqual(measured.outlinePolygon, created.outlinePolygon);
     assert.equal(measured.label, created.label);
@@ -405,7 +409,7 @@ test('POST /skins/:id/signature returns 422 and changes nothing when the patch c
   await withServer(async (baseUrl) => {
     const created = await (await postTexturedHide(baseUrl)).json();
     // Under skin_signature.py's 32px floor.
-    const response = await postSignature(baseUrl, created.id, { roiWidth: 5, roiHeight: 5 });
+    const response = await postSignature(baseUrl, created.id, { cut: 'whole', roiWidth: 5, roiHeight: 5 });
     assert.equal(response.status, 422);
 
     const stored = (await (await fetch(`${baseUrl}/skins`)).json())[0];
@@ -500,5 +504,73 @@ test('POST /skins with captureType=outline and partial ROI fields behaves as no 
     assert.ok(Array.isArray(created.outlinePolygon));
     assert.ok(created.outlinePolygon.length >= 3);
     assert.equal(created.thicknessMm, 1.4);
+  });
+});
+
+const CUT_REQUIRED = 'cut is required when measuring a hide for matching.';
+
+test('POST /skins rejects a signature capture with no cut', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postSkin(baseUrl, { cut: undefined });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, CUT_REQUIRED);
+    // Nothing was created, and the upload was cleaned up.
+    assert.deepEqual(await (await fetch(`${baseUrl}/skins`)).json(), []);
+  });
+});
+
+test('POST /skins stores the cut on a signature capture', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postSkin(baseUrl, { cut: 'tail' });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).cut, 'tail');
+  });
+});
+
+test('POST /skins allows an outline-only hide with no cut', async () => {
+  await withServer(async (baseUrl) => {
+    // Photographing an offcut purely to nest on it must not be blocked by a
+    // question that has no bearing on nesting.
+    const response = await postOutlineSkin(baseUrl);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).cut, null);
+  });
+});
+
+test('POST /skins rejects an outline capture that also asks for matching with no cut', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await postOutlineSkin(baseUrl, {
+      captureForMatching: 'true',
+      matchRoiX: 0,
+      matchRoiY: 0,
+      matchRoiWidth: 100,
+      matchRoiHeight: 100,
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, CUT_REQUIRED);
+    assert.deepEqual(await (await fetch(`${baseUrl}/skins`)).json(), []);
+  });
+});
+
+test('POST /skins/:id/signature demands a cut when the hide has none', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl)).json();
+    assert.equal(created.cut, null);
+
+    const response = await postSignature(baseUrl, created.id);
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, CUT_REQUIRED);
+  });
+});
+
+test('POST /skins/:id/signature does not re-ask a hide that already has a cut', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl, { cut: 'belly' })).json();
+    assert.equal(created.cut, 'belly');
+
+    // 200 on a real measurement, 422 if the fixture defeats the FFT -- either
+    // way it must not be the 400 that means "cut is missing".
+    const response = await postSignature(baseUrl, created.id);
+    assert.notEqual(response.status, 400);
   });
 });

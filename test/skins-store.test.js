@@ -263,3 +263,87 @@ test('redigitize() replaces outline/colour/photo and resets remainingAreaPct to 
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+test('create() stores cut, and defaults it to null when not given', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+
+  const withCut = store.create({
+    label: 'Caiman tail #1',
+    species: 'caiman',
+    cut: 'tail',
+    dominantWavelengthMm: 3.1,
+    radialSpectrum: [0.2, 0.4],
+    photoPath: makeTmpPhoto(dataDir),
+    photoExt: '.jpg',
+  });
+  assert.equal(withCut.cut, 'tail');
+
+  // Null rather than empty string: an outline-only hide need not say which
+  // cut it is, because cut only ever affects matching.
+  const withoutCut = store.create({
+    label: 'Unlabelled offcut',
+    species: 'python',
+    outlinePolygon: [
+      [0, 0],
+      [10, 0],
+      [10, 5],
+    ],
+    photoPath: makeTmpPhoto(dataDir),
+    photoExt: '.jpg',
+  });
+  assert.equal(withoutCut.cut, null);
+
+  // And it survives the round trip through disk, not just the return value.
+  assert.equal(store.list().find((r) => r.id === withCut.id).cut, 'tail');
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('setSignature() records a cut, and leaves an existing one alone when none is given', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+
+  const record = store.create({
+    label: 'Outline first',
+    species: 'caiman',
+    outlinePolygon: [
+      [0, 0],
+      [10, 0],
+      [10, 5],
+    ],
+    thicknessMm: 1.3,
+    photoPath: makeTmpPhoto(dataDir),
+    photoExt: '.jpg',
+  });
+  assert.equal(record.cut, null);
+  store.setRemainingAreaPct(record.id, 40);
+
+  const measured = store.setSignature(record.id, {
+    dominantWavelengthMm: 3.4,
+    radialSpectrum: [0.1, 0.9],
+    cut: 'belly',
+  });
+  assert.equal(measured.cut, 'belly');
+  // The property that separates setSignature from redigitize still holds.
+  assert.equal(measured.remainingAreaPct, 40, 'a part-cut hide must stay part-cut');
+
+  // Re-measuring without naming a cut must not erase the one it has.
+  const again = store.setSignature(record.id, {
+    dominantWavelengthMm: 3.5,
+    radialSpectrum: [0.1, 0.8],
+  });
+  assert.equal(again.cut, 'belly');
+
+  // Naming a different one overwrites -- currently the only way to correct a
+  // mislabelled cut, since no edit-a-hide route exists.
+  const corrected = store.setSignature(record.id, {
+    dominantWavelengthMm: 3.5,
+    radialSpectrum: [0.1, 0.8],
+    cut: 'tail',
+  });
+  assert.equal(corrected.cut, 'tail');
+  assert.equal(store.list().find((r) => r.id === record.id).cut, 'tail');
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});

@@ -67,7 +67,18 @@ database.
   tracks exposure/glare more than dye, see
   `docs/superpowers/specs/2026-09-22-products-design.md`) and `finish`, an
   operator-set label (gloss can't be measured from a photo — it's lighting-
-  dependent). Deliberately not renamed to "hides" internally — see
+  dependent). Also carries `cut` (`src/skins/cuts.js`: whole / belly / full
+  quill / hornback / leg / tail), which part of the animal the hide is, `null`
+  when unknown. `rankMatches()` treats it as a HARD GATE: two hides with
+  known, different cuts never pair, because a caiman tail and a caiman belly
+  are different scale geometry and the supplier sells both as species
+  "caiman". An unknown cut on either side still pairs but is flagged
+  `unverified: ['cut']` and sorts last. Required on every request that
+  produces a scale signature and nowhere else — an outline-only hide can be
+  added without one, since nesting does not care. `multispine` is in the
+  charts but is NOT a cut and must not be added to the list; see
+  `docs/superpowers/specs/2026-09-25-hide-cut-design.md`. Deliberately not
+  renamed to "hides" internally — see
   `docs/superpowers/specs/2026-09-01-hide-library-design.md` for why routes
   and the data directory keep the old name.
 - **Parts** (`src/parts/`, renamed from "Dies" 2026-09-22 — a laser job

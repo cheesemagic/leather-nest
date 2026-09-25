@@ -274,6 +274,16 @@ function createSkinsRoutes(dataDir) {
         return;
       }
 
+      // Validated before digitize.py is spawned rather than inside its
+      // callback: a missing cut is knowable up front, so failing early avoids
+      // a Python round trip and a second cleanup path.
+      const cut = getField('cut') || null;
+      if (getField('captureForMatching') === 'true' && !cut) {
+        fs.unlink(photo.filepath, () => {});
+        sendJSON(res, 400, { error: 'cut is required when measuring a hide for matching.' });
+        return;
+      }
+
       const roiFields = ['roiX', 'roiY', 'roiWidth', 'roiHeight'];
       const hasROI = roiFields.every((field) => getField(field));
       const args = [
@@ -299,6 +309,7 @@ function createSkinsRoutes(dataDir) {
           const record = store.create({
             label,
             species,
+            cut,
             thicknessMm: Number(thicknessMmRaw),
             outlinePolygon: polygon,
             colourL,
@@ -369,6 +380,16 @@ function createSkinsRoutes(dataDir) {
       return;
     }
 
+    // Everything this path creates is a matchable hide, so a cut is never
+    // optional here -- see the cut spec's "required wherever a signature is
+    // produced".
+    const cut = getField('cut');
+    if (!cut) {
+      fs.unlink(photo.filepath, () => {});
+      sendJSON(res, 400, { error: 'cut is required when measuring a hide for matching.' });
+      return;
+    }
+
     const args = [
       SKIN_SIGNATURE_SCRIPT,
       photo.filepath,
@@ -408,6 +429,7 @@ function createSkinsRoutes(dataDir) {
         const record = store.create({
           label,
           species,
+          cut,
           dominantWavelengthMm,
           radialSpectrum,
           colourL: colour.l,
@@ -556,6 +578,15 @@ function createSkinsRoutes(dataDir) {
       return;
     }
 
+    // Required to become matchable, but asked for only once: a hide that
+    // already knows its cut is not re-interrogated. Naming a different one
+    // overwrites, which is currently the only way to correct a mislabel.
+    const cut = getField('cut') || existing.cut || null;
+    if (!cut) {
+      sendJSON(res, 400, { error: 'cut is required when measuring a hide for matching.' });
+      return;
+    }
+
     const args = [SKIN_SIGNATURE_SCRIPT, storedPhoto, ...required.map(getField)];
     execFile(PYTHON, args, (err, stdout, stderr) => {
       if (err) {
@@ -567,7 +598,7 @@ function createSkinsRoutes(dataDir) {
         return;
       }
       const { dominantWavelengthMm, radialSpectrum } = JSON.parse(stdout);
-      sendJSON(res, 200, store.setSignature(id, { dominantWavelengthMm, radialSpectrum }));
+      sendJSON(res, 200, store.setSignature(id, { dominantWavelengthMm, radialSpectrum, cut }));
     });
   }
 

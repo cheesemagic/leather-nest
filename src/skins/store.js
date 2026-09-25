@@ -34,6 +34,7 @@ export function createStore(dataDir) {
   function create({
     label,
     species,
+    cut,
     dominantWavelengthMm,
     radialSpectrum,
     outlinePolygon,
@@ -51,6 +52,10 @@ export function createStore(dataDir) {
       id,
       label,
       species,
+      // Which part of the animal. Null when unknown -- there is no 'unknown'
+      // value, because null already means it. Only matching reads this, so an
+      // outline-only hide is free to leave it unset.
+      cut: cut ?? null,
       dominantWavelengthMm: dominantWavelengthMm ?? null,
       radialSpectrum: radialSpectrum ?? null,
       outlinePolygon: outlinePolygon ?? null,
@@ -124,11 +129,15 @@ export function createStore(dataDir) {
   // else, where redigitize replaces the hide's shape and resets how much of
   // it is left. A hide part-way through being cut must be able to become
   // matchable without its remaining area being thrown back to 100%.
-  function setSignature(id, { dominantWavelengthMm, radialSpectrum }) {
+  function setSignature(id, { dominantWavelengthMm, radialSpectrum, cut }) {
     const record = readRecord(id);
     if (!record) return null;
     record.dominantWavelengthMm = dominantWavelengthMm;
     record.radialSpectrum = radialSpectrum;
+    // Only when named. Measuring a hide that already knows its cut must not
+    // wipe it -- but naming a different one does overwrite, which is
+    // currently the only way to correct a mislabelled cut.
+    if (cut != null) record.cut = cut;
     fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
     return record;
   }
