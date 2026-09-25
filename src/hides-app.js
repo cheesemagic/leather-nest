@@ -3,6 +3,7 @@ import { attachRegionSelect } from './region-select-ui.js';
 import { boundingBox, polygonArea } from './nesting/geometry.js';
 import { compareByColour } from './skins/colour-order.js';
 import { populateSpeciesSelect } from './skins/species.js';
+import { populateCutSelect } from './skins/cuts.js';
 
 const summaryEl = document.getElementById('hides-summary');
 const gridEl = document.getElementById('hide-grid');
@@ -16,6 +17,7 @@ const submitButton = document.getElementById('submit-hide');
 const dialog = document.getElementById('add-hide-dialog');
 const labelInput = document.getElementById('hide-label');
 const speciesInput = document.getElementById('hide-species');
+const cutInput = document.getElementById('hide-cut');
 const thicknessInput = document.getElementById('hide-thickness');
 const finishInput = document.getElementById('hide-finish');
 const photoInput = document.getElementById('hide-photo');
@@ -27,6 +29,7 @@ const matchingRegionContainer = document.getElementById('hide-matching-region-co
 const addStatus = document.getElementById('add-hide-status');
 
 populateSpeciesSelect(speciesInput);
+populateCutSelect(cutInput);
 
 const redigitizeDialog = document.getElementById('redigitize-dialog');
 const redigitizePhotoInput = document.getElementById('redigitize-photo');
@@ -42,6 +45,9 @@ const measureRegionContainer = document.getElementById('measure-region-container
 const measureStatus = document.getElementById('measure-status');
 const cancelMeasureButton = document.getElementById('cancel-measure');
 const submitMeasureButton = document.getElementById('submit-measure');
+const measureCutInput = document.getElementById('measure-cut');
+const measureCutWrapper = document.getElementById('measure-cut-wrapper');
+populateCutSelect(measureCutInput);
 
 const deleteDialog = document.getElementById('delete-dialog');
 const deleteSummary = document.getElementById('delete-summary');
@@ -115,6 +121,7 @@ function labToCss(l, a, b) {
 function resetAddForm() {
   labelInput.value = '';
   speciesInput.value = '';
+  cutInput.value = '';
   thicknessInput.value = '';
   finishInput.value = '';
   photoInput.value = '';
@@ -149,14 +156,17 @@ function refreshMatchingRegionSelect() {
 
 forMatchingInput.addEventListener('change', refreshMatchingRegionSelect);
 
-// species/thickness/finish, each abbreviated to two characters -- the ten
-// species on the dropdown all differ in their first two letters, so no
-// lookup table is needed, and the same holds for the three finish values.
+// species/cut/thickness/finish, each abbreviated to two characters -- the
+// species on the dropdown all differ in their first two letters, and so do the
+// six cuts (BE, FU, HO, LE, TA, WH), so no lookup table is needed, and the
+// same holds for the three finish values. Without cut in here, a caiman tail
+// and a caiman belly of one thickness generate the same name.
 // Segments for a field not filled in yet are simply omitted, so the name
 // builds up as the operator fills the form rather than showing blanks.
 function hideNameParts() {
   const parts = [];
   if (speciesInput.value) parts.push(speciesInput.value.slice(0, 2).toUpperCase());
+  if (cutInput.value) parts.push(cutInput.value.slice(0, 2).toUpperCase());
   const thicknessMm = Number(thicknessInput.value);
   if (Number.isFinite(thicknessMm) && thicknessMm > 0) {
     // Tenths of a mm as two digits (1.2mm -> "12") rather than rounding to
@@ -206,6 +216,7 @@ openAddButton.addEventListener('click', () => {
 });
 
 speciesInput.addEventListener('change', maybeAutoGenerateName);
+cutInput.addEventListener('change', maybeAutoGenerateName);
 thicknessInput.addEventListener('input', maybeAutoGenerateName);
 finishInput.addEventListener('change', maybeAutoGenerateName);
 
@@ -250,12 +261,18 @@ submitButton.addEventListener('click', async () => {
       'Drag a patch of scales to measure, or untick "Also measure this hide for matching".';
     return;
   }
+  if (forMatchingInput.checked && !cutInput.value) {
+    addStatus.textContent =
+      'Choose which cut this hide is — matching needs it, or untick "Also measure this hide for matching".';
+    return;
+  }
 
   const formData = new FormData();
   formData.append('captureType', 'outline');
   formData.append('label', label);
   formData.append('species', species);
   formData.append('thicknessMm', thicknessMm);
+  if (cutInput.value) formData.append('cut', cutInput.value);
   if (finishInput.value) formData.append('finish', finishInput.value);
   formData.append('photo', selectedPhoto);
   formData.append('p1x', calibration.p1x);
@@ -376,6 +393,7 @@ function resetMeasureForm() {
   measureHideId = null;
   measureCalibration = null;
   measureRegion = null;
+  measureCutInput.value = '';
   measureCalibrationContainer.innerHTML = '';
   measureRegionContainer.innerHTML = '';
   measureStatus.textContent = '';
@@ -387,6 +405,9 @@ function resetMeasureForm() {
 function openMeasureDialog(hideId) {
   resetMeasureForm();
   measureHideId = hideId;
+  // Only ask when the hide cannot already answer. Re-interrogating a hide that
+  // knows its cut would make the dialog look like it had forgotten.
+  measureCutWrapper.hidden = Boolean(hides.find((h) => h.id === hideId)?.cut);
   measureDialog.hidden = false;
   const photoUrl = `/skins/${hideId}/photo`;
   attachCalibration(measureCalibrationContainer, photoUrl, (calibrationResult) => {
@@ -407,6 +428,10 @@ submitMeasureButton.addEventListener('click', async () => {
     measureStatus.textContent = 'Mark the calibration points, then drag a patch of scales.';
     return;
   }
+  if (!measureCutWrapper.hidden && !measureCutInput.value) {
+    measureStatus.textContent = 'Choose which cut this hide is.';
+    return;
+  }
 
   const formData = new FormData();
   formData.append('p1x', measureCalibration.p1x);
@@ -418,6 +443,7 @@ submitMeasureButton.addEventListener('click', async () => {
   formData.append('roiY', measureRegion.roiY);
   formData.append('roiWidth', measureRegion.roiWidth);
   formData.append('roiHeight', measureRegion.roiHeight);
+  if (measureCutInput.value) formData.append('cut', measureCutInput.value);
 
   measureStatus.textContent = 'Measuring…';
 
@@ -582,7 +608,7 @@ function renderGrid() {
         <span>${escapeHtml(hide.species)} ${swatch}</span>
         <span>${matchable}<span class="tag tag-outline">${hide.id.slice(0, 8)}</span></span>
       </div>
-      <p class="card-body">${escapeHtml(hide.label)} · ${hideSizeLabel(hide)}${hide.thicknessMm != null ? ` · ${hide.thicknessMm} mm thick` : ''}${hide.finish ? ` · ${escapeHtml(hide.finish)}` : ''}</p>
+      <p class="card-body">${escapeHtml(hide.label)} · ${hideSizeLabel(hide)}${hide.cut ? ` · ${escapeHtml(hide.cut)}` : ''}${hide.thicknessMm != null ? ` · ${hide.thicknessMm} mm thick` : ''}${hide.finish ? ` · ${escapeHtml(hide.finish)}` : ''}</p>
       <div class="area-bar"><div class="area-bar-fill" style="width: ${Math.max(0, Math.min(100, remaining))}%"></div></div>
       <div class="card-meta">${Math.round(remaining)}% remaining · captured ${date}</div>
       <div class="card-actions">

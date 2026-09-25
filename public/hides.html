@@ -52,6 +52,7 @@
       .toggle-row input { margin: 0; }
       .field-hint { font-size: 0.85rem; margin: 4px 0 0; }
       #hide-matching-region-wrapper[hidden] { display: none; }
+      #measure-cut-wrapper[hidden] { display: none; }
     </style>
   </head>
   <body>
@@ -106,6 +107,16 @@
                    ones on Components and Matching cannot drift apart. -->
               <select class="input" id="hide-species">
                 <option value="">-- Choose species --</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="hide-cut">Cut</label>
+              <!-- Which part of the animal. Options come from src/skins/cuts.js.
+                   Optional for a hide you only mean to nest on, required the
+                   moment you measure it for matching -- a tail and a belly of
+                   one species are never a match. -->
+              <select class="input" id="hide-cut">
+                <option value="">Not set</option>
               </select>
             </div>
             <div class="field">
@@ -186,6 +197,16 @@
               against others on the Matching page. Nothing else about the hide changes.
               Mark two points a known distance apart, then drag a patch of scales.
             </p>
+            <div class="field" id="measure-cut-wrapper" hidden>
+              <label for="measure-cut">Cut</label>
+              <p class="text-muted field-hint">
+                This hide has no cut recorded, and matching needs one — a tail and a
+                belly of the same species are never a match.
+              </p>
+              <select class="input" id="measure-cut">
+                <option value="">-- Choose cut --</option>
+              </select>
+            </div>
             <div id="measure-calibration-container"></div>
             <div id="measure-region-container"></div>
             <div id="measure-status" class="text-muted"></div>
