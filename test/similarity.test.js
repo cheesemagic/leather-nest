@@ -61,10 +61,47 @@ test('rankMatches never produces a cross-species pair', () => {
   }
 });
 
-test('colourDifference ignores lightness, uses only a*/b*', () => {
-  const a = { colourL: 10, colourA: 0, colourB: 0 };
-  const b = { colourL: 90, colourA: 3, colourB: 4 };
-  assert.equal(colourDifference(a, b), 5); // 3-4-5 triangle, lightness (10 vs 90) irrelevant
+test('colourDifference still ignores lightness entirely', () => {
+  // Was an assertion that a 3-4-5 triangle returns exactly 5 -- true of
+  // straight-line distance in a*/b*, and only of that. The property that
+  // actually matters survived the move to CIEDE2000 and is asserted here
+  // instead: an 80-point swing in lightness changes nothing.
+  const dark = { colourL: 10, colourA: 12, colourB: 30 };
+  const same = { colourL: 90, colourA: 12, colourB: 30 };
+  assert.equal(colourDifference(dark, same), 0);
+
+  const other = { colourA: 18, colourB: 26 };
+  assert.equal(
+    colourDifference(dark, { ...other, colourL: 10 }),
+    colourDifference(dark, { ...other, colourL: 90 })
+  );
+});
+
+test('colourDifference is a real ΔE00, not a straight line through a*/b*', () => {
+  const a = { colourL: 50, colourA: 2.6772, colourB: -79.7751 };
+  const b = { colourL: 50, colourA: 0, colourB: -82.7485 };
+  // Sharma pair 1. Straight-line distance here is ~4.0; ΔE00 is 2.0425,
+  // because the formula corrects hard in the blue region. The gap between
+  // those two numbers is the whole reason for the change.
+  assert.ok(Math.abs(colourDifference(a, b) - 2.0425) < 1e-4);
+  assert.ok(Math.hypot(a.colourA - b.colourA, a.colourB - b.colourB) > 3.9);
+});
+
+test('colourDifference is symmetric and zero against itself', () => {
+  const a = { colourL: 43, colourA: 17, colourB: 26 };
+  const b = { colourL: 61, colourA: 9, colourB: 31 };
+  assert.equal(colourDifference(a, a), 0);
+  assert.equal(colourDifference(a, b), colourDifference(b, a));
+});
+
+test('a hide with no recorded lightness is still comparable', () => {
+  // rankMatches() gates on colourA/colourB only, so a record carrying those
+  // without colourL can reach here. At weight 0 it cannot affect the answer.
+  const withL = { colourL: 43, colourA: 17, colourB: 26 };
+  const withoutL = { colourA: 17, colourB: 26 };
+  const other = { colourL: 50, colourA: 9, colourB: 31 };
+  assert.equal(colourDifference(withoutL, other), colourDifference(withL, other));
+  assert.ok(Number.isFinite(colourDifference(withoutL, other)));
 });
 
 test('rankMatches weighs scale and colour equally -- a well-rounded pair beats one that is best on only one axis', () => {

@@ -162,7 +162,11 @@ document.getElementById('refresh-matches').addEventListener('click', async () =>
         .map((pair) => {
           const colourText =
             pair.colourDifference != null
-              ? `colour difference ${pair.colourDifference.toFixed(1)}`
+              // ΔE00, not a bare "colour difference": the CIE standard has
+              // published bands (<1 imperceptible, 2-3.5 practical tolerance,
+              // >5 clearly different), so this number means something to
+              // anyone with their own colour QC. The old unit meant nothing.
+              ? `ΔE00 ${pair.colourDifference.toFixed(1)}`
               : 'colour not recorded on one or both -- ranked by scale only';
           // A pair that could not be fully judged says so, rather than just
           // sitting quietly at the bottom of the list.

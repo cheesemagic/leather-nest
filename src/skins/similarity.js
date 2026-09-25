@@ -1,3 +1,5 @@
+import { ciede2000 } from './ciede2000.js';
+
 export function scaleDifferenceMm(a, b) {
   return Math.abs(a.dominantWavelengthMm - b.dominantWavelengthMm);
 }
@@ -22,12 +24,42 @@ export function spectrumCorrelation(a, b) {
   return denominator > 0 ? numerator / denominator : 0;
 }
 
-// Hue/chroma only, never lightness -- lightness tracks a photo's exposure
-// and glare far more than it tracks the dye (measured on two real photos of
-// the same offcut under different light: lightness swung by ~20, hue held
-// within ~1-2). See docs/superpowers/specs/2026-09-22-products-design.md.
+// ZERO, and like DEFAULT_KERF_MM that is a statement rather than a
+// placeholder: lightness is not weighted down, it is excluded, because
+// nobody can measure it honestly yet. Every colour in the library is sampled
+// from an uncontrolled photograph, and lightness tracks exposure and glare
+// far more than dye -- measured on two real photos of the same offcut under
+// different light, lightness swung by ~20 while hue held within ~1-2 (see
+// docs/superpowers/specs/2026-09-22-products-design.md).
+//
+// Textile practice has the same instinct and de-weights lightness by half
+// (CMC 2:1). Halving is for a measurement that is merely noisy; this one is
+// dominated by the photograph, so it gets no vote at all.
+//
+// What would change it: a grey card or colour reference target in frame when
+// photographing a hide, corrected for in digitize.py. That is the ~£30
+// equivalent of the kerf test square, and this is the one line to move when
+// it exists.
+export const COLOUR_LIGHTNESS_WEIGHT = 0;
+
+// How different two hides' colours are, as CIEDE2000 (ΔE00) -- the CIE
+// standard, which unlike straight-line distance in a*/b* is weighted to track
+// perception, and which comes with published tolerance bands (<1
+// imperceptible, 2-3.5 practical tolerance, >5 clearly different). Those bands
+// are what gives the still-open colour threshold a number to calibrate
+// against instead of one to invent.
+//
+// colourL is passed through but cannot reach the result at weight 0 -- L
+// enters the formula only via S_L, and S_L multiplies only the lightness
+// term. `?? 0` therefore makes a hide with no recorded lightness safe rather
+// than merely tolerable; test/ciede2000.test.js asserts that independence
+// directly.
 export function colourDifference(a, b) {
-  return Math.hypot(a.colourA - b.colourA, a.colourB - b.colourB);
+  return ciede2000(
+    [a.colourL ?? 0, a.colourA, a.colourB],
+    [b.colourL ?? 0, b.colourA, b.colourB],
+    { lightnessWeight: COLOUR_LIGHTNESS_WEIGHT }
+  );
 }
 
 // Two hides from different parts of the animal are not a match and never will
