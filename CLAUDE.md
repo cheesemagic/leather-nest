@@ -63,9 +63,15 @@ database.
   the cuttable shape), or both — `POST /skins`'s `captureType` field
   (`"signature"` default, or `"outline"`) selects which pipeline runs. Also
   carries colour (`colourL`/`colourA`/`colourB`, sampled from inside the
-  outline by `digitize.py` — compare on `colourA`/`colourB` only, `colourL`
-  tracks exposure/glare more than dye, see
-  `docs/superpowers/specs/2026-09-22-products-design.md`) and `finish`, an
+  outline by `digitize.py` — compared with CIEDE2000 via
+  `src/skins/ciede2000.js`, at `COLOUR_LIGHTNESS_WEIGHT = 0`, so `colourL`
+  never reaches the result: it tracks exposure/glare more than dye, see
+  `docs/superpowers/specs/2026-09-22-products-design.md`. ΔE00 bands, for
+  reference and NOT enforced anywhere yet: <1 imperceptible, 1-2 perceptible
+  on close inspection, 2-3.5 around practical tolerance, >5 clearly different
+  colours. Colour ranks pairs, it does not gate them — the threshold is still
+  open and needs real labelled hide pairs, see
+  `docs/superpowers/specs/2026-09-25-colour-difference-ciede2000-design.md`) and `finish`, an
   operator-set label (gloss can't be measured from a photo — it's lighting-
   dependent). Also carries `cut` (`src/skins/cuts.js`: whole / belly / full
   quill / hornback / leg / tail), which part of the animal the hide is, `null`
