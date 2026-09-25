@@ -337,6 +337,7 @@ test('a job on a signature-only hide cuts cleanly with no decrement', async () =
     for (const [key, value] of Object.entries({
       label: 'Signature Only',
       species: 'cayman',
+      cut: 'whole',
       roiX: 0, roiY: 0, roiWidth: 256, roiHeight: 256,
       p1x: 0, p1y: 0, p2x: 100, p2y: 0, realDistanceMm: 100,
     })) formData.append(key, String(value));
