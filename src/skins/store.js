@@ -4,6 +4,15 @@ import crypto from 'node:crypto';
 
 const SAFE_ID = /^[0-9a-f-]+$/i;
 
+// Only these are writable after creation, and the line is what a human TYPED
+// versus what was MEASURED. Everything excluded already has an owner that
+// knows how to produce it honestly: redigitize() owns the outline and colour,
+// setSignature() owns the scale measurement, setRemainingAreaPct() owns job
+// accounting. Hand-editing any of those would let a record claim a
+// measurement nobody took, which is worse than the mislabel this exists to
+// fix. `id`, `createdAt` and `photoExt` are not fields at all.
+const EDITABLE_FIELDS = ['label', 'species', 'cut', 'finish', 'thicknessMm'];
+
 export function createStore(dataDir) {
   function ensureDir() {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -69,6 +78,19 @@ export function createStore(dataDir) {
       createdAt: new Date().toISOString(),
     };
     fs.copyFileSync(photoPath, path.join(dataDir, `${id}${photoExt}`));
+    fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
+    return record;
+  }
+
+  // A dumb writer: every check lives at the trust boundary in server.js, the
+  // same split src/parts/store.js uses. A field absent from `fields` is left
+  // alone; an explicit null clears it, which is a different intent.
+  function update(id, fields) {
+    const record = readRecord(id);
+    if (!record) return null;
+    for (const key of EDITABLE_FIELDS) {
+      if (fields[key] !== undefined) record[key] = fields[key];
+    }
     fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
     return record;
   }
@@ -142,5 +164,5 @@ export function createStore(dataDir) {
     return record;
   }
 
-  return { list, create, setRemainingAreaPct, redigitize, setSignature, remove, photoPath };
+  return { list, create, update, setRemainingAreaPct, redigitize, setSignature, remove, photoPath };
 }

@@ -49,6 +49,18 @@ const measureCutInput = document.getElementById('measure-cut');
 const measureCutWrapper = document.getElementById('measure-cut-wrapper');
 populateCutSelect(measureCutInput);
 
+const editDialog = document.getElementById('edit-dialog');
+const editLabelInput = document.getElementById('edit-label');
+const editSpeciesInput = document.getElementById('edit-species');
+const editCutInput = document.getElementById('edit-cut');
+const editCutLocked = document.getElementById('edit-cut-locked');
+const editThicknessInput = document.getElementById('edit-thickness');
+const editFinishInput = document.getElementById('edit-finish');
+const editStatus = document.getElementById('edit-status');
+populateSpeciesSelect(editSpeciesInput);
+populateCutSelect(editCutInput);
+let editHideId = null;
+
 const deleteDialog = document.getElementById('delete-dialog');
 const deleteSummary = document.getElementById('delete-summary');
 const deleteLosses = document.getElementById('delete-losses');
@@ -418,6 +430,71 @@ function openMeasureDialog(hideId) {
   });
 }
 
+function openEditDialog(hideId) {
+  const hide = hides.find((h) => h.id === hideId);
+  if (!hide) return;
+  editHideId = hideId;
+  editLabelInput.value = hide.label ?? '';
+  editSpeciesInput.value = hide.species ?? '';
+  editCutInput.value = hide.cut ?? '';
+  editThicknessInput.value = hide.thicknessMm ?? '';
+  editFinishInput.value = hide.finish ?? '';
+  editStatus.textContent = '';
+
+  // A matchable hide must keep a cut -- the server refuses to clear it, so
+  // the form should not offer to. Say why rather than just failing on save.
+  const matchable = hide.dominantWavelengthMm != null;
+  editCutLocked.hidden = !matchable;
+  editCutInput.querySelector('option[value=""]').disabled = matchable;
+
+  editDialog.hidden = false;
+}
+
+document.getElementById('cancel-edit').addEventListener('click', () => {
+  editDialog.hidden = true;
+  editHideId = null;
+});
+
+document.getElementById('submit-edit').addEventListener('click', async () => {
+  if (!editHideId) return;
+  const label = editLabelInput.value.trim();
+  const species = editSpeciesInput.value.trim();
+  if (!label || !species) {
+    editStatus.textContent = 'Name and species are required.';
+    return;
+  }
+
+  // Only the editable five are sent. Anything else the server would reject
+  // outright rather than ignore, which is what makes a typo here visible.
+  const thickness = Number(editThicknessInput.value);
+  const payload = {
+    label,
+    species,
+    cut: editCutInput.value || null,
+    finish: editFinishInput.value || null,
+    thicknessMm: Number.isFinite(thickness) && thickness > 0 ? thickness : null,
+  };
+
+  editStatus.textContent = 'Saving…';
+  try {
+    const response = await fetch(`/skins/${editHideId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      editStatus.textContent = `Error: ${body.error}`;
+      return;
+    }
+    editDialog.hidden = true;
+    editHideId = null;
+    await loadHides();
+  } catch {
+    editStatus.textContent = 'Error: could not reach the server. Please try again.';
+  }
+});
+
 cancelMeasureButton.addEventListener('click', () => {
   measureDialog.hidden = true;
   resetMeasureForm();
@@ -612,6 +689,7 @@ function renderGrid() {
       <div class="area-bar"><div class="area-bar-fill" style="width: ${Math.max(0, Math.min(100, remaining))}%"></div></div>
       <div class="card-meta">${Math.round(remaining)}% remaining · captured ${date}</div>
       <div class="card-actions">
+        <button type="button" class="btn btn-secondary" data-edit="${hide.id}">Edit</button>
         <button type="button" class="btn btn-secondary" data-redigitize="${hide.id}">Update remaining shape</button>
         ${hide.dominantWavelengthMm == null
           ? `<button type="button" class="btn btn-secondary" data-measure="${hide.id}">Measure for matching</button>`
@@ -648,6 +726,11 @@ gridEl.addEventListener('click', (event) => {
   const measureId = event.target.dataset.measure;
   if (measureId) {
     openMeasureDialog(measureId);
+    return;
+  }
+  const editId = event.target.dataset.edit;
+  if (editId) {
+    openEditDialog(editId);
     return;
   }
   const hideId = event.target.dataset.redigitize;

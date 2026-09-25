@@ -53,6 +53,7 @@
       .field-hint { font-size: 0.85rem; margin: 4px 0 0; }
       #hide-matching-region-wrapper[hidden] { display: none; }
       #measure-cut-wrapper[hidden] { display: none; }
+      #edit-dialog[hidden] { display: none; }
     </style>
   </head>
   <body>
@@ -183,6 +184,59 @@
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" id="cancel-redigitize">Cancel</button>
           <button type="button" class="btn btn-primary" id="submit-redigitize">Update</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-backdrop" id="edit-dialog" hidden>
+      <div class="dialog">
+        <h3 class="dialog-title">Edit hide</h3>
+        <div class="dialog-body">
+          <div class="form-grid">
+            <p class="text-muted">
+              Corrects what was typed in. The outline, colour and scale measurement are
+              not here — those come from re-digitizing or re-measuring the hide, so they
+              always say what was actually measured.
+            </p>
+            <div class="field">
+              <label for="edit-label">Name</label>
+              <input class="input" type="text" id="edit-label" />
+            </div>
+            <div class="field">
+              <label for="edit-species">Species</label>
+              <select class="input" id="edit-species">
+                <option value="">-- Choose species --</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="edit-cut">Cut</label>
+              <select class="input" id="edit-cut">
+                <option value="">Not set</option>
+              </select>
+              <p class="text-muted field-hint" id="edit-cut-locked" hidden>
+                This hide is measured for matching, so it must keep a cut. You can change
+                which one, but not clear it.
+              </p>
+            </div>
+            <div class="field">
+              <label for="edit-thickness">Thickness (mm)</label>
+              <input class="input" type="number" step="0.1" min="0" id="edit-thickness" />
+            </div>
+            <div class="field">
+              <label for="edit-finish">Finish</label>
+              <select class="input" id="edit-finish">
+                <option value="">Not set</option>
+                <option value="glossy">Glossy</option>
+                <option value="matte">Matte</option>
+                <option value="semi-gloss">Semi-gloss</option>
+              </select>
+            </div>
+            <div id="edit-status" class="text-muted"></div>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-edit">Cancel</button>
+          <button type="button" class="btn btn-primary" id="submit-edit">Save changes</button>
         </div>
       </div>
     </div>
