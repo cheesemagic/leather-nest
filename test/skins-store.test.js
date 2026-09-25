@@ -347,3 +347,91 @@ test('setSignature() records a cut, and leaves an existing one alone when none i
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+test('update() writes the operator-set fields and refuses to touch the measured ones', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+
+  const record = store.create({
+    label: 'Typo Hide',
+    species: 'caiman',
+    cut: 'tail',
+    finish: 'matte',
+    thicknessMm: 1.2,
+    outlinePolygon: [
+      [0, 0],
+      [10, 0],
+      [10, 5],
+    ],
+    colourL: 43.1,
+    colourA: 17,
+    colourB: 26,
+    dominantWavelengthMm: 3.4,
+    radialSpectrum: [0.1, 0.9],
+    photoPath: makeTmpPhoto(dataDir),
+    photoExt: '.jpg',
+  });
+  store.setRemainingAreaPct(record.id, 60);
+
+  const updated = store.update(record.id, {
+    label: 'Corrected Hide',
+    species: 'alligator',
+    cut: 'belly',
+    finish: 'glossy',
+    thicknessMm: 1.4,
+    // Measured fields, offered and expected to be ignored: each has its own
+    // owner (redigitize, setSignature, job accounting), and a record must
+    // never claim a measurement nobody took.
+    colourA: 999,
+    outlinePolygon: [[0, 0]],
+    dominantWavelengthMm: 99,
+    remainingAreaPct: 100,
+    id: 'hijacked',
+    createdAt: 'yesterday',
+  });
+
+  assert.equal(updated.label, 'Corrected Hide');
+  assert.equal(updated.species, 'alligator');
+  assert.equal(updated.cut, 'belly');
+  assert.equal(updated.finish, 'glossy');
+  assert.equal(updated.thicknessMm, 1.4);
+
+  assert.equal(updated.colourA, 17, 'colour is measured, not typed');
+  assert.deepEqual(updated.outlinePolygon, record.outlinePolygon);
+  assert.equal(updated.dominantWavelengthMm, 3.4);
+  assert.equal(updated.remainingAreaPct, 60, 'a part-cut hide must stay part-cut');
+  assert.equal(updated.id, record.id, 'the id is not a field');
+  assert.equal(updated.createdAt, record.createdAt);
+
+  // Round trip, not just the return value.
+  assert.equal(store.list().find((r) => r.id === record.id).label, 'Corrected Hide');
+  assert.equal(store.update('does-not-exist', { label: 'x' }), null);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('update() leaves a field alone when it is not mentioned', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+  const record = store.create({
+    label: 'Partial',
+    species: 'python',
+    cut: 'whole',
+    finish: 'matte',
+    thicknessMm: 1.1,
+    photoPath: makeTmpPhoto(dataDir),
+    photoExt: '.jpg',
+  });
+
+  const updated = store.update(record.id, { label: 'Renamed' });
+  assert.equal(updated.label, 'Renamed');
+  assert.equal(updated.species, 'python');
+  assert.equal(updated.cut, 'whole');
+  assert.equal(updated.finish, 'matte');
+  assert.equal(updated.thicknessMm, 1.1);
+
+  // An explicit null clears, which is different from not mentioning it.
+  assert.equal(store.update(record.id, { finish: null }).finish, null);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});

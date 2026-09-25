@@ -574,3 +574,115 @@ test('POST /skins/:id/signature does not re-ask a hide that already has a cut', 
     assert.notEqual(response.status, 400);
   });
 });
+
+function patchSkin(baseUrl, id, payload) {
+  return fetch(`${baseUrl}/skins/${id}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+test('POST /skins/:id corrects the operator-set fields', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl, { cut: 'tail' })).json();
+
+    const response = await patchSkin(baseUrl, created.id, {
+      label: 'Renamed',
+      species: 'alligator',
+      cut: 'belly',
+      finish: 'matte',
+      thicknessMm: 1.9,
+    });
+    assert.equal(response.status, 200);
+    const updated = await response.json();
+
+    assert.equal(updated.label, 'Renamed');
+    assert.equal(updated.species, 'alligator');
+    assert.equal(updated.cut, 'belly');
+    assert.equal(updated.finish, 'matte');
+    assert.equal(updated.thicknessMm, 1.9);
+    // The measured half is untouched.
+    assert.deepEqual(updated.outlinePolygon, created.outlinePolygon);
+    assert.equal(updated.colourA, created.colourA);
+    assert.equal(updated.createdAt, created.createdAt);
+  });
+});
+
+test('POST /skins/:id refuses to clear the cut of a matchable hide', async () => {
+  await withServer(async (baseUrl) => {
+    // The rule this protects: every hide that carries a scale signature has a
+    // cut. Without this check, editing is a back door around the three
+    // capture routes that all enforce it.
+    const created = await (await postSkin(baseUrl, { cut: 'tail' })).json();
+    assert.ok(created.dominantWavelengthMm != null, 'this hide is matchable');
+
+    const response = await patchSkin(baseUrl, created.id, { cut: null });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /matchable|signature|measured/i);
+
+    // Unchanged on disk.
+    const after = (await (await fetch(`${baseUrl}/skins`)).json())[0];
+    assert.equal(after.cut, 'tail');
+  });
+});
+
+test('POST /skins/:id allows clearing the cut of a hide that is not matchable', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl, { cut: 'tail' })).json();
+    assert.equal(created.dominantWavelengthMm, null, 'outline only, not matchable');
+
+    const response = await patchSkin(baseUrl, created.id, { cut: null });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).cut, null);
+  });
+});
+
+test('POST /skins/:id rejects an empty species and an empty label', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl)).json();
+
+    assert.equal((await patchSkin(baseUrl, created.id, { species: '' })).status, 400);
+    assert.equal((await patchSkin(baseUrl, created.id, { species: null })).status, 400);
+    assert.equal((await patchSkin(baseUrl, created.id, { label: '  ' })).status, 400);
+  });
+});
+
+test('POST /skins/:id rejects a nonsense thickness', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl)).json();
+    assert.equal((await patchSkin(baseUrl, created.id, { thicknessMm: -1 })).status, 400);
+    assert.equal((await patchSkin(baseUrl, created.id, { thicknessMm: 'thick' })).status, 400);
+    assert.equal((await patchSkin(baseUrl, created.id, { thicknessMm: 0 })).status, 400);
+  });
+});
+
+test('POST /skins/:id rejects an unknown field instead of silently ignoring it', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await (await postOutlineSkin(baseUrl)).json();
+    // This route exists to fix mislabels, so a typo that appears to succeed
+    // while changing nothing is the exact failure it must not have.
+    const response = await patchSkin(baseUrl, created.id, { cutt: 'belly' });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /cutt/);
+
+    // Measured fields are rejected by the same rule, with a clearer reason.
+    const measured = await patchSkin(baseUrl, created.id, { colourA: 99 });
+    assert.equal(measured.status, 400);
+    assert.match((await measured.json()).error, /colourA/);
+  });
+});
+
+test('POST /skins/:id 404s for an unknown hide and 400s on a broken body', async () => {
+  await withServer(async (baseUrl) => {
+    assert.equal((await patchSkin(baseUrl, 'does-not-exist', { label: 'x' })).status, 404);
+
+    const created = await (await postOutlineSkin(baseUrl)).json();
+    const broken = await fetch(`${baseUrl}/skins/${created.id}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{not json',
+    });
+    assert.equal(broken.status, 400);
+  });
+});

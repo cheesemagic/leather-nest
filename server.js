@@ -105,6 +105,87 @@ function rotationsOrUndefined(raw) {
 // numberOrNull(null) returns 0 (Number(null) === 0), which would silently
 // turn a deliberate "clear this value" into a stored 0. speciesOrNull calls
 // .split() on its argument, which throws on an actual array.
+// POST /skins/:id is the trust boundary for hide edits, same split as
+// validateDieUpdate below: validate here, store.update() stays a dumb writer.
+//
+// Unknown keys are REJECTED rather than ignored, which is a deliberate
+// divergence from validateDieUpdate. This route exists so a mislabelled hide
+// can be corrected, so a typo that reports success while changing nothing is
+// the precise failure it must not have -- and the same rule gives a measured
+// field an honest refusal instead of silence.
+const EDITABLE_HIDE_FIELDS = ['label', 'species', 'cut', 'finish', 'thicknessMm'];
+
+function validateHideUpdate(payload, existing) {
+  const result = {};
+
+  const unknown = Object.keys(payload).filter((k) => !EDITABLE_HIDE_FIELDS.includes(k));
+  if (unknown.length > 0) {
+    return {
+      error:
+        `Cannot set ${unknown.join(', ')}. Editable: ${EDITABLE_HIDE_FIELDS.join(', ')}. ` +
+        'A hide\'s outline and colour come from re-digitizing it, and its scale ' +
+        'measurement from measuring it -- neither can be typed in.',
+    };
+  }
+
+  // Required, and not clearable: a hide with no name or no species cannot be
+  // found or matched. Both are required at creation for the same reason.
+  for (const field of ['label', 'species']) {
+    if (field in payload) {
+      const value = payload[field];
+      if (typeof value !== 'string' || value.trim() === '') {
+        return { error: `${field} must be a non-empty string.` };
+      }
+      result[field] = value.trim();
+    }
+  }
+
+  if ('finish' in payload) {
+    const { finish } = payload;
+    if (finish !== null && typeof finish !== 'string') {
+      return { error: 'finish must be a string or null.' };
+    }
+    const trimmed = finish === null ? null : finish.trim();
+    result.finish = trimmed === '' ? null : trimmed;
+  }
+
+  if ('cut' in payload) {
+    const { cut } = payload;
+    if (cut !== null && typeof cut !== 'string') {
+      return { error: 'cut must be a string or null.' };
+    }
+    const trimmed = cut === null ? null : cut.trim();
+    const cleared = trimmed === '' ? null : trimmed;
+
+    // Every hide carrying a scale signature has a cut -- all three capture
+    // routes enforce it. Without this check, editing is a back door around
+    // that rule, and matching would silently start flagging pairs as
+    // unverifiable again. Re-measuring is the way to change a matchable
+    // hide's cut; clearing it outright is not offered.
+    if (cleared === null && existing.dominantWavelengthMm != null) {
+      return {
+        error:
+          'This hide is measured for matching, so it must keep a cut. ' +
+          'Choose a different cut, or re-measure the hide to change it.',
+      };
+    }
+    result.cut = cleared;
+  }
+
+  if ('thicknessMm' in payload) {
+    const { thicknessMm } = payload;
+    if (thicknessMm === null) {
+      result.thicknessMm = null;
+    } else if (typeof thicknessMm !== 'number' || !Number.isFinite(thicknessMm) || thicknessMm <= 0) {
+      return { error: 'thicknessMm must be a positive number or null.' };
+    } else {
+      result.thicknessMm = thicknessMm;
+    }
+  }
+
+  return { value: result };
+}
+
 function validateDieUpdate(payload, existing) {
   const result = {};
 
@@ -547,6 +628,41 @@ function createSkinsRoutes(dataDir) {
   // be reused is the calibration -- it is spent at capture time converting
   // the outline to millimetres and never stored -- so the operator marks two
   // points again here.
+  async function handleUpdateSkin(req, res, id) {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      sendJSON(res, 400, { error: 'Could not parse request body.' });
+      return;
+    }
+
+    const existing = store.list().find((s) => s.id === id);
+    if (!existing) {
+      sendJSON(res, 404, { error: 'Skin not found.' });
+      return;
+    }
+
+    const { error, value } = validateHideUpdate(payload, existing);
+    if (error) {
+      sendJSON(res, 400, { error });
+      return;
+    }
+
+    const updated = store.update(id, value);
+    if (!updated) {
+      sendJSON(res, 404, { error: 'Skin not found.' });
+      return;
+    }
+    sendJSON(res, 200, updated);
+  }
+
   async function handleMeasureSkinSignature(req, res, id) {
     const existing = store.list().find((s) => s.id === id);
     if (!existing) {
@@ -610,6 +726,7 @@ function createSkinsRoutes(dataDir) {
     handleSkinPhoto,
     handleRedigitizeSkin,
     handleMeasureSkinSignature,
+    handleUpdateSkin,
   };
 }
 
@@ -1335,6 +1452,12 @@ export function createServer({
       skins.handleSkinPhoto(req, res, photoMatch[1]);
       return;
     }
+    const skinUpdateMatch = req.method === 'POST' && req.url.match(/^\/skins\/([^/]+)$/);
+    if (skinUpdateMatch) {
+      skins.handleUpdateSkin(req, res, skinUpdateMatch[1]);
+      return;
+    }
+
     const skinDeleteMatch = req.method === 'DELETE' && req.url.match(/^\/skins\/([^/]+)$/);
     if (skinDeleteMatch) {
       skins.handleDeleteSkin(req, res, skinDeleteMatch[1]);
