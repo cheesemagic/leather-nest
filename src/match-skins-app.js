@@ -1,6 +1,7 @@
 import { attachCalibration } from './calibration-ui.js';
 import { attachRegionSelect } from './region-select-ui.js';
 import { populateSpeciesSelect } from './skins/species.js';
+import { populateCutSelect } from './skins/cuts.js';
 
 const photoInput = document.getElementById('photo-input');
 const calibrationContainer = document.getElementById('calibration-container');
@@ -8,12 +9,14 @@ const regionContainer = document.getElementById('region-container');
 const addForm = document.getElementById('add-form');
 const labelInput = document.getElementById('label-input');
 const speciesInput = document.getElementById('species-input');
+const cutInput = document.getElementById('cut-input');
 const submitButton = document.getElementById('submit-skin');
 const addStatus = document.getElementById('add-status');
 const inventoryEl = document.getElementById('inventory');
 const matchesEl = document.getElementById('matches');
 
 populateSpeciesSelect(speciesInput);
+populateCutSelect(cutInput);
 
 let selectedFile = null;
 let calibration = null;
@@ -73,8 +76,9 @@ submitButton.addEventListener('click', async () => {
   if (!selectedFile || !calibration || !region) return;
   const label = labelInput.value.trim();
   const species = speciesInput.value.trim();
-  if (!label || !species) {
-    addStatus.textContent = 'Label and species are required.';
+  const cut = cutInput.value.trim();
+  if (!label || !species || !cut) {
+    addStatus.textContent = 'Label, species, and cut are required.';
     return;
   }
 
@@ -84,6 +88,7 @@ submitButton.addEventListener('click', async () => {
   formData.append('photo', selectedFile);
   formData.append('label', label);
   formData.append('species', species);
+  formData.append('cut', cut);
   formData.append('roiX', region.roiX);
   formData.append('roiY', region.roiY);
   formData.append('roiWidth', region.roiWidth);
@@ -104,6 +109,7 @@ submitButton.addEventListener('click', async () => {
     addStatus.textContent = `Added "${body.label}" — ${body.dominantWavelengthMm.toFixed(2)}mm scale.`;
     labelInput.value = '';
     speciesInput.value = '';
+    cutInput.value = '';
     addForm.style.display = 'none';
     loadInventory();
   } catch {
@@ -158,7 +164,12 @@ document.getElementById('refresh-matches').addEventListener('click', async () =>
             pair.colourDifference != null
               ? `colour difference ${pair.colourDifference.toFixed(1)}`
               : 'colour not recorded on one or both -- ranked by scale only';
-          return `<li>${nameOf(pair.skinAId)}${swatchOf(pair.skinAId)} &harr; ${nameOf(pair.skinBId)}${swatchOf(pair.skinBId)}: ${colourText}, ${pair.scaleDifferenceMm.toFixed(2)}mm scale difference</li>`;
+          // A pair that could not be fully judged says so, rather than just
+          // sitting quietly at the bottom of the list.
+          const cutText = pair.unverified?.includes('cut')
+            ? ' — cut not recorded on one or both, so it could not be checked'
+            : '';
+          return `<li>${nameOf(pair.skinAId)}${swatchOf(pair.skinAId)} &harr; ${nameOf(pair.skinBId)}${swatchOf(pair.skinBId)}: ${colourText}, ${pair.scaleDifferenceMm.toFixed(2)}mm scale difference${cutText}</li>`;
         })
         .join('')}
     </ul>
