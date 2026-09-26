@@ -21,6 +21,38 @@ const SKIN_SIGNATURE_SCRIPT = path.join(__dirname, 'scripts', 'skin_signature.py
 const COLOUR_SAMPLE_SCRIPT = path.join(__dirname, 'scripts', 'colour_sample.py');
 const BLOTCH_MATCH_SCRIPT = path.join(__dirname, 'scripts', 'blotch_match.py');
 
+// Every Python call gets a timeout, because none of them had one. The blotch
+// search is what made this urgent -- measured at 52-65s on a full-resolution
+// phone photo, with no progress indicator -- but a wedged OpenCV call on ANY
+// script held its request open forever, and the operator's only signal was a
+// page that never came back.
+//
+// Three minutes is roughly 3x the slowest measured real run. It is a ceiling
+// on a hang, not a performance target: a search legitimately taking longer
+// than this means the photo is bigger than anything yet tested, and the
+// answer then is a progress indicator, not a larger number here.
+const PYTHON_TIMEOUT_MS = 180_000;
+
+// Exported for its test. Wraps execFile so the timeout cannot be forgotten at
+// a call site -- it was missing from all nine of them -- and so that a
+// timeout reads as one. Node reports a killed child with an empty stderr, and
+// every handler here surfaces `stderr.trim() || <generic fallback>`, so
+// without this substitution a three-minute hang would surface as "Search
+// failed." with no hint that time was the problem.
+export function execPython(args, optionsOrCallback, maybeCallback) {
+  const callback = maybeCallback ?? optionsOrCallback;
+  const options = maybeCallback ? optionsOrCallback : {};
+  const timeoutMs = options.timeout ?? PYTHON_TIMEOUT_MS;
+
+  return execFile(PYTHON, args, { ...options, timeout: timeoutMs }, (err, stdout, stderr) => {
+    if (err && err.killed) {
+      callback(err, stdout, `Timed out after ${Math.round(timeoutMs / 1000)}s and was stopped.`);
+      return;
+    }
+    callback(err, stdout, stderr);
+  });
+}
+
 const MIME_TYPES = {
   '.html': 'text/html',
   '.css': 'text/css',
@@ -302,7 +334,7 @@ async function handleDigitize(req, res) {
     getField('realDistanceMm'),
   ];
 
-  execFile(PYTHON, args, (err, stdout, stderr) => {
+  execPython(args, (err, stdout, stderr) => {
     fs.unlink(photo.filepath, () => {});
 
     if (err) {
@@ -378,7 +410,7 @@ function createSkinsRoutes(dataDir) {
         ...(hasROI ? roiFields.map(getField) : []),
       ];
 
-      execFile(PYTHON, args, (err, stdout, stderr) => {
+      execPython(args, (err, stdout, stderr) => {
         if (err) {
           fs.unlink(photo.filepath, () => {});
           sendJSON(res, 422, { error: stderr.trim() || 'Digitization failed.' });
@@ -437,7 +469,7 @@ function createSkinsRoutes(dataDir) {
           getField('p2y'),
           getField('realDistanceMm'),
         ];
-        execFile(PYTHON, signatureArgs, (signatureErr, signatureStdout, signatureStderr) => {
+        execPython(signatureArgs, (signatureErr, signatureStdout, signatureStderr) => {
           if (signatureErr) {
             // Losing the whole hide over an optional second measurement would
             // throw away the calibration and outline work with it. Save it,
@@ -485,7 +517,7 @@ function createSkinsRoutes(dataDir) {
       getField('realDistanceMm'),
     ];
 
-    execFile(PYTHON, args, (err, stdout, stderr) => {
+    execPython(args, (err, stdout, stderr) => {
       if (err) {
         fs.unlink(photo.filepath, () => {});
         sendJSON(res, 422, { error: stderr.trim() || 'Signature computation failed.' });
@@ -505,7 +537,7 @@ function createSkinsRoutes(dataDir) {
         getField('roiWidth'),
         getField('roiHeight'),
       ];
-      execFile(PYTHON, colourArgs, (colourErr, colourStdout) => {
+      execPython(colourArgs, (colourErr, colourStdout) => {
         const colour = colourErr ? {} : JSON.parse(colourStdout);
         const record = store.create({
           label,
@@ -601,7 +633,7 @@ function createSkinsRoutes(dataDir) {
     ];
     const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
 
-    execFile(PYTHON, args, (err, stdout, stderr) => {
+    execPython(args, (err, stdout, stderr) => {
       if (err) {
         fs.unlink(photo.filepath, () => {});
         sendJSON(res, 422, { error: stderr.trim() || 'Digitization failed.' });
@@ -704,7 +736,7 @@ function createSkinsRoutes(dataDir) {
     }
 
     const args = [SKIN_SIGNATURE_SCRIPT, storedPhoto, ...required.map(getField)];
-    execFile(PYTHON, args, (err, stdout, stderr) => {
+    execPython(args, (err, stdout, stderr) => {
       if (err) {
         // Nothing to lose here, unlike the create path -- the hide already
         // exists and is untouched, so a failed measurement is just an error.
@@ -833,7 +865,7 @@ function createPartsRoutes(dataDir) {
       getField('roiWidth'),
       getField('roiHeight'),
     ];
-    execFile(PYTHON, args, (err, stdout, stderr) => {
+    execPython(args, (err, stdout, stderr) => {
       fs.unlink(photoFile.filepath, () => {});
       if (err) {
         sendJSON(res, 422, { error: stderr.trim() || 'Digitization failed.' });
@@ -1382,7 +1414,7 @@ function createSessionsRoutes(dataDir, partsDataDir, skinsDataDir) {
       occupied,
     };
 
-    const child = execFile(PYTHON, [BLOTCH_MATCH_SCRIPT], { maxBuffer: 1024 * 1024 * 16 }, (err, stdout, stderr) => {
+    const child = execPython([BLOTCH_MATCH_SCRIPT], { maxBuffer: 1024 * 1024 * 16 }, (err, stdout, stderr) => {
       if (err) {
         sendJSON(res, 422, { error: stderr.trim() || 'Search failed.' });
         return;

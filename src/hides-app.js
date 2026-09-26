@@ -741,6 +741,37 @@ gridEl.addEventListener('click', (event) => {
 });
 
 searchInput.addEventListener('input', renderGrid);
-sortInput.addEventListener('change', renderGrid);
+// Which sort the operator picked, remembered across reloads. Per-browser and
+// per-device by design -- this is a display preference, not data about a
+// hide, so it has no business on the server or in a hide record.
+//
+// Every access is guarded: localStorage throws outright in some contexts
+// (private windows, site data blocked), and a page that will not render
+// because it could not read a dropdown preference would be a bad trade.
+const SORT_STORAGE_KEY = 'leather-nest:hide-sort';
+
+function restoreSort() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(SORT_STORAGE_KEY);
+  } catch {
+    return;
+  }
+  // Checked against SORTS rather than trusted: a stored value can outlive the
+  // option that produced it, and renderGrid's `?? SORTS.added` fallback would
+  // then silently disagree with what the dropdown shows.
+  if (saved && saved in SORTS) sortInput.value = saved;
+}
+
+sortInput.addEventListener('change', () => {
+  try {
+    localStorage.setItem(SORT_STORAGE_KEY, sortInput.value);
+  } catch {
+    // Not being able to remember the choice is not a reason to ignore it.
+  }
+  renderGrid();
+});
+
+restoreSort();
 
 loadHides();

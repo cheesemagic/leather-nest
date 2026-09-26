@@ -31,7 +31,7 @@ export function place(sheetPolygon, parts, options = {}) {
   // Guarded like clearanceMm, and for a sharper reason: a step of 0 loops
   // forever, and NaN makes `y <= maxY` false immediately so nothing places
   // at all. Both fall back to the 1mm default, which keeps every existing
-  // caller — src/app.js included — behaving exactly as before.
+  // caller behaving exactly as before.
   const rawGridStep = options.gridStepMm;
   const gridStepMm =
     Number.isFinite(rawGridStep) && rawGridStep > 0 ? rawGridStep : GRID_STEP_MM;

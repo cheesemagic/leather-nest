@@ -463,8 +463,8 @@ test('a coarser gridStepMm lands placements on multiples of that step', () => {
 });
 
 test('omitting gridStepMm reproduces the 1mm result exactly', () => {
-  // The nester's own default stays 1mm, so src/app.js and every existing
-  // caller are untouched by this option existing.
+  // The nester's own default stays 1mm, so every existing caller is
+  // untouched by this option existing.
   const sheet = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 100 }, { x: 0, y: 100 }];
   const small = [{ x: 0, y: 0 }, { x: 13, y: 0 }, { x: 13, y: 13 }, { x: 0, y: 13 }];
   const parts = Array.from({ length: 5 }, (_, i) => ({
