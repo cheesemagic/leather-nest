@@ -151,7 +151,7 @@ export function createStore(dataDir) {
   // else, where redigitize replaces the hide's shape and resets how much of
   // it is left. A hide part-way through being cut must be able to become
   // matchable without its remaining area being thrown back to 100%.
-  function setSignature(id, { dominantWavelengthMm, radialSpectrum, cut }) {
+  function setSignature(id, { dominantWavelengthMm, radialSpectrum, cut, finish }) {
     const record = readRecord(id);
     if (!record) return null;
     record.dominantWavelengthMm = dominantWavelengthMm;
@@ -160,6 +160,7 @@ export function createStore(dataDir) {
     // wipe it -- but naming a different one does overwrite, which is
     // currently the only way to correct a mislabelled cut.
     if (cut != null) record.cut = cut;
+    if (finish != null) record.finish = finish;
     fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));
     return record;
   }

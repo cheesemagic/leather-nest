@@ -4,6 +4,7 @@ import { boundingBox, polygonArea } from './nesting/geometry.js';
 import { compareByColour } from './skins/colour-order.js';
 import { populateSpeciesSelect } from './skins/species.js';
 import { populateCutSelect } from './skins/cuts.js';
+import { populateFinishSelect } from './skins/finishes.js';
 
 const summaryEl = document.getElementById('hides-summary');
 const gridEl = document.getElementById('hide-grid');
@@ -30,6 +31,7 @@ const addStatus = document.getElementById('add-hide-status');
 
 populateSpeciesSelect(speciesInput);
 populateCutSelect(cutInput);
+populateFinishSelect(finishInput);
 
 const redigitizeDialog = document.getElementById('redigitize-dialog');
 const redigitizePhotoInput = document.getElementById('redigitize-photo');
@@ -47,18 +49,23 @@ const cancelMeasureButton = document.getElementById('cancel-measure');
 const submitMeasureButton = document.getElementById('submit-measure');
 const measureCutInput = document.getElementById('measure-cut');
 const measureCutWrapper = document.getElementById('measure-cut-wrapper');
+const measureFinishInput = document.getElementById('measure-finish');
+const measureFinishWrapper = document.getElementById('measure-finish-wrapper');
 populateCutSelect(measureCutInput);
+populateFinishSelect(measureFinishInput);
 
 const editDialog = document.getElementById('edit-dialog');
 const editLabelInput = document.getElementById('edit-label');
 const editSpeciesInput = document.getElementById('edit-species');
 const editCutInput = document.getElementById('edit-cut');
 const editCutLocked = document.getElementById('edit-cut-locked');
+const editFinishLocked = document.getElementById('edit-finish-locked');
 const editThicknessInput = document.getElementById('edit-thickness');
 const editFinishInput = document.getElementById('edit-finish');
 const editStatus = document.getElementById('edit-status');
 populateSpeciesSelect(editSpeciesInput);
 populateCutSelect(editCutInput);
+populateFinishSelect(editFinishInput);
 let editHideId = null;
 
 const deleteDialog = document.getElementById('delete-dialog');
@@ -273,9 +280,10 @@ submitButton.addEventListener('click', async () => {
       'Drag a patch of scales to measure, or untick "Also measure this hide for matching".';
     return;
   }
-  if (forMatchingInput.checked && !cutInput.value) {
+  if (forMatchingInput.checked && (!cutInput.value || !finishInput.value)) {
     addStatus.textContent =
-      'Choose which cut this hide is — matching needs it, or untick "Also measure this hide for matching".';
+      'Matching needs both the cut and the finish — a tail and a belly are never a pair, ' +
+      'and nor are a suede hide and a glossy one. Or untick "Also measure this hide for matching".';
     return;
   }
 
@@ -406,6 +414,7 @@ function resetMeasureForm() {
   measureCalibration = null;
   measureRegion = null;
   measureCutInput.value = '';
+  measureFinishInput.value = '';
   measureCalibrationContainer.innerHTML = '';
   measureRegionContainer.innerHTML = '';
   measureStatus.textContent = '';
@@ -419,7 +428,9 @@ function openMeasureDialog(hideId) {
   measureHideId = hideId;
   // Only ask when the hide cannot already answer. Re-interrogating a hide that
   // knows its cut would make the dialog look like it had forgotten.
-  measureCutWrapper.hidden = Boolean(hides.find((h) => h.id === hideId)?.cut);
+  const measuring = hides.find((h) => h.id === hideId);
+  measureCutWrapper.hidden = Boolean(measuring?.cut);
+  measureFinishWrapper.hidden = Boolean(measuring?.finish);
   measureDialog.hidden = false;
   const photoUrl = `/skins/${hideId}/photo`;
   attachCalibration(measureCalibrationContainer, photoUrl, (calibrationResult) => {
@@ -445,7 +456,9 @@ function openEditDialog(hideId) {
   // the form should not offer to. Say why rather than just failing on save.
   const matchable = hide.dominantWavelengthMm != null;
   editCutLocked.hidden = !matchable;
+  editFinishLocked.hidden = !matchable;
   editCutInput.querySelector('option[value=""]').disabled = matchable;
+  editFinishInput.querySelector('option[value=""]').disabled = matchable;
 
   editDialog.hidden = false;
 }
@@ -509,6 +522,10 @@ submitMeasureButton.addEventListener('click', async () => {
     measureStatus.textContent = 'Choose which cut this hide is.';
     return;
   }
+  if (!measureFinishWrapper.hidden && !measureFinishInput.value) {
+    measureStatus.textContent = 'Choose this hide\'s finish.';
+    return;
+  }
 
   const formData = new FormData();
   formData.append('p1x', measureCalibration.p1x);
@@ -521,6 +538,7 @@ submitMeasureButton.addEventListener('click', async () => {
   formData.append('roiWidth', measureRegion.roiWidth);
   formData.append('roiHeight', measureRegion.roiHeight);
   if (measureCutInput.value) formData.append('cut', measureCutInput.value);
+  if (measureFinishInput.value) formData.append('finish', measureFinishInput.value);
 
   measureStatus.textContent = 'Measuring…';
 

@@ -5,7 +5,7 @@ import {
   spectrumCorrelation,
   rankMatches,
   colourDifference,
-  cutsCanPair,
+  attributesCanPair,
 } from '../src/skins/similarity.js';
 
 test('scaleDifferenceMm returns the absolute difference in mm', () => {
@@ -167,6 +167,8 @@ test('rankMatches skips signature-less skins entirely, producing no NaN', () => 
 function pairOfCuts(cutA, cutB) {
   const base = {
     species: 'caiman',
+    // Stated and equal on both sides, so only `cut` can move these tests.
+    finish: 'matte',
     radialSpectrum: [0.1, 0.5, 1, 0.5, 0.1],
     colourA: 12,
     colourB: 20,
@@ -177,14 +179,54 @@ function pairOfCuts(cutA, cutB) {
   ];
 }
 
-test('cutsCanPair refuses two known different cuts and allows everything else', () => {
-  assert.equal(cutsCanPair({ cut: 'tail' }, { cut: 'belly' }), false);
-  assert.equal(cutsCanPair({ cut: 'tail' }, { cut: 'tail' }), true);
-  // An unknown cut cannot rule a pair out -- it can only leave it unverified.
-  assert.equal(cutsCanPair({ cut: 'tail' }, { cut: null }), true);
-  assert.equal(cutsCanPair({ cut: null }, { cut: null }), true);
-  // A record predating the field entirely, not just one holding a null.
-  assert.equal(cutsCanPair({ cut: 'tail' }, {}), true);
+// Both gating attributes stated and equal, so a test can vary one at a time.
+const paired = { cut: 'tail', finish: 'matte' };
+
+test('attributesCanPair refuses two known different values and allows everything else', () => {
+  const canPair = (a, b) => attributesCanPair(a, b).canPair;
+
+  assert.equal(canPair(paired, { ...paired, cut: 'belly' }), false);
+  assert.equal(canPair(paired, { ...paired, finish: 'suede' }), false);
+  assert.equal(canPair(paired, paired), true);
+
+  // An unknown cannot rule a pair out -- it can only leave it unverified.
+  assert.equal(canPair(paired, { ...paired, cut: null }), true);
+  assert.equal(canPair(paired, { ...paired, finish: null }), true);
+  // A record predating the fields entirely, not just one holding nulls.
+  assert.equal(canPair(paired, {}), true);
+});
+
+test('attributesCanPair names every attribute it could not check', () => {
+  assert.deepEqual(attributesCanPair(paired, paired).unverified, []);
+  assert.deepEqual(attributesCanPair(paired, { ...paired, cut: null }).unverified, ['cut']);
+  assert.deepEqual(attributesCanPair(paired, { ...paired, finish: null }).unverified, ['finish']);
+  assert.deepEqual(attributesCanPair(paired, {}).unverified, ['cut', 'finish']);
+});
+
+test('a blocked pair reports no unverified attributes, because it is not a pair', () => {
+  // Nothing consumes this, but the shape should not imply a pair exists to
+  // be flagged -- the loop skips it before it is ever built.
+  assert.deepEqual(attributesCanPair(paired, { ...paired, cut: 'belly' }).unverified, []);
+});
+
+test('a suede hide and a glossy hide never pair, however close everything else', () => {
+  // The finish half of the gate, end to end. Confirmed with the operator
+  // 2026-09-26: suede is the flesh side, and it never reads as a glazed
+  // surface however well the scale and colour agree.
+  const base = {
+    species: 'ostrich',
+    cut: 'leg',
+    radialSpectrum: [0.1, 0.5, 1, 0.5, 0.1],
+    colourA: 12,
+    colourB: 20,
+    dominantWavelengthMm: 3.2,
+  };
+  const groups = rankMatches([
+    { ...base, id: 'suede', finish: 'suede' },
+    { ...base, id: 'glossy', finish: 'glossy', dominantWavelengthMm: 3.21 },
+  ]);
+  assert.equal(groups.length, 1, 'the species group still exists');
+  assert.deepEqual(groups[0].pairs, [], 'but it contains no pair');
 });
 
 test('a caiman tail and a caiman belly never pair, however close their scales', () => {
@@ -213,6 +255,7 @@ test('pairs with an unverified cut sort after every fully-judged pair', () => {
   // partition can put them last -- otherwise they would rank first.
   const base = {
     species: 'caiman',
+    finish: 'matte',
     radialSpectrum: [0.1, 0.5, 1, 0.5, 0.1],
     colourA: 12,
     colourB: 20,
@@ -237,6 +280,7 @@ test('flagged pairs are still ranked among themselves', () => {
   const base = {
     species: 'python',
     cut: null,
+    finish: 'glossy',
     radialSpectrum: [0.2, 0.6, 1, 0.6, 0.2],
     colourA: 5,
     colourB: 9,
