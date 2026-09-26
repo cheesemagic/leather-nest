@@ -3,6 +3,7 @@ import { componentIdOf } from './bestuse/evaluate.js';
 import { placedPolygon, boundingBox } from './nesting/geometry.js';
 import { RANKING_STRATEGIES } from './bestuse/ranking.js';
 import { runSearch, canRun, strategyForMode } from './bestuse/search.js';
+import { runAcrossHides } from './bestuse/across.js';
 import { DEFAULT_KERF_MM } from './nesting/clearance.js';
 import { exportToSVG } from './svg/export.js';
 
@@ -161,7 +162,22 @@ function updateModeUI() {
   for (const [mode, section] of Object.entries(sections)) {
     section.style.display = state.mode === mode ? 'block' : 'none';
   }
-  if (state.mode === 'explicit') renderComponentList();
+
+  // Across Library asks the same question You Choose does -- how many of
+  // each -- so it borrows that section rather than duplicating the picker.
+  const namesQuantities = state.mode === 'explicit' || state.mode === 'across';
+  if (state.mode === 'across') sections.explicit.style.display = 'block';
+  if (namesQuantities) renderComponentList();
+
+  // The hide picker means nothing in Across Library: the whole point is that
+  // the order is filled from every hide that can take it. Disabled rather
+  // than hidden, so it is obvious the control exists and is not being
+  // ignored silently.
+  const hideSelect = document.getElementById('hide-select');
+  hideSelect.disabled = state.mode === 'across';
+  hideSelect.title = state.mode === 'across'
+    ? 'Across Library uses every hide that can take the order, so there is nothing to pick.'
+    : '';
 }
 
 function updateMethodUI() {
@@ -202,6 +218,21 @@ async function run() {
   runButton.disabled = true;
 
   try {
+    if (state.mode === 'across') {
+      const result = runAcrossHides({
+        hides: state.hides,
+        components: state.components,
+        quantities: state.quantities,
+        method: state.method,
+        laserClearanceMm: state.laserClearanceMm,
+        kerfMm: state.kerfMm,
+        gridStepMm: state.gridStepMm,
+      });
+      state.results = [];
+      renderAcrossResults(result);
+      return; // the finally below still runs, so the button is restored
+    }
+
     const hide = state.hides.find((h) => h.id === state.selectedHideId);
     const { results, error } = runSearch({
       hide,
@@ -226,6 +257,112 @@ async function run() {
     state.isRunning = false;
     runButton.textContent = originalText;
     updateRunButtonState();
+  }
+}
+
+
+// Across Library results: one layout per hide that was used, plus what could
+// not be cut anywhere. Deliberately NOT the candidate-card layout the other
+// modes use -- there is no field of options to compare here, just one answer
+// spread over several hides.
+function renderAcrossResults({ layouts, shortfall, noDie, skipped, error }) {
+  const container = document.getElementById('results');
+  container.innerHTML = '';
+
+  if (error) {
+    container.innerHTML = `<p style="color: red; padding: 1rem; background: #ffe6e6; border-radius: 4px;">${error}</p>`;
+    return;
+  }
+
+  const title = document.createElement('h2');
+  title.textContent = layouts.length
+    ? `Order filled from ${layouts.length} hide${layouts.length === 1 ? '' : 's'}`
+    : 'Nothing could be cut';
+  container.appendChild(title);
+
+  const nameOf = (componentId) =>
+    state.components.find((c) => c.id === componentId)?.name ?? componentId;
+
+  // The shortfall goes FIRST and stays visible even when most of the order
+  // succeeded: "you asked for 40 and got 34" is the thing the operator has to
+  // act on, and burying it under the layouts would hide it.
+  const short = Object.entries(shortfall ?? {});
+  if (short.length) {
+    const warning = document.createElement('p');
+    warning.style.cssText =
+      'padding: 0.75rem; background: #fff4e5; border-radius: 4px; margin-bottom: 1rem;';
+    warning.textContent =
+      'Short: ' + short.map(([id, n]) => `${n} x ${nameOf(id)}`).join(', ') +
+      ' could not be cut from any hide in the library.';
+    container.appendChild(warning);
+  }
+
+  if (noDie?.length) {
+    const note = document.createElement('p');
+    note.style.cssText = 'padding: 0.75rem; background: #fff4e5; border-radius: 4px;';
+    note.textContent =
+      'No die recorded for: ' + noDie.map(nameOf).join(', ') +
+      '. These cannot be die-cut at all, which is a different problem from not fitting.';
+    container.appendChild(note);
+  }
+
+  if (skipped?.length) {
+    const reasons = {
+      'no-outline': 'not digitized yet',
+      'partially-cut': 'already part-cut, so its outline no longer describes it',
+    };
+    const note = document.createElement('p');
+    note.className = 'text-muted';
+    note.textContent =
+      'Skipped ' + skipped.length + ' hide' + (skipped.length === 1 ? '' : 's') + ': ' +
+      skipped.map((s) => `${state.hides.find((h) => h.id === s.hideId)?.label ?? s.hideId} (${reasons[s.reason] ?? s.reason})`).join(', ');
+    container.appendChild(note);
+  }
+
+  for (const layout of layouts) {
+    const hide = state.hides.find((h) => h.id === layout.hideId);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'margin-bottom: 1rem; padding: 1rem;';
+
+    const heading = document.createElement('h3');
+    heading.textContent = hide?.label ?? layout.hideId;
+    card.appendChild(heading);
+
+    const summary = document.createElement('p');
+    summary.textContent =
+      Object.entries(layout.counts).map(([id, n]) => `${n} x ${nameOf(id)}`).join(', ') +
+      ` — ${Math.round(layout.utilization * 100)}% of the hide used`;
+    card.appendChild(summary);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 400;
+    canvas.style.cssText = 'max-width: 100%; border: 1px solid #ddd; border-radius: 4px;';
+    card.appendChild(canvas);
+    renderLayout(canvas, layout, hide);
+
+    const download = document.createElement('button');
+    download.className = 'button';
+    download.textContent = 'Download cut file';
+    download.style.marginTop = '0.5rem';
+    download.addEventListener('click', () => {
+      const parts = layout.placements.map((placement) => ({
+        id: placement.id,
+        polygon: state.components.find((c) => c.id === componentIdOf(placement.id))?.polygon,
+        interiorPaths: state.components.find((c) => c.id === componentIdOf(placement.id))?.interiorPaths,
+      }));
+      downloadLayout(
+        `${slug(hide?.label ?? layout.hideId)}-order.svg`,
+        exportToSVG(hide.outlinePolygon, layout.placements, parts, {
+          method: state.method,
+          kerfMm: state.kerfMm,
+        })
+      );
+    });
+    card.appendChild(download);
+
+    container.appendChild(card);
   }
 }
 
