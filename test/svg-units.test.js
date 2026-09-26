@@ -107,7 +107,7 @@ test('the points form is scaled too, not just paths', () => {
 });
 
 test('a bare shape with no <svg> wrapper still imports unscaled', () => {
-  // How src/app.js and the original tests call this.
+  // How the original v0 tests call this: no wrapper, no units to resolve.
   const polygon = parseSVGPolygon('<polygon points="0,0 40,0 40,20 0,20" />');
   assert.deepEqual(polygon, [
     { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 20 }, { x: 0, y: 20 },
