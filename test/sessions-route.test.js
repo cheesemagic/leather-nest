@@ -338,6 +338,7 @@ test('a job on a signature-only hide cuts cleanly with no decrement', async () =
       label: 'Signature Only',
       species: 'cayman',
       cut: 'whole',
+      finish: 'matte',
       roiX: 0, roiY: 0, roiWidth: 256, roiHeight: 256,
       p1x: 0, p1y: 0, p2x: 100, p2y: 0, realDistanceMm: 100,
     })) formData.append(key, String(value));

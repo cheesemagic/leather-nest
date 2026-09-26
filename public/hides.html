@@ -53,6 +53,8 @@
       .field-hint { font-size: 0.85rem; margin: 4px 0 0; }
       #hide-matching-region-wrapper[hidden] { display: none; }
       #measure-cut-wrapper[hidden] { display: none; }
+      #measure-finish-wrapper[hidden] { display: none; }
+      #edit-finish-locked[hidden] { display: none; }
       #edit-dialog[hidden] { display: none; }
     </style>
   </head>
@@ -126,11 +128,11 @@
             </div>
             <div class="field">
               <label for="hide-finish">Finish</label>
+              <!-- Options come from src/skins/finishes.js. They used to be
+                   hardcoded here, which is how "semi-gloss" -- a word in no
+                   supplier chart -- survived for months. -->
               <select class="input" id="hide-finish">
                 <option value="">Not set</option>
-                <option value="glossy">Glossy</option>
-                <option value="matte">Matte</option>
-                <option value="semi-gloss">Semi-gloss</option>
               </select>
             </div>
             <div class="field">
@@ -226,10 +228,11 @@
               <label for="edit-finish">Finish</label>
               <select class="input" id="edit-finish">
                 <option value="">Not set</option>
-                <option value="glossy">Glossy</option>
-                <option value="matte">Matte</option>
-                <option value="semi-gloss">Semi-gloss</option>
               </select>
+              <p class="text-muted field-hint" id="edit-finish-locked" hidden>
+                Measured for matching, so it must keep a finish. You can change which one,
+                but not clear it.
+              </p>
             </div>
             <div id="edit-status" class="text-muted"></div>
           </div>
@@ -259,6 +262,16 @@
               </p>
               <select class="input" id="measure-cut">
                 <option value="">-- Choose cut --</option>
+              </select>
+            </div>
+            <div class="field" id="measure-finish-wrapper" hidden>
+              <label for="measure-finish">Finish</label>
+              <p class="text-muted field-hint">
+                This hide has no finish recorded, and matching needs one — a suede hide
+                and a glossy hide are never a pair.
+              </p>
+              <select class="input" id="measure-finish">
+                <option value="">-- Choose finish --</option>
               </select>
             </div>
             <div id="measure-calibration-container"></div>

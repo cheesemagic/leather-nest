@@ -137,6 +137,19 @@ function rotationsOrUndefined(raw) {
 // numberOrNull(null) returns 0 (Number(null) === 0), which would silently
 // turn a deliberate "clear this value" into a stored 0. speciesOrNull calls
 // .split() on its argument, which throws on an actual array.
+// Both gate matching (see GATING_ATTRIBUTES in src/skins/similarity.js), so
+// both are required exactly where matching is created -- the three routes
+// that produce a scale signature -- and nowhere else. An outline-only hide
+// needs neither: nesting does not care how a hide was finished.
+const MATCHING_REQUIRED_FIELDS = ['cut', 'finish'];
+
+// Names what is actually missing rather than a fixed field, so the operator
+// is not told to supply something they already gave.
+function matchingFieldsError(missing) {
+  const verb = missing.length === 1 ? 'is' : 'are';
+  return `${missing.join(' and ')} ${verb} required when measuring a hide for matching.`;
+}
+
 // POST /skins/:id is the trust boundary for hide edits, same split as
 // validateDieUpdate below: validate here, store.update() stays a dumb writer.
 //
@@ -391,10 +404,13 @@ function createSkinsRoutes(dataDir) {
       // callback: a missing cut is knowable up front, so failing early avoids
       // a Python round trip and a second cleanup path.
       const cut = getField('cut') || null;
-      if (getField('captureForMatching') === 'true' && !cut) {
-        fs.unlink(photo.filepath, () => {});
-        sendJSON(res, 400, { error: 'cut is required when measuring a hide for matching.' });
-        return;
+      if (getField('captureForMatching') === 'true') {
+        const missing = MATCHING_REQUIRED_FIELDS.filter((field) => !getField(field));
+        if (missing.length > 0) {
+          fs.unlink(photo.filepath, () => {});
+          sendJSON(res, 400, { error: matchingFieldsError(missing) });
+          return;
+        }
       }
 
       const roiFields = ['roiX', 'roiY', 'roiWidth', 'roiHeight'];
@@ -497,9 +513,10 @@ function createSkinsRoutes(dataDir) {
     // optional here -- see the cut spec's "required wherever a signature is
     // produced".
     const cut = getField('cut');
-    if (!cut) {
+    const missingForMatching = MATCHING_REQUIRED_FIELDS.filter((field) => !getField(field));
+    if (missingForMatching.length > 0) {
       fs.unlink(photo.filepath, () => {});
-      sendJSON(res, 400, { error: 'cut is required when measuring a hide for matching.' });
+      sendJSON(res, 400, { error: matchingFieldsError(missingForMatching) });
       return;
     }
 
@@ -729,9 +746,14 @@ function createSkinsRoutes(dataDir) {
     // Required to become matchable, but asked for only once: a hide that
     // already knows its cut is not re-interrogated. Naming a different one
     // overwrites, which is currently the only way to correct a mislabel.
+    // Supplied wins, then whatever the hide already knows. A hide that can
+    // already answer is not re-interrogated; naming a different value
+    // overwrites, which is currently the only way to correct a mislabel here.
     const cut = getField('cut') || existing.cut || null;
-    if (!cut) {
-      sendJSON(res, 400, { error: 'cut is required when measuring a hide for matching.' });
+    const finish = getField('finish') || existing.finish || null;
+    const missing = MATCHING_REQUIRED_FIELDS.filter((field) => !({ cut, finish })[field]);
+    if (missing.length > 0) {
+      sendJSON(res, 400, { error: matchingFieldsError(missing) });
       return;
     }
 
@@ -746,7 +768,7 @@ function createSkinsRoutes(dataDir) {
         return;
       }
       const { dominantWavelengthMm, radialSpectrum } = JSON.parse(stdout);
-      sendJSON(res, 200, store.setSignature(id, { dominantWavelengthMm, radialSpectrum, cut }));
+      sendJSON(res, 200, store.setSignature(id, { dominantWavelengthMm, radialSpectrum, cut, finish }));
     });
   }
 

@@ -62,20 +62,46 @@ export function colourDifference(a, b) {
   );
 }
 
-// Two hides from different parts of the animal are not a match and never will
-// be: a tail's scales and a belly's scales are different geometry, and the
-// supplier sells both under species "caiman", so species alone does not
-// separate them. The trade's own rule is the same one -- a pair of alligator
-// skins makes two pairs of boots, one from the matching tails and one from the
-// matching bellies.
+// The attributes that decide whether two hides CAN pair at all, as opposed to
+// how well they score once they do. Each one names a real, visible difference
+// that no amount of scale or colour agreement can overcome:
 //
-// False ONLY when both cuts are known and differ. An unknown cut cannot rule a
-// pair out; it can only leave the pair unverified, which is what rankMatches()
-// reports on the pair itself.
-export function cutsCanPair(a, b) {
-  const cutA = a.cut ?? null;
-  const cutB = b.cut ?? null;
-  return !(cutA && cutB && cutA !== cutB);
+//   cut     -- which part of the animal. A tail's scales and a belly's are
+//              different geometry, and the supplier sells both under species
+//              "caiman". The trade's own rule is the same: a pair of alligator
+//              skins makes two pairs of boots, one from the matching tails and
+//              one from the matching bellies.
+//   finish  -- how the surface was treated. Suede is the flesh side; it does
+//              not look like a glazed surface and never will. Confirmed with
+//              the operator 2026-09-26: those two would never pair.
+//
+// Species is NOT in here, because it is the grouping key rather than a gate --
+// two species never reach the same group to be compared.
+export const GATING_ATTRIBUTES = ['cut', 'finish'];
+
+// Whether two hides may pair, and which gating attributes could not be
+// checked. One predicate over the whole list rather than one function per
+// field: "two known different values never pair" is the rule twice now, and
+// will be again if grade or origin ever lands.
+//
+// A pair is blocked ONLY when both sides state a value and the values differ.
+// An unknown cannot rule a pair out -- it can only leave the pair unverified,
+// which is what `unverified` reports and what sorts such pairs last.
+export function attributesCanPair(a, b) {
+  const unverified = [];
+  for (const field of GATING_ATTRIBUTES) {
+    const valueA = a[field] ?? null;
+    const valueB = b[field] ?? null;
+    if (valueA === null || valueB === null) {
+      unverified.push(field);
+      continue;
+    }
+    // No pair at all, rather than a pair ranked badly: a ranking carries no
+    // warning, so a wrong pair sitting in the list is a confidently wrong
+    // answer. Leaving it out is the only honest option.
+    if (valueA !== valueB) return { canPair: false, unverified: [] };
+  }
+  return { canPair: true, unverified };
 }
 
 // The scale/colour ordering, lifted out of rankMatches() so it can be applied
@@ -127,21 +153,21 @@ export function rankMatches(skins) {
         // No pair at all, rather than a pair ranked badly: a ranking carries
         // no warning, so a wrong pair sitting in the list is a confidently
         // wrong answer. Leaving it out is the only honest option.
-        if (!cutsCanPair(a, b)) continue;
-
-        const bothHaveColour = a.colourA != null && a.colourB != null && b.colourA != null && b.colourB != null;
         // eligibility.js's word for "this constraint could not be checked",
         // reused rather than reinvented. Colour keeps its own existing signal
         // (colourDifference: null) instead of being folded in here -- two
         // representations of one state is how they drift apart.
-        const bothHaveCut = (a.cut ?? null) !== null && (b.cut ?? null) !== null;
+        const { canPair, unverified } = attributesCanPair(a, b);
+        if (!canPair) continue;
+
+        const bothHaveColour = a.colourA != null && a.colourB != null && b.colourA != null && b.colourB != null;
         pairs.push({
           skinAId: a.id,
           skinBId: b.id,
           scaleDifferenceMm: scaleDifferenceMm(a, b),
           spectrumCorrelation: spectrumCorrelation(a.radialSpectrum, b.radialSpectrum),
           colourDifference: bothHaveColour ? colourDifference(a, b) : null,
-          unverified: bothHaveCut ? [] : ['cut'],
+          unverified,
         });
       }
     }

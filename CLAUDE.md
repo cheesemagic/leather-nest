@@ -71,9 +71,16 @@ database.
   on close inspection, 2-3.5 around practical tolerance, >5 clearly different
   colours. Colour ranks pairs, it does not gate them — the threshold is still
   open and needs real labelled hide pairs, see
-  `docs/superpowers/specs/2026-09-25-colour-difference-ciede2000-design.md`) and `finish`, an
-  operator-set label (gloss can't be measured from a photo — it's lighting-
-  dependent). Also carries `cut` (`src/skins/cuts.js`: whole / belly / full
+  `docs/superpowers/specs/2026-09-25-colour-difference-ciede2000-design.md`) and `finish`
+  (`src/skins/finishes.js`: matte / glossy / suede / hand-painted / pebble
+  grain / hand-painted two-tone / nappa), an operator-set label because gloss
+  can't be measured from a photo — it's lighting-dependent. Like `cut` it is a
+  HARD GATE on matching: a suede hide and a glossy one are never a pair. One
+  field on purpose, though the values span gloss, treatment and grain — every
+  supplier chart states exactly one of them, so splitting it would invent
+  structure the source does not have. `semi-gloss` was invented on our side
+  and is gone; a test keeps it gone. See
+  `docs/superpowers/specs/2026-09-26-hide-finish-design.md`. Also carries `cut` (`src/skins/cuts.js`: whole / belly / full
   quill / hornback / leg / tail), which part of the animal the hide is, `null`
   when unknown. `rankMatches()` treats it as a HARD GATE: two hides with
   known, different cuts never pair, because a caiman tail and a caiman belly
