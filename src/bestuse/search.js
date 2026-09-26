@@ -81,6 +81,9 @@ export function runSearch({
 // picked so far. Lives here rather than in the page so the rule that
 // "Fill Orders needs no strategy" is checkable.
 export function canRun({ hideId, mode, strategy, quantities }) {
+  // Across Library is the one mode that does not run against a chosen hide --
+  // it runs against all of them -- so it is checked before the hide test.
+  if (mode === 'across') return Object.keys(quantities ?? {}).length > 0;
   if (!hideId) return false;
   if (mode === 'explicit') return Object.keys(quantities ?? {}).length > 0;
   // Fill Orders and Products each answer one fixed question, so there is
@@ -93,6 +96,9 @@ export function canRun({ hideId, mode, strategy, quantities }) {
 // page should hold after a mode change, so the page never has to know that
 // Fill Orders means demand, or that Products is always ranked by value.
 export function strategyForMode(mode) {
+  // Across Library produces one layout per hide, not a field of candidates to
+  // rank, so there is nothing for a strategy to order.
+  if (mode === 'across') return null;
   if (mode === 'mix') return 'demand';
   if (mode === 'products') return 'value';
   return null;

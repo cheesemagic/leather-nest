@@ -13,11 +13,15 @@ export const componentIdOf = (partId) => partId.slice(0, partId.lastIndexOf('#')
 
 // Turns one candidate into an exactly-nested, scored result. Every number
 // here comes from the nester — no estimate reaches this module.
-export function evaluateCandidate(hide, candidate, options = {}) {
+// One component becomes many parts, and the `${componentId}#${i}` scheme is
+// what componentIdOf() reads back. Exported so across.js builds parts the same
+// way rather than growing a second copy that could drift from it -- a drift
+// here would miskey every count and noFit in the pipeline.
+export function buildParts(items) {
   const componentsById = new Map();
   const parts = [];
 
-  for (const item of candidate.items) {
+  for (const item of items) {
     componentsById.set(item.component.id, item.component);
     for (let i = 0; i < item.quantity; i++) {
       parts.push({
@@ -31,6 +35,12 @@ export function evaluateCandidate(hide, candidate, options = {}) {
       });
     }
   }
+
+  return { parts, componentsById };
+}
+
+export function evaluateCandidate(hide, candidate, options = {}) {
+  const { parts, componentsById } = buildParts(candidate.items);
 
   const { parts: cuttable, noDie: noDiePartIds } = resolveClearances(parts, options);
   // The SEARCH defaults coarser than the nester does, and the difference is
