@@ -35,10 +35,10 @@ Five sets of a two-pocket wallet produce `pocket#0` through `pocket#9` and
 belong with `back#3`.** It never mattered, because every piece landed on one
 hide, so any grouping would have been the same grouping.
 
-The moment pieces can land on different hides, that flat counter is the
-blocker: "keep this set together" cannot be expressed against ids that do not
-know which set they are in. This is the foundational change, and it comes
-first.
+The moment pieces can land on different hides, that is the blocker: "keep this
+set together" cannot be expressed against pieces that do not know which set
+they belong to. Recording it is the foundational change, and it comes first —
+though not, as it turns out, in the id.
 
 ## Design
 
