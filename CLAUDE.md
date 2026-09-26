@@ -237,8 +237,32 @@ summary, never mid-task.
 
 ## Security (Prismor)
 
-This workspace is protected by Prismor — runtime security hooks that monitor tool calls in real time (destructive commands, secret leaks, supply-chain risk, prompt injection).
+This workspace is *intended* to run under [Prismor](https://github.com/PrismorSec/prismor)
+— runtime hooks that watch an agent's tool calls for destructive commands,
+secret leaks, supply-chain risk and prompt injection. Written as an intention
+rather than a fact on purpose: the hooks live on the machine, not in the repo,
+so a fresh clone has none until someone sets them up.
 
-Run `prismor status` at the start of a session to check protection state. The full decision tree lives in `.claude/skills/immunity-agent/SKILL.md`.
+**Check, don't assume** — `prismor status` reports what is actually active
+here. As of 2026-09-25 on the original machine that is:
 
-For more info: https://github.com/PrismorSec/prismor
+- **observe mode: it logs, it does not block.** "Protected" would overstate it.
+  Switch with `prismor setup --mode enforce --recommended`, but only after
+  reading a few days of findings — enforcement failing unexpectedly mid-task is
+  a bad first encounter with a tool you are meant to trust.
+- **cloaking not installed.** That is the feature that substitutes real secrets
+  at execution time so they never reach model context, and its install step
+  fails without `jq`. So secrets are *not* being masked. Fix with
+  `brew install jq`, then re-run setup.
+
+The setup used here, which keeps everything local — no hosted judge, not
+enrolled, no reading of past transcripts:
+
+```
+prismor setup --non-interactive --mode observe --scope project \
+  --agents claude --cloak --no-backfill ~/leather-nest
+```
+
+Setup also installs a skill at `.claude/skills/immunity-agent/` carrying the
+full decision tree. That path is gitignored, so it exists only on a machine
+where setup has run — don't expect to find it in a clone.
