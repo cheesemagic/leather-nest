@@ -33,6 +33,9 @@
       #add-panel[hidden] { display: none; }
       .form-grid { display: flex; flex-direction: column; gap: var(--space-3); }
       #edit-dialog[hidden] { display: none; }
+      .toggle-row { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+      .toggle-row input { margin: 0; }
+      .field-hint { font-size: 0.85rem; margin: 4px 0 0; }
     </style>
   </head>
   <body>
@@ -172,6 +175,17 @@
             <input class="input" type="number" step="1" min="0" id="demand-input" />
           </div>
           <div class="field">
+            <label class="toggle-row" for="must-match-input">
+              <input type="checkbox" id="must-match-input" checked />
+              <span>Must be cut from the same hide as the rest of the set</span>
+            </label>
+            <p class="text-muted field-hint">
+              Leave ticked for pieces that are visible together on the finished product —
+              a pair of vamps, a wallet's front and back. Untick only for pieces nobody
+              sees side by side, such as an interior lining.
+            </p>
+          </div>
+          <div class="field">
             <label for="species-input">Allowed species (comma-separated, blank = any)</label>
             <input class="input" type="text" id="species-input" placeholder="caiman, python" list="species-options" />
           </div>
@@ -238,6 +252,12 @@
               <div class="field">
                 <label for="edit-die-clearance">Die clearance (mm) — margin around this die's own cut line; two of them end up twice this far apart. Blank if you have no die.</label>
                 <input class="input" type="number" step="0.1" min="0" id="edit-die-clearance" placeholder="8.0" />
+              </div>
+              <div class="field">
+                <label class="toggle-row" for="edit-must-match">
+                  <input type="checkbox" id="edit-must-match" />
+                  <span>Must be cut from the same hide as the rest of the set</span>
+                </label>
               </div>
               <div id="edit-status" class="text-muted"></div>
             </div>
