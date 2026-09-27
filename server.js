@@ -297,6 +297,16 @@ function validateDieUpdate(payload, existing) {
     }
   }
 
+  if ('mustMatch' in payload) {
+    const { mustMatch } = payload;
+    // No null: unknown and true behave identically here, so a third state
+    // would be a distinction with no consequence.
+    if (typeof mustMatch !== 'boolean') {
+      return { error: 'mustMatch must be true or false.' };
+    }
+    result.mustMatch = mustMatch;
+  }
+
   if ('allowedRotations' in payload) {
     const { allowedRotations } = payload;
     const valid =
@@ -821,6 +831,9 @@ function createPartsRoutes(dataDir) {
       thicknessMaxMm: numberOrNull(getField('thicknessMaxMm')),
       allowedRotations: rotationsOrUndefined(getField('allowedRotations')),
       demand: numberOrNull(getField('demand')) ?? 0,
+      // Multipart, so this arrives as a string. Absent means true: a caller
+      // that does not mention it must not silently make a piece spannable.
+      mustMatch: getField('mustMatch') !== 'false',
     };
 
     // The same magnitude rule validateDieUpdate applies. Without it the
@@ -992,6 +1005,9 @@ function createPartsRoutes(dataDir) {
       thicknessMaxMm: numberOrNull(getField('thicknessMaxMm')),
       allowedRotations: rotationsOrUndefined(getField('allowedRotations')),
       demand: numberOrNull(getField('demand')) ?? 0,
+      // Multipart, so this arrives as a string. Absent means true: a caller
+      // that does not mention it must not silently make a piece spannable.
+      mustMatch: getField('mustMatch') !== 'false',
     };
     // Same magnitude rule the create path applies: numberOrNull passes a
     // negative straight through, and the update route would refuse to set

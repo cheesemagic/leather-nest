@@ -90,6 +90,9 @@ submitButton.addEventListener('click', async () => {
     thicknessMinMm: document.getElementById('thickness-min-input').value,
     thicknessMaxMm: document.getElementById('thickness-max-input').value,
     allowedRotations: document.getElementById('rotations-input').value.trim(),
+    // Sent as a string because this form is multipart. Always sent, so the
+    // server never has to guess which way an unticked box went.
+    mustMatch: String(document.getElementById('must-match-input').checked),
   };
   for (const [key, value] of Object.entries(metadata)) {
     if (value !== '') formData.append(key, value);
@@ -215,7 +218,9 @@ function renderGrid() {
       <p class="card-body">
         ${sizeLabel(component)}${component.valuePerPiece != null ? ` · $${component.valuePerPiece.toFixed(2)} each` : ''}
       </p>
-      <div class="card-meta">${component.demand ? `demand ${component.demand}` : 'no current demand'}</div>
+      <div class="card-meta">${component.demand ? `demand ${component.demand}` : 'no current demand'}${
+        component.mustMatch === false ? ' · may span hides' : ''
+      }</div>
       <div class="component-actions">
         <button type="button" class="btn btn-secondary" data-edit-id="${component.id}">Edit</button>
         <button type="button" class="btn btn-secondary" data-delete-id="${component.id}">Delete</button>
@@ -258,6 +263,8 @@ function openEdit(component) {
   document.getElementById('edit-thickness-max').value = component.thicknessMaxMm ?? '';
   document.getElementById('edit-rotations').value = (component.allowedRotations || []).join(', ');
   document.getElementById('edit-die-clearance').value = component.dieClearanceMm ?? '';
+  // Absent reads as true -- a component nobody annotated is must-match.
+  document.getElementById('edit-must-match').checked = component.mustMatch ?? true;
   editStatus.textContent = '';
   editDialog.hidden = false;
 }
@@ -297,6 +304,7 @@ document.getElementById('save-edit').addEventListener('click', async () => {
   // An empty array is invalid per the update route's rules — omit the key
   // entirely rather than send [] or null when the field was left blank.
   if (rotationsList.length) payload.allowedRotations = rotationsList;
+  payload.mustMatch = document.getElementById('edit-must-match').checked;
 
   editStatus.textContent = 'Saving…';
   try {

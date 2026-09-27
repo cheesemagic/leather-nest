@@ -153,3 +153,98 @@ test('later hides are not consulted once everything is placed', () => {
   );
   assert.equal(consulted, 1, 'only the first hide should have been considered');
 });
+
+// ---- group atomicity (product set spec, 2026-09-26) ----
+
+// Parts carrying a group key: every member must land on one hide or none.
+const grouped = (id, w, h, group) => ({ ...part(id, w, h), group });
+const byGroup = (p) => p.group ?? null;
+
+test('a group that fits entirely stays together on one hide', () => {
+  const { layouts, noFit } = nestAcrossHides(
+    [hide('only', 200, 200)],
+    [grouped('a', 40, 40, 'set0'), grouped('b', 40, 40, 'set0')],
+    { ...opts, groupOf: byGroup }
+  );
+
+  assert.deepEqual(noFit, []);
+  assert.equal(layouts.length, 1);
+  assert.equal(layouts[0].placements.length, 2);
+});
+
+test('a group that only half fits is returned whole to the next hide', () => {
+  // The small hide takes exactly one 40x40. Without rollback it would keep
+  // that one piece and orphan its partner on another hide -- which is the
+  // visible mismatch the whole flag exists to prevent.
+  const { layouts, noFit } = nestAcrossHides(
+    [hide('small', 45, 45), hide('big', 200, 200)],
+    [grouped('a', 40, 40, 'set0'), grouped('b', 40, 40, 'set0')],
+    { ...opts, groupOf: byGroup }
+  );
+
+  assert.deepEqual(noFit, []);
+  assert.equal(layouts.length, 1, 'the small hide produced no layout at all');
+  assert.equal(layouts[0].hideId, 'big');
+  assert.equal(layouts[0].placements.length, 2, 'both members landed together');
+});
+
+test('rolling one group back does not evict an ungrouped part from the same hide', () => {
+  // 45x70 deliberately: one 40x40 group member fits, its partner cannot (two
+  // would need 80mm either way), and the 20x20 loose part still fits the
+  // leftover band. So the group must roll back while the loose part stays.
+  const { layouts } = nestAcrossHides(
+    [hide('small', 45, 70), hide('big', 200, 200)],
+    [
+      grouped('pair-a', 40, 40, 'set0'),
+      grouped('pair-b', 40, 40, 'set0'),
+      part('loose', 20, 20),
+    ],
+    { ...opts, groupOf: byGroup }
+  );
+
+  const small = layouts.find((l) => l.hideId === 'small');
+  const big = layouts.find((l) => l.hideId === 'big');
+  assert.ok(small, 'the small hide still carries the ungrouped part');
+  assert.deepEqual(small.placements.map((p) => p.id), ['loose']);
+  assert.equal(big.placements.length, 2);
+});
+
+test('two different groups are kept apart from one another', () => {
+  // Each set must be whole, but two sets need not share a hide.
+  const { layouts, noFit } = nestAcrossHides(
+    [hide('a', 95, 45), hide('b', 95, 45)],
+    [
+      grouped('s0-a', 40, 40, 'set0'), grouped('s0-b', 40, 40, 'set0'),
+      grouped('s1-a', 40, 40, 'set1'), grouped('s1-b', 40, 40, 'set1'),
+    ],
+    { ...opts, groupOf: byGroup }
+  );
+
+  assert.deepEqual(noFit, []);
+  for (const layout of layouts) {
+    const groups = new Set(layout.placements.map((p) => p.id.slice(0, 2)));
+    assert.equal(groups.size, 1, `hide ${layout.hideId} mixed two sets`);
+  }
+});
+
+test('a group that fits nowhere is reported whole, not in pieces', () => {
+  const { layouts, noFit } = nestAcrossHides(
+    [hide('small', 45, 45)],
+    [grouped('a', 40, 40, 'set0'), grouped('b', 40, 40, 'set0')],
+    { ...opts, groupOf: byGroup }
+  );
+
+  assert.equal(layouts.length, 0);
+  assert.deepEqual(noFit.sort(), ['a', 'b'], 'neither half is left placed');
+});
+
+test('parts with no group are unaffected by group handling', () => {
+  // groupOf returning null is the default for every part in a plain job.
+  const { layouts, noFit } = nestAcrossHides(
+    [hide('only', 200, 200)],
+    [part('x', 30, 30), part('y', 30, 30)],
+    { ...opts, groupOf: () => null }
+  );
+  assert.deepEqual(noFit, []);
+  assert.equal(layouts[0].placements.length, 2);
+});

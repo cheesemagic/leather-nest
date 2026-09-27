@@ -215,3 +215,23 @@ test('dieClearanceMm defaults to null, and 0 survives a round trip', () => {
 
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+test('create() defaults mustMatch to true, and update() can turn it off', () => {
+  const dataDir = makeTmpDir();
+  const store = createStore(dataDir);
+
+  // Absent means true: a component nobody has annotated must not silently
+  // become spannable, because the first sign would be a mismatched product.
+  const unspecified = store.create({ name: 'Vamp', polygon: [] });
+  assert.equal(unspecified.mustMatch, true);
+
+  const hidden = store.create({ name: 'Pocket lining', polygon: [], mustMatch: false });
+  assert.equal(hidden.mustMatch, false);
+
+  assert.equal(store.update(unspecified.id, { mustMatch: false }).mustMatch, false);
+  assert.equal(store.update(unspecified.id, { mustMatch: true }).mustMatch, true);
+  // Round trip, not just the return value.
+  assert.equal(store.list().find((r) => r.id === unspecified.id).mustMatch, true);
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});

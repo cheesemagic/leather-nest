@@ -19,6 +19,7 @@ const METADATA_FIELDS = [
   'allowedRotations',
   'demand',
   'dieClearanceMm',
+  'mustMatch',
 ];
 
 export function createStore(dataDir) {
@@ -60,6 +61,7 @@ export function createStore(dataDir) {
     allowedRotations,
     demand,
     dieClearanceMm,
+    mustMatch,
   }) {
     ensureDir();
     const id = crypto.randomUUID();
@@ -78,6 +80,12 @@ export function createStore(dataDir) {
       allowedRotations: allowedRotations ?? [0, 90, 180, 270],
       demand: demand ?? 0,
       dieClearanceMm: dieClearanceMm ?? null,
+      // Must this piece be cut from the same hide as the rest of its set?
+      // TRUE unless someone says otherwise, and that default is the whole
+      // safety story: false would make every existing component silently
+      // spannable, and the first sign would be a finished product with
+      // mismatched panels. Opt in to a yield gain, never to a quality risk.
+      mustMatch: mustMatch ?? true,
       createdAt: new Date().toISOString(),
     };
     fs.writeFileSync(recordPath(id), JSON.stringify(record, null, 2));

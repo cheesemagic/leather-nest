@@ -5,7 +5,8 @@ import ClipperLib from 'clipper-lib';
 
 globalThis.ClipperLib = ClipperLib;
 
-import { productCandidates, evaluateProductCandidate } from '../src/bestuse/products.js';
+import { productCandidates, evaluateProductCandidate, buildSetParts } from '../src/bestuse/products.js';
+import { componentIdOf } from '../src/bestuse/evaluate.js';
 
 const OUTLINE = [{ x: 0, y: 0 }, { x: 600, y: 0 }, { x: 600, y: 400 }, { x: 0, y: 400 }];
 const HIDE = { id: 'h1', species: 'python', thicknessMm: 1.8, outlinePolygon: OUTLINE, remainingAreaPct: 100 };
@@ -120,4 +121,39 @@ test('evaluateProductCandidate reports noDie and 0 complete sets when a part has
   assert.equal(result.value, 0);
   assert.ok(result.noDie.includes('back'));
   assert.ok(result.noDie.includes('pocket'));
+});
+
+test('set membership is a field, and part ids are unchanged by it', () => {
+  // The spec rejected putting the set into the id: componentIdOf splits on
+  // the LAST '#', so `comp#set0#1` would come back as "comp#set0" and miskey
+  // every count, noDie and unverified list downstream. This asserts the id
+  // shape never widened.
+  const component = (id) => ({ id, polygon: [], allowedRotations: [0] });
+  const product = { id: 'wallet', parts: [{ partId: 'back', quantity: 1 }, { partId: 'pocket', quantity: 2 }] };
+  const entries = [{ component: component('back') }, { component: component('pocket') }];
+
+  const parts = buildSetParts(product, entries, 2);
+
+  assert.equal(parts.length, 6, '2 sets x (1 back + 2 pockets)');
+  for (const part of parts) {
+    assert.match(part.id, /^[a-z]+#\d+$/, `id widened: ${part.id}`);
+    assert.equal(componentIdOf(part.id), part.componentId);
+  }
+
+  // Two pockets per set, so pieces 0-1 are set 0 and 2-3 are set 1.
+  const pockets = parts.filter((p) => p.componentId === 'pocket');
+  assert.deepEqual(pockets.map((p) => p.setIndex), [0, 0, 1, 1]);
+  const backs = parts.filter((p) => p.componentId === 'back');
+  assert.deepEqual(backs.map((p) => p.setIndex), [0, 1]);
+});
+
+test('an unannotated component is treated as must-match', () => {
+  const product = { id: 'p', parts: [{ partId: 'a', quantity: 1 }, { partId: 'b', quantity: 1 }] };
+  const entries = [
+    { component: { id: 'a', polygon: [], allowedRotations: [0] } },
+    { component: { id: 'b', polygon: [], allowedRotations: [0], mustMatch: false } },
+  ];
+  const parts = buildSetParts(product, entries, 1);
+  assert.equal(parts.find((p) => p.componentId === 'a').mustMatch, true, 'absent means true');
+  assert.equal(parts.find((p) => p.componentId === 'b').mustMatch, false);
 });
