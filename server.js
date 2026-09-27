@@ -297,6 +297,16 @@ function validateDieUpdate(payload, existing) {
     }
   }
 
+  if ('mustMatch' in payload) {
+    const { mustMatch } = payload;
+    // No null: unknown and true behave identically here, so a third state
+    // would be a distinction with no consequence.
+    if (typeof mustMatch !== 'boolean') {
+      return { error: 'mustMatch must be true or false.' };
+    }
+    result.mustMatch = mustMatch;
+  }
+
   if ('allowedRotations' in payload) {
     const { allowedRotations } = payload;
     const valid =

@@ -45,7 +45,7 @@ export function productCandidates(eligible, options = {}) {
   return candidates;
 }
 
-function buildSetParts(product, entries, sets) {
+export function buildSetParts(product, entries, sets) {
   const parts = [];
   product.parts.forEach((p, i) => {
     const component = entries[i].component;
@@ -55,6 +55,14 @@ function buildSetParts(product, entries, sets) {
       parts.push({
         id: `${component.id}#${n}`,
         componentId: component.id,
+        // Which set this piece belongs to, as a FIELD -- deliberately not in
+        // the id. componentIdOf() splits on the last '#', so widening the id
+        // to `comp#set0#n` would make it return "comp#set0" and silently
+        // miskey every count, noDie and unverified list in the pipeline.
+        setIndex: Math.floor(n / p.quantity),
+        // Absent reads as true; see parts/store.js for why that default is
+        // the safe one.
+        mustMatch: component.mustMatch ?? true,
         polygon: component.polygon,
         allowedRotations: component.allowedRotations,
         dieClearanceMm: component.dieClearanceMm,
