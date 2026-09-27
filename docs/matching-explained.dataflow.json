@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "How Two Hides Are Matched",
+    "output": "docs/matching-explained.html",
+    "viewBox": [
+      920,
+      496
+    ],
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "measurement",
+        "label": "What gets measured",
+        "focus": [
+          "photo",
+          "fft",
+          "colour"
+        ],
+        "note": "One photograph becomes a scale wavelength in millimetres and a colour in L*a*b*."
+      },
+      {
+        "id": "gates",
+        "label": "What disqualifies a pair",
+        "focus": [
+          "gate",
+          "blocked"
+        ],
+        "note": "Species, cut and finish rule a pair out before any score is calculated."
+      },
+      {
+        "id": "ranking",
+        "label": "How the two scores combine",
+        "focus": [
+          "gate",
+          "scale",
+          "deltae",
+          "ranked"
+        ],
+        "note": "Millimetres and colour units have no exchange rate, so placings are added, not values."
+      }
+    ],
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "security": {
+          "label": "pair refused"
+        },
+        "emphasis": {
+          "label": "measured path"
+        },
+        "default": {
+          "label": "supporting path"
+        }
+      }
+    }
+  },
+  "stages": [
+    {
+      "label": "Capture"
+    },
+    {
+      "label": "Measure"
+    },
+    {
+      "label": "Gate"
+    },
+    {
+      "label": "Compare and rank"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "photo",
+      "type": "external",
+      "label": "Hide photograph",
+      "sublabel": "rule in frame",
+      "stage": 0,
+      "row": 1,
+      "tag": "phone"
+    },
+    {
+      "id": "fft",
+      "type": "backend",
+      "label": "Fourier transform",
+      "sublabel": "skin_signature.py",
+      "stage": 1,
+      "row": 0,
+      "tag": "texture"
+    },
+    {
+      "id": "colour",
+      "type": "backend",
+      "label": "Colour sample",
+      "sublabel": "colour_sample.py",
+      "stage": 1,
+      "row": 2,
+      "tag": "L*a*b*"
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "Hard gate",
+      "sublabel": "species, cut, finish",
+      "stage": 2,
+      "row": 1,
+      "tag": "per pair"
+    },
+    {
+      "id": "blocked",
+      "type": "external",
+      "label": "No pair produced",
+      "sublabel": "tail vs belly",
+      "stage": 2,
+      "row": 2,
+      "tag": "refused"
+    },
+    {
+      "id": "scale",
+      "type": "backend",
+      "label": "Scale difference",
+      "sublabel": "millimetres apart",
+      "stage": 3,
+      "row": 0,
+      "tag": "mm"
+    },
+    {
+      "id": "ranked",
+      "type": "frontend",
+      "label": "Ranked pairs",
+      "sublabel": "best match first",
+      "stage": 3,
+      "row": 1,
+      "tag": "operator"
+    },
+    {
+      "id": "deltae",
+      "type": "backend",
+      "label": "Colour difference",
+      "sublabel": "CIEDE2000, hue only",
+      "stage": 3,
+      "row": 2,
+      "tag": "dE00"
+    }
+  ],
+  "flows": [
+    {
+      "id": "patch",
+      "from": "photo",
+      "to": "fft",
+      "label": "dragged patch of scales",
+      "classification": "square crop, edges faded",
+      "variant": "emphasis"
+    },
+    {
+      "id": "region",
+      "from": "photo",
+      "to": "colour",
+      "label": "sampled inside the outline",
+      "classification": "uncalibrated light",
+      "variant": "default"
+    },
+    {
+      "id": "signature",
+      "from": "fft",
+      "to": "gate",
+      "label": "wavelength + spectrum",
+      "classification": "measured once, reused",
+      "variant": "emphasis"
+    },
+    {
+      "id": "lab",
+      "from": "colour",
+      "to": "gate",
+      "label": "hue and chroma",
+      "classification": "lightness discarded",
+      "variant": "default",
+      "labelDx": -20,
+      "labelDy": -40
+    },
+    {
+      "id": "refused",
+      "from": "gate",
+      "to": "blocked",
+      "label": "values differ",
+      "classification": "no score is calculated",
+      "variant": "security",
+      "labelDy": 24,
+      "labelDx": 0
+    },
+    {
+      "id": "measure-scale",
+      "from": "gate",
+      "to": "scale",
+      "label": "compare scale",
+      "classification": "eligible pair",
+      "variant": "emphasis"
+    },
+    {
+      "id": "measure-colour",
+      "from": "gate",
+      "to": "deltae",
+      "label": "compare colour",
+      "classification": "eligible pair",
+      "variant": "emphasis"
+    },
+    {
+      "id": "place-scale",
+      "from": "scale",
+      "to": "ranked",
+      "label": "placing by millimetres",
+      "classification": "position, not value",
+      "variant": "emphasis",
+      "labelDy": 24
+    },
+    {
+      "id": "place-colour",
+      "from": "deltae",
+      "to": "ranked",
+      "label": "placing by dE00",
+      "classification": "position, not value",
+      "variant": "emphasis",
+      "labelDy": -20
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Two measurements, one photograph",
+      "items": [
+        "Scale size comes from a Fourier transform, in millimetres",
+        "Colour uses CIEDE2000, so the number has a published meaning",
+        "Lightness is discarded: it tracks the lamp, not the dye"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Placings are added, not values",
+      "items": [
+        "No exchange rate exists between millimetres and colour units",
+        "Each pair is ranked on both, and the two placings are summed",
+        "A pair that could not be fully judged sorts below one that could"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "What this cannot do yet",
+      "items": [
+        "Colour comes from uncontrolled photos: precise, not accurate",
+        "No threshold yet, so it ranks pairs but cannot call one a match",
+        "Nothing here has been checked against a hide anyone cut"
+      ]
+    }
+  ]
+}

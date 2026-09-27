@@ -15,3 +15,6 @@ data/
 # A 712KB generated architecture render from 2026-09-01. Kept locally to look
 # at; too large and too stale to carry in the repo.
 docs/architecture.html
+
+# Archify visual-check evidence (regenerable, ~700KB of PNGs)
+docs/*.visual-check.*
