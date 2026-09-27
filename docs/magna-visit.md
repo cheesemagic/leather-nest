@@ -74,9 +74,13 @@ business, skip it — the photographs matter far more than the answers.
 ## Kit to bring
 
 - [ ] A tape measure or steel rule — essential, see the photo rules
-- [ ] A **grey card** — photographic, roughly £10–30, any camera shop or
-      online. A sheet of plain white printer paper is a poor substitute but
-      much better than nothing.
+- [ ] A **grey card** — the one we'd use is the **DGK Color Tools 18% Gray
+      Card, 8x10 inch**, about $10:
+      <https://www.adorama.com/dgk-color-tools-8-x-10-inch-18-gray-card/p/dgk8x10grayc>
+      (also at B&H and Amazon). **Get the 8x10, not the credit-card size** —
+      in a frame wide enough to hold a whole skin, a small card is too few
+      pixels to read a colour from. A sheet of plain white printer paper is a
+      poor substitute but much better than nothing.
 - [ ] Your phone, with plenty of storage free
 - [ ] This document
 - [ ] Calipers, if you can lay hands on a pair
