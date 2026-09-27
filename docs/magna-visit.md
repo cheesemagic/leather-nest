@@ -74,13 +74,20 @@ business, skip it — the photographs matter far more than the answers.
 ## Kit to bring
 
 - [ ] A tape measure or steel rule — essential, see the photo rules
-- [ ] A **grey card** — the one we'd use is the **DGK Color Tools 18% Gray
-      Card, 8x10 inch**, about $10:
-      <https://www.adorama.com/dgk-color-tools-8-x-10-inch-18-gray-card/p/dgk8x10grayc>
-      (also at B&H and Amazon). **Get the 8x10, not the credit-card size** —
-      in a frame wide enough to hold a whole skin, a small card is too few
-      pixels to read a colour from. A sheet of plain white printer paper is a
-      poor substitute but much better than nothing.
+- [ ] A **grey card**. This is the one piece of kit worth buying.
+      **Get this one** — DGK Color Tools 18% Gray Card, **8x10 inch**, ~$10:
+      <https://www.amazon.com/DGK-Color-Tools-inch-Digital/dp/B00HP8JSU8>
+      **Size is the point: 8x10, not the credit-card size.** In a frame wide
+      enough to hold a whole skin, a small card is too few pixels to average a
+      colour from once edge blur has eaten most of it.
+      *Optional, and not needed for this trip:* the DGK DKC-Pro adds 18 colour
+      patches for ~$17 (<https://www.amazon.com/DGK-Color-Tools-DKC-Pro-Calibration/dp/B00DMA06AY>).
+      Useful later for photographing the supplier's swatch charts, where we
+      need absolute colour rather than a comparison — but it is only 5x7, so it
+      does not replace the 8x10.
+      **In El Paso today:** try Jerry Reed's Photo & Video, 921 Myrtle Ave,
+      (915) 532-2462 — call first, they may not stock cards. Otherwise Amazon
+      next-day. If neither works, see "If you could not get a grey card" below.
 - [ ] Your phone, with plenty of storage free
 - [ ] This document
 - [ ] Calipers, if you can lay hands on a pair
@@ -235,6 +242,29 @@ more than the quantity.
    from a lighting difference — which is exactly the mistake we are trying to
    stop the program making.
 6. **Grain side up** — the outside, the scales — unless it is suede.
+
+### If you could not get a grey card
+
+Matching compares two hides **against each other**, not against an absolute
+standard. So a reference that is imperfect but **identical in every photo**
+still does most of the job: it removes the lighting difference between one
+shot and the next, which is the error we are actually fighting.
+
+**A consistent imperfect reference beats a perfect one used only sometimes.**
+
+In order of preference:
+
+1. **Grey mat board or foam board** from an art or craft shop. Reasonably
+   neutral, large, rigid, and available today.
+2. **A neutral grey paint chip** from a hardware store. Free, small,
+   imperfect, usable.
+3. **Plain white printer paper — last resort.** Most office paper carries
+   optical brighteners that fluoresce blue under daylight and many LEDs, so it
+   reads bluer than neutral and pushes every correction the same wrong way.
+
+The rule for any substitute: **one object, in every photo, never swapped
+mid-session.** Photograph it once on its own as well, so we know exactly what
+we are correcting against.
 
 ### What to shoot
 
