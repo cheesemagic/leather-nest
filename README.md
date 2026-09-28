@@ -86,24 +86,33 @@ file per record, with photos alongside. The directory is created on first write.
   photos.
 - **No migrations and no seed script.** Records are not versioned, so a field
   added later is simply absent from older ones. Read defensively.
-- **Backed up hourly**, by `scripts/backup-data.sh` via cron, into
-  `~/leather-nest-backups/` — outside the repo, so re-cloning cannot take the
-  backups with it. Identical snapshots are skipped and the last 60 differing ones
-  are kept. Run it by hand any time:
+- **Backed up hourly**, by `scripts/backup-data.sh` via cron. Identical
+  snapshots are skipped and the last 60 differing ones are kept. Run it by hand
+  any time:
 
   ```bash
   ./scripts/backup-data.sh
   ```
 
+  **Where snapshots go is a per-machine choice**, set by `LEATHER_NEST_BACKUPS`
+  in the cron line rather than in the script. The script's own default is
+  `~/leather-nest-backups/` — outside the repo, so re-cloning cannot take the
+  backups with it, but on the same disk as the thing it is protecting. On the
+  machine this was set up on, the cron line points it at iCloud Drive instead, so
+  a copy also lives off the machine:
+
+  ```
+  ~/Library/Mobile Documents/com~apple~CloudDocs/leather-nest-backups
+  ```
+
   To restore, look inside a snapshot and then unpack it over the repo:
 
   ```bash
-  tar tzf ~/leather-nest-backups/data-2026-09-27T221338.tgz
-  tar xzf ~/leather-nest-backups/data-2026-09-27T221338.tgz -C ~/leather-nest
+  tar tzf <snapshot>.tgz
+  tar xzf <snapshot>.tgz -C ~/leather-nest
   ```
 
-  It adds and overwrites; it never deletes. **Same disk only** — this survives a
-  mistake, not a dead drive.
+  It adds and overwrites; it never deletes.
 
 **No test can touch `data/`.** `test/helpers/with-server.js` gives every store a
 temp directory on every call, whether or not the test asked for one, and removes

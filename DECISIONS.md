@@ -106,11 +106,14 @@ reopened lightly, but genuinely reconsidered, because the audience changes.
 
 ## 2026-09-27 — data/ is snapshotted hourly by cron.
 
-`scripts/backup-data.sh`, run hourly, writing tarballs to
-`~/leather-nest-backups/` — outside the repository, so deleting or re-cloning
-the repo cannot take the backups with it. Keeps the last 60 snapshots that
-differ from each other; identical ones are skipped, so the window counts real
-changes rather than elapsed hours.
+`scripts/backup-data.sh`, run hourly, writing tarballs **into iCloud Drive** —
+outside the repository, so deleting or re-cloning it cannot take the backups
+with it, and off the machine, so a dead drive cannot either. Keeps the last 60
+snapshots that differ from each other; identical ones are skipped, so the window
+counts real changes rather than elapsed hours.
+
+Where they go is a per-machine choice, set by `LEATHER_NEST_BACKUPS` in the cron
+line rather than hard-coded. The script's own default stays local.
 
 **Why:** `data/` is gitignored on purpose, because it holds real hide photos,
 which meant nothing versioned it at all. Two photographed hides and eight
@@ -124,10 +127,18 @@ configured on this machine**. `data/` reports as included, which is meaningless
 without somewhere to back up to. If a Time Machine disk is ever attached, it
 covers more than this does and this becomes the second line of defence.
 
-**Deliberately not offsite.** It survives an accidental delete, a bad
-redigitize and a corrupted record. It does not survive losing the disk. Copying
-`~/leather-nest-backups` somewhere that leaves the house is a separate decision
-nobody has made.
+**iCloud rather than an external drive or object storage**, because the account
+was already signed in, the data is 132KB, and it needed no new credential — this
+project's `SECURITY.md` gets a PASS on secrets precisely because it has none, and
+an S3 key would have been the first. Verified by writing into the folder and
+watching iCloud's own sync state advance, rather than assuming.
+
+**Two things this trades away, both fine at 132KB and neither fine later.** The
+archives are unencrypted on a consumer cloud, and hide photos are a partner
+shop's material. And 60 *full* snapshots rather than differences means a 500MB
+photo library would want 30GB up there. **The first real hide photograph is the
+trigger to revisit both** — probably encrypting the archive, and moving to a
+deduplicating tool.
 
 ## 2026-09-27 — A closed cut ring is validated like an outline.
 

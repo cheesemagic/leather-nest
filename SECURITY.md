@@ -115,12 +115,18 @@ the moment the bind address changes.
 - **Hide photos are readable by anyone who can reach the port**, via
   `/skins/:id/photo`. Ids are UUIDv4, so not guessable, but nothing authorizes
   the read.
-- **Backups are local only.** `data/` is now snapshotted hourly by
-  `scripts/backup-data.sh` into `~/leather-nest-backups/`, and the restore path
-  has been exercised — a snapshot unpacked into a clean directory came back
-  byte-identical. That covers an accidental delete, a bad `redigitize` and a
-  corrupted record. **It does not cover losing the disk.** Getting a copy
-  off this machine is still an open decision.
+- **Backups now reach a second machine, and a third party's.** `data/` is
+  snapshotted hourly by `scripts/backup-data.sh`, and the restore path has been
+  exercised — a snapshot unpacked into a clean directory came back
+  byte-identical. On the machine this was set up on, the cron line writes into
+  iCloud Drive, so a copy leaves the disk. That covers an accidental delete, a
+  bad `redigitize`, a corrupted record, and now a dead drive.
+
+  **Two things to revisit when real hide photos land**, neither of which matters
+  at the current 132KB. Hide photos are a partner shop's material and this puts
+  them on Apple's servers; and the script keeps 60 *full* snapshots rather than
+  differences, so a 500MB library would want 30GB of cloud storage. Encrypting
+  the archive, or a deduplicating tool, is the answer to both — later.
 
 ## Confidential material — where it lives
 
@@ -180,7 +186,7 @@ at this stage.**
 | **Dependencies** | **PASS** | `npm audit` clean. Python deps pinned exactly. No native Python audit in use — recheck before any release |
 | **Input validation** | **PARTIAL PASS** | Outlines, interior cut rings, photo extensions, units, numeric fields and cross-origin writes are all validated. Upload size is not. Records written before these checks existed are not re-validated |
 | **Destructive-action protection** | **FAIL** | `DELETE /skins/:id` removes a record and its photo immediately, with no confirmation server-side, no soft delete, and no undo |
-| **Backup / recovery** | **PARTIAL PASS** | Hourly local snapshots via `scripts/backup-data.sh`, retaining the last 60 that differ; restore verified byte-identical. Same-disk only, so a disk failure still loses everything |
+| **Backup / recovery** | **PARTIAL PASS** | Hourly snapshots via `scripts/backup-data.sh` into iCloud Drive, retaining the last 60 that differ; restore verified byte-identical, and the upload verified against iCloud's own sync state. Unencrypted, and dependent on one consumer cloud account |
 | **Separate dev/prod environments** | **N/A** | There is only one environment, running locally. No deploy exists |
 | **No prod credentials available to coding agents** | **PASS** | Trivially — there are no credentials and no production |
 
