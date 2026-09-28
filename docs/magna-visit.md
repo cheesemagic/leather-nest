@@ -106,6 +106,15 @@ people disagreeing about what matters would itself be a valuable finding.
    Open it up and let them talk before narrowing it down. What they mention
    *first* and *unprompted* is the most useful part of the answer.
 
+*Answer:*
+```
+
+
+
+
+
+```
+
 2. **Are you measuring the scales — ruler, compass, calipers — or judging by
    eye?**
    *Why this matters most:* the program's entire scale-measuring pipeline
@@ -113,52 +122,154 @@ people disagreeing about what matters would itself be a valuable finding.
    eye, that does not automatically make the measurement useless, but it
    changes what we can claim for it.
 
+*Answer:*
+```
+
+
+
+
+
+```
+
 3. **If two hides match, is it safe to assume every piece cut from one will
    match every piece cut from the other?**
    Or does it depend where on the hide a piece comes from? *Why:* we are about
    to build a feature that assumes some pieces must come off the same hide and
    others need not. This question decides whether that idea is real.
 
+*Answer:*
+```
+
+
+
+
+
+```
+
 4. **What is the first thing you look at that rules a skin OUT?**
    *Why:* the program can currently rule a pair out on species, cut and finish
    only. If their first disqualifier is a scar, a grade, or something we have
    never modelled, we are missing the most important check.
+
+*Answer:*
+```
+
+
+
+
+
+```
 
 5. **How big an area needs to match?**
    A patch? A whole panel? The area a particular piece gets cut from? *Why:* we
    measure one small patch that the operator drags a box around. If a match has
    to hold across a whole panel, that is the wrong shape of measurement.
 
+*Answer:*
+```
+
+
+
+
+
+```
+
 6. **If two skins match, can you make several pairs of sneakers from them, or
    just one?**
    *Why:* it changes what a match is worth, and what the program should report.
 
+*Answer:*
+```
+
+
+
+
+
+```
+
 7. **Anything else about how you pick — including the parts that are hard to
    put into words.**
+
+*Answer:*
+```
+
+
+
+
+
+```
 
 ### Worth asking if the conversation allows
 
 8. **How do you describe a colour to each other?** By the supplier's name off
    the chart ("Cognac"), by eye, or by holding it against something?
 
+*Answer:*
+```
+
+
+
+
+```
+
 9. **Do you use grades?** The trade grades exotic skins 1–4 (alligator 1–5) on
    defect count. Does grade come into matching, or only into buying?
+
+*Answer:*
+```
+
+
+
+
+```
 
 10. **Have you heard the term "shade sorting"?** It is the garment industry's
     name for grouping dyed material so panels cut from different lots do not
     show a difference. If they use it, they have vocabulary we should adopt.
+
+*Answer:*
+```
+
+
+
+
+```
 
 11. **Is it true that a pair of alligator skins makes two pairs of boots — one
     from the matching tails, one from the matching bellies?** We read this and
     built a rule on it. Worth hearing it confirmed or corrected by someone who
     actually does it.
 
+*Answer:*
+```
+
+
+
+
+```
+
 12. **Under what light do you judge colour?** Daylight, a particular lamp, a
     light box? *Why:* it tells us how far our photographs can be trusted.
+
+*Answer:*
+```
+
+
+
+
+```
 
 13. **How long does picking a match usually take?** *Why:* if it is quick and
     easy for them, the program may be solving a problem they do not have, and
     we should learn that early rather than late.
+
+*Answer:*
+```
+
+
+
+
+```
 
 ---
 
@@ -171,24 +282,86 @@ describing it.
       Note what they pick up first, what they hold against what, whether they
       move to a window or a lamp, and how long it takes. Ask your questions
       afterwards.
+
+*Notes:*
+```
+
+
+
+
+```
+
 - [ ] **Ask what they just rejected, and why.** Rejections tell us more than
       acceptances — a threshold needs both sides of the line.
+
+*Notes:*
+```
+
+
+
+
+```
+
 - [ ] **Measure a swatch patch on the supplier's sample card.** Just the
       physical size of one printed colour square, in millimetres. *Why:* we
       have transcribed 413 colour names off those charts, and that single
       number would let us measure a real colour value for every one of them.
       One measurement, enormous payoff.
+
+*Notes:*
+```
+
+
+
+
+```
+
 - [ ] **Measure some actual scales with calipers**, on a skin they have called
       a good match. Note the species, the cut, and roughly where on the skin.
       This is how we find out whether our photo measurement agrees with
       reality.
+
+*Notes:*
+```
+
+
+
+
+```
+
 - [ ] **Note the lighting** wherever they judge colour, and photograph it if
       that is not awkward.
+
+*Notes:*
+```
+
+
+
+
+```
+
 - [ ] **Find out who decides.** One person? A consensus? Do disagreements
       happen?
+
+*Notes:*
+```
+
+
+
+
+```
+
 - [ ] **Ask whether they would look at results later.** If we could send ten
       ranked pairs and ask "would you have picked these?", that is a validation
       we cannot get any other way.
+
+*Notes:*
+```
+
+
+
+
+```
 
 ---
 
@@ -201,20 +374,61 @@ property, do not push — note that it exists and we will ask properly later.
       than photographs of a screen. *Why:* we have the colour names transcribed
       but not the images, so we cannot measure a single actual colour. With
       them, 413 colour names become 413 measured standards.
+
+*Got it? / who to chase:*
+```
+
+
+```
+
 - [ ] **Any grading or quality standard they work to** — a chart, a spec sheet,
       a supplier document. *Why:* grade is the thing most likely to be missing
       from our matching rules.
+
+*Got it? / who to chase:*
+```
+
+
+```
+
 - [ ] **Any existing photographs of hides** they already keep.
+
+*Got it? / who to chase:*
+```
+
+
+```
+
 - [ ] **Colour references** — Pantone numbers, LAB values, a spectrophotometer
       readout, anything numeric. *Why:* it would let us check our colour
       measurement against a real instrument rather than trusting a phone
       camera.
+
+*Got it? / who to chase:*
+```
+
+
+```
+
 - [ ] **Pattern files for a sneaker** (DXF, SVG, AI or similar) — *ask
       carefully, and only if it comes up naturally.* This is their IP. If it is
       awkward at all, drop it; we can test with our own shapes.
+
+*Got it? / who to chase:*
+```
+
+
+```
+
 - [ ] **Do they shoot their own photographs of skins?** If so, how, and could
       we see an example? *Why:* if they already have a photo process, ours
       should match it rather than compete with it.
+
+*Got it? / who to chase:*
+```
+
+
+```
 
 ---
 
@@ -283,14 +497,49 @@ In order of value:
 
 - [ ] **A confirmed MATCH.** Two skins they say go together, both shot
       properly. Note what product they would be used for.
+
+*Which skins, and what they said:*
+```
+
+
+
+
+```
+
 - [ ] **A confirmed REJECTION.** Two skins they say do NOT go together — and
       ask *why*, and write down the answer.
+
+*Which skins, and what they said:*
+```
+
+
+
+
+```
+
 - [ ] **A genuine close call.** Two skins where they had to think about it, or
       where two people might disagree. The single most informative thing
       possible: it is the actual borderline we are trying to find.
+
+*Which skins, and what they said:*
+```
+
+
+
+
+```
+
 - [ ] **More of the above.** Three or four matched pairs and three or four
       rejected pairs would be a strong data set. Ten of each would be
       exceptional.
+
+*Which skins, and what they said:*
+```
+
+
+
+
+```
 
 ### Variations worth covering, if the skins are there
 
