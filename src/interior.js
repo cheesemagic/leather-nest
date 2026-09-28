@@ -1,4 +1,4 @@
-import { pointInPolygon, polygonArea } from './nesting/geometry.js';
+import { pointInPolygon, polygonArea, polygonSelfIntersects } from './nesting/geometry.js';
 
 // Everything a component needs cut, scored or marked INSIDE its own outline:
 // punch holes, stitch guides, fringe slits, etched line art.
@@ -74,6 +74,16 @@ export function validateInteriorPaths(polygon, paths) {
       problems.push(
         `${where} has ${outside.length} point(s) outside the component outline.`
       );
+    }
+    // A closed cut ring IS a hole, so the same rule as an outline applies: one
+    // that crosses itself has no single inside, and the exporter writes it in
+    // the cut colour regardless -- which puts an X through the finished piece.
+    //
+    // Closed cuts only. An open path is a stitch guide or a fringe slit and has
+    // no inside to be ambiguous about, and a decorative `mark` may legitimately
+    // cross itself.
+    if (path.closed && path.kind === 'cut' && polygonSelfIntersects(points)) {
+      problems.push(`${where} crosses itself, so it does not enclose a single hole.`);
     }
   });
 
