@@ -3,30 +3,53 @@ import os from 'node:os';
 import path from 'node:path';
 import { createServer } from '../../server.js';
 
-export async function withServer(fn, { withDataDir = false, withPartsDataDir = false, withSessionsDataDir = false, withProductsDataDir = false, withCalibrationsDataDir = false } = {}) {
-  const dataDir = withDataDir ? fs.mkdtempSync(path.join(os.tmpdir(), 'skins-route-test-')) : undefined;
-  const partsDataDir = withPartsDataDir ? fs.mkdtempSync(path.join(os.tmpdir(), 'parts-route-test-')) : undefined;
-  const sessionsDataDir = withSessionsDataDir ? fs.mkdtempSync(path.join(os.tmpdir(), 'sessions-route-test-')) : undefined;
-  const productsDataDir = withProductsDataDir ? fs.mkdtempSync(path.join(os.tmpdir(), 'products-route-test-')) : undefined;
-  const calibrationsDataDir = withCalibrationsDataDir ? fs.mkdtempSync(path.join(os.tmpdir(), 'calibrations-route-test-')) : undefined;
-  const options = {};
-  if (dataDir) options.dataDir = dataDir;
-  if (partsDataDir) options.partsDataDir = partsDataDir;
-  if (sessionsDataDir) options.sessionsDataDir = sessionsDataDir;
-  if (productsDataDir) options.productsDataDir = productsDataDir;
-  if (calibrationsDataDir) options.calibrationsDataDir = calibrationsDataDir;
+// EVERY store gets a temp directory, on every call, whether or not the caller
+// asked for one.
+//
+// It used to hand `createServer` no override unless a `withXDataDir` flag was
+// set, which meant the default applied -- and the default is the OPERATOR'S REAL
+// `data/` directory. A test that wrote a record without setting its flag wrote
+// it there for keeps. That happened: `test/upload-boundary.test.js` passed its
+// options as `test(name, fn, options)`, a signature node:test accepts and
+// silently drops, and left 81 records and their photos in `data/sessions/`.
+//
+// The flags survive because callers pass them and because a caller may want the
+// path back, but they no longer decide whether isolation happens. Nothing a test
+// does can reach `data/` now.
+const STORES = [
+  ['dataDir', 'skins'],
+  ['partsDataDir', 'parts'],
+  ['sessionsDataDir', 'sessions'],
+  ['productsDataDir', 'products'],
+  ['calibrationsDataDir', 'calibrations'],
+];
 
-  const server = createServer(Object.keys(options).length ? options : undefined);
+export async function withServer(fn, options = {}) {
+  const dirs = {};
+  for (const [key, label] of STORES) {
+    dirs[key] = fs.mkdtempSync(path.join(os.tmpdir(), `leather-nest-${label}-test-`));
+  }
+
+  const server = createServer({ ...dirs, ...pickOverrides(options) });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
   try {
-    await fn(`http://127.0.0.1:${port}`);
+    await fn(`http://127.0.0.1:${port}`, dirs);
   } finally {
     await new Promise((resolve) => server.close(resolve));
-    if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
-    if (partsDataDir) fs.rmSync(partsDataDir, { recursive: true, force: true });
-    if (sessionsDataDir) fs.rmSync(sessionsDataDir, { recursive: true, force: true });
-    if (productsDataDir) fs.rmSync(productsDataDir, { recursive: true, force: true });
-    if (calibrationsDataDir) fs.rmSync(calibrationsDataDir, { recursive: true, force: true });
+    for (const dir of Object.values(dirs)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   }
+}
+
+// An explicit directory still wins, so a test that needs to inspect a known
+// path can pass one. Anything else in `options` -- including the legacy
+// `withXDataDir` booleans -- is ignored, since isolation is now unconditional.
+function pickOverrides(options) {
+  const overrides = {};
+  for (const [key] of STORES) {
+    if (typeof options[key] === 'string') overrides[key] = options[key];
+  }
+  return overrides;
 }

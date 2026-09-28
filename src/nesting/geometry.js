@@ -304,3 +304,106 @@ export function placedPolygon(part, placement) {
 export function polygonToSVGPoints(polygon) {
   return polygon.map((p) => `${p.x},${p.y}`).join(' ');
 }
+
+// Added 2026-09-27. Geometry enters this app from two places -- an OpenCV
+// contour traced off a photograph, and an uploaded SVG -- and until now
+// neither was checked before being written to a record. A broken outline does
+// not announce itself either: clipper applies a fill rule to a
+// self-intersecting path rather than complaining, so a hide whose outline
+// crosses itself yields containment answers that look authoritative and are
+// wrong about where the leather actually is.
+//
+// Returns a sentence for the operator, or null when the polygon is usable.
+// Deliberately not a repair. A polygon this badly formed means the photo, the
+// selected region or the file was wrong, and silently straightening it would
+// hide the thing they need to fix.
+
+// A hide is under two metres and the largest laser bed in reach is about 1.5m,
+// so ten metres is nowhere near a real constraint -- it is a unit-error trap.
+// The realistic failure is an SVG read in the wrong unit, which lands 10x to
+// 100x out, and a 10m wallet piece is certainly one of those.
+export const MAX_DIMENSION_MM = 10_000;
+
+// One square millimetre. Every real pattern piece and hide is orders of
+// magnitude above this; anything below it is a tracing artefact, not a shape.
+export const MIN_AREA_SQ_MM = 1;
+
+export function validatePolygon(polygon) {
+  if (!Array.isArray(polygon)) return 'The outline is missing.';
+
+  // A closing point that repeats the first is how plenty of drawing tools
+  // write a closed path, and every function here treats a point array as
+  // implicitly closed. Tolerated rather than rejected: it is a notation
+  // difference, not a broken shape.
+  const points = closingPointRemoved(polygon);
+
+  if (points.length < 3) {
+    return `An outline needs at least 3 points; this one has ${points.length}.`;
+  }
+  for (const point of points) {
+    if (
+      !point ||
+      typeof point !== 'object' ||
+      !Number.isFinite(point.x) ||
+      !Number.isFinite(point.y)
+    ) {
+      return 'The outline contains a point that is not a pair of numbers.';
+    }
+  }
+
+  const area = polygonArea(points);
+  if (area < MIN_AREA_SQ_MM) {
+    // Covers the flat and the doubled-back cases together: three points on one
+    // line and a shape that retraces itself both enclose nothing.
+    return 'The outline encloses no area — the points are in a line, or on top of each other.';
+  }
+
+  const { minX, minY, maxX, maxY } = boundingBox(points);
+  const width = maxX - minX;
+  const height = maxY - minY;
+  if (width > MAX_DIMENSION_MM || height > MAX_DIMENSION_MM) {
+    return `The outline measures ${Math.round(width)}mm by ${Math.round(height)}mm, which is too large to be real — check the unit the file was read in.`;
+  }
+
+  if (polygonSelfIntersects(points)) {
+    return 'The outline crosses itself, so there is no single inside to cut from.';
+  }
+
+  return null;
+}
+
+function closingPointRemoved(polygon) {
+  if (polygon.length < 2) return polygon;
+  const first = polygon[0];
+  const last = polygon[polygon.length - 1];
+  if (!first || !last || typeof first !== 'object' || typeof last !== 'object') return polygon;
+  return first.x === last.x && first.y === last.y ? polygon.slice(0, -1) : polygon;
+}
+
+// Exported because holes need the same test as outlines: src/interior.js checks
+// closed cut rings with it. A crossing ring has no single inside, whether it is
+// the edge of the piece or the edge of a hole in it.
+//
+// ponytail: every edge against every other, O(n²). Outlines here run to a few
+// hundred points -- a 280-vertex hide is ~39k segment tests, microseconds --
+// so a sweep-line is not worth its own bugs. Revisit if outlines ever reach
+// thousands of points.
+//
+// Reuses segmentsProperlyCross, so touching and collinear edges do NOT count.
+// That matters: simplifyPolygon leaves collinear runs behind, and a real
+// traced outline often doubles back exactly along an edge without ever
+// enclosing two separate insides.
+export function polygonSelfIntersects(points) {
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const a1 = points[i];
+    const a2 = points[(i + 1) % n];
+    // j starts past i's neighbour, and the last edge is skipped when i is 0,
+    // because adjacent edges share a vertex by definition.
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue;
+      if (segmentsProperlyCross(a1, a2, points[j], points[(j + 1) % n])) return true;
+    }
+  }
+  return false;
+}

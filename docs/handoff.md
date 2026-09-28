@@ -9,7 +9,13 @@ does not: the state of play and what is open.
 ---
 
 Picking up leather-nest (`~/leather-nest`) where the last session left off.
-490 tests passing. Don't redo any of the below.
+605 tests passing. Don't redo any of the below.
+
+A foundation-and-hardening pass landed on 2026-09-27. The durable project
+knowledge now lives in `AGENTS.md` (rules), `ARCHITECTURE.md` (what is actually
+built), `DECISIONS.md` (why), `TEST_PLAN.md` (invariants and known gaps) and
+`SECURITY.md` (audit and the production gate). `CLAUDE.md` is now a thin
+Claude-specific layer that imports `AGENTS.md`. Read those before this file.
 
 ## What is already built
 

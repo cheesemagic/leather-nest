@@ -24,13 +24,13 @@ test('a script that outruns its timeout is killed and says so', async () => {
 
 test('a script that finishes in time is untouched', async () => {
   const { err, stdout, stderr } = await new Promise((resolve) => {
-    execPython(['-c', 'print("done")'], { timeout: 10_000 }, (err, stdout, stderr) =>
+    execPython(['-c', 'print(\'{"done": true}\')'], { timeout: 10_000 }, (err, stdout, stderr) =>
       resolve({ err, stdout, stderr })
     );
   });
 
   assert.equal(err, null);
-  assert.equal(stdout.trim(), 'done');
+  assert.equal(stdout.trim(), '{"done": true}');
   assert.equal(stderr, '', 'a successful run must not acquire a timeout message');
 });
 
@@ -52,9 +52,42 @@ test('the default timeout applies when a caller passes no options at all', async
   // How eight of the nine call sites invoke it. The point of the wrapper is
   // that omitting options does NOT mean omitting the timeout.
   const { err, stdout } = await new Promise((resolve) => {
-    execPython(['-c', 'print("no options")'], (err, stdout) => resolve({ err, stdout }));
+    execPython(['-c', 'print(\'{"noOptions": true}\')'], (err, stdout) => resolve({ err, stdout }));
   });
 
   assert.equal(err, null);
-  assert.equal(stdout.trim(), 'no options');
+  assert.equal(stdout.trim(), '{"noOptions": true}');
+});
+
+// Added 2026-09-27. Seven handlers called JSON.parse on this stdout with no
+// catch around it, inside an execFile callback -- nothing above that catches
+// either, so one malformed line from a photo script killed the server and left
+// the operator's upload in the temp directory. The wrapper owns the guard for
+// the same reason it owns the timeout: the call sites all forgot it.
+test('output that is not JSON is reported as a failure rather than thrown', async () => {
+  const { err, stderr } = await new Promise((resolve) => {
+    execPython(['-c', 'print("this is not json")'], (err, stdout, stderr) =>
+      resolve({ err, stderr })
+    );
+  });
+
+  assert.ok(err, 'unreadable output on a zero exit must surface as an error');
+  assert.ok(!err.killed, 'it is a broken result, not a timeout');
+  assert.match(stderr, /unreadable/i, 'the operator is told the tool misbehaved');
+});
+
+test("a script's own error message still wins over the unreadable-output one", async () => {
+  // A failing script prints diagnostics to stderr and nothing to stdout. That
+  // empty stdout must not be reclassified as an unreadable result, or every
+  // real digitization error would read as "returned something unreadable".
+  const { err, stderr } = await new Promise((resolve) => {
+    execPython(
+      ['-c', 'import sys; sys.stderr.write("no outline found"); sys.exit(1)'],
+      (err, stdout, stderr) => resolve({ err, stderr })
+    );
+  });
+
+  assert.ok(err);
+  assert.match(stderr, /no outline found/);
+  assert.doesNotMatch(stderr, /unreadable/i);
 });

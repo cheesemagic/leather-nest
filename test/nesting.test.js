@@ -575,3 +575,52 @@ test('parts of the same size keep their original order', () => {
   const result = nest(sheet, parts, { clearanceMm: 1, gridStepMm: 5 });
   assert.deepEqual(result.placements.map((p) => p.id), ['a', 'b', 'c', 'd']);
 });
+
+// Added 2026-09-27. The nester is the authority on whether a piece physically
+// fits, and a layout the operator approves is the thing that gets cut -- so the
+// same hide and the same pieces must always give the same answer. Nothing
+// pinned that before, and the scan reads from a Map cache and a growing
+// `placed` list, both of which are easy to make order-dependent by accident.
+test('the same hide and the same parts nest identically every time', () => {
+  const hide = [
+    { x: 0, y: 0 },
+    { x: 300, y: 0 },
+    { x: 300, y: 90 },
+    { x: 190, y: 90 },
+    { x: 170, y: 150 },
+    { x: 0, y: 150 },
+  ];
+  const parts = [
+    { id: 'a', polygon: [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 60, y: 40 }, { x: 0, y: 40 }] },
+    { id: 'b', polygon: [{ x: 0, y: 0 }, { x: 45, y: 0 }, { x: 45, y: 70 }, { x: 0, y: 70 }] },
+    { id: 'c', polygon: [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 40, y: 55 }] },
+    { id: 'd', polygon: [{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 30 }, { x: 0, y: 30 }] },
+  ];
+
+  const runs = Array.from({ length: 3 }, () =>
+    JSON.stringify(nest(hide, parts, { clearanceMm: 2 }))
+  );
+
+  assert.equal(runs[0], runs[1], 'a second run must place everything where the first did');
+  assert.equal(runs[1], runs[2]);
+
+  // A run that placed nothing would satisfy the equality above without proving
+  // anything, so confirm the layout being compared is a real one.
+  const { placements } = nest(hide, parts, { clearanceMm: 2 });
+  assert.ok(placements.length >= 2, `expected a real layout, got ${placements.length} placements`);
+});
+
+test('nesting does not depend on the caller reusing the same part objects', () => {
+  // The route handlers rebuild part records from JSON on every request, so
+  // identical-but-not-same objects are the normal case, not an exotic one.
+  const hide = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 120 }, { x: 0, y: 120 }];
+  const build = () => [
+    { id: 'a', polygon: [{ x: 0, y: 0 }, { x: 70, y: 0 }, { x: 70, y: 50 }, { x: 0, y: 50 }] },
+    { id: 'b', polygon: [{ x: 0, y: 0 }, { x: 55, y: 0 }, { x: 55, y: 55 }, { x: 0, y: 55 }] },
+  ];
+
+  assert.equal(
+    JSON.stringify(nest(hide, build(), { clearanceMm: 1 })),
+    JSON.stringify(nest(hide, build(), { clearanceMm: 1 }))
+  );
+});
