@@ -11,7 +11,8 @@ import { createStore as createProductStore } from './src/products/store.js';
 import { createStore as createCalibrationStore } from './src/calibrations/store.js';
 import { parseSVGPolygon, parseSVGComponents, unitOptions } from './src/svg/parse.js';
 import { createStore as createSessionStore } from './src/sessions/store.js';
-import { polygonArea } from './src/nesting/geometry.js';
+import { polygonArea, validatePolygon } from './src/nesting/geometry.js';
+import { validateInteriorPaths } from './src/interior.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 8080;
@@ -49,6 +50,34 @@ export function execPython(args, optionsOrCallback, maybeCallback) {
       callback(err, stdout, `Timed out after ${Math.round(timeoutMs / 1000)}s and was stopped.`);
       return;
     }
+    // Every script here answers with JSON when it succeeds, and every caller
+    // either parses that or passes it straight to the browser. A script that
+    // exits 0 having printed something else used to throw inside this
+    // callback -- which nothing above it catches, so it took the whole server
+    // down and left the operator's upload sitting in the temp directory.
+    // Reported as a failure instead, so each handler's existing error branch
+    // turns it into a 422.
+    if (!err) {
+      try {
+        // An object, specifically. `null` and `42` are valid JSON, and every
+        // caller immediately destructures the result -- so a bare scalar got
+        // past a plain parse check and then threw `Cannot destructure property
+        // 'polygon' of 'null'` in this very callback, which is the crash this
+        // guard exists to prevent. No script prints a scalar today; the point is
+        // that one no longer could.
+        const parsed = JSON.parse(stdout);
+        if (parsed === null || typeof parsed !== 'object') {
+          throw new TypeError('expected a JSON object');
+        }
+      } catch {
+        callback(
+          new Error('Python produced unparseable output'),
+          stdout,
+          stderr.trim() || 'The photo tool returned something unreadable.'
+        );
+        return;
+      }
+    }
     callback(err, stdout, stderr);
   });
 }
@@ -64,12 +93,34 @@ const MIME_TYPES = {
   '.jpeg': 'image/jpeg',
 };
 
+// The only directories a browser may read files out of. Everything else under
+// the repo root used to be served too, which meant `.git/config`, the whole
+// commit history, `.claude/settings.local.json` and every hide record in
+// `data/` answered 200 to anything that asked for them by name.
+//
+// An allowlist rather than a list of things to hide, so a directory added
+// later is private until someone decides otherwise. Photos are absent on
+// purpose: they are served by `/skins/:id/photo` and `/sessions/:id/photo`,
+// which read the record first. `node_modules` is here because the nesting
+// pages load `clipper-lib` straight from it -- there is no bundler.
+const SERVABLE_ROOTS = ['public', 'src', 'node_modules'];
+
 function serveStatic(req, res) {
   const pathname = req.url.split('?')[0];
   const urlPath = pathname === '/' ? '/public/index.html' : pathname;
   const filePath = path.join(__dirname, urlPath);
 
   if (!filePath.startsWith(__dirname + path.sep)) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
+  // Compared against the resolved path, not the requested URL, so `..` inside
+  // a permitted root cannot climb out of it.
+  const relative = path.relative(__dirname, filePath);
+  const root = relative.split(path.sep)[0];
+  if (!SERVABLE_ROOTS.includes(root)) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
@@ -85,6 +136,49 @@ function serveStatic(req, res) {
     res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
     res.end(data);
   });
+}
+
+// What a stored photo is allowed to be called. The extension came straight
+// from the client's filename, and both the photo routes and the static server
+// hand back a Content-Type derived from it -- so a file uploaded as
+// "hide.html" was stored as one and served as a page from this app's own
+// origin. Anything unrecognised is stored as .jpg: the bytes decide what the
+// file really is, and OpenCV reads those itself rather than trusting a name.
+//
+// HEIC is deliberately not here. OpenCV cannot read it, so an iPhone photo
+// straight off the camera roll already fails digitization -- storing it under
+// a name that claims otherwise would not change that.
+const PHOTO_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png']);
+
+function photoExtension(originalFilename) {
+  const ext = path.extname(originalFilename || '').toLowerCase();
+  return PHOTO_EXTENSIONS.has(ext) ? ext : '.jpg';
+}
+
+// Constraining what gets WRITTEN fixed new uploads and left the read side
+// trusting the record: a photo route derived its Content-Type from the stored
+// extension, so any record already carrying `.html` kept being served as a page
+// from this app's own origin. A photo is one of three things or it is not a
+// photo -- there is no case where a record's own field should widen that.
+function photoContentType(ext) {
+  const normalised = (ext || '').toLowerCase();
+  if (!PHOTO_EXTENSIONS.has(normalised)) return 'application/octet-stream';
+  return normalised === '.png' ? 'image/png' : 'image/jpeg';
+}
+
+// A browser sends Origin on every state-changing request, including a
+// same-origin one, and sends a cross-origin multipart POST without asking
+// permission first -- no preflight. So until this check, any page the operator
+// happened to be visiting could create and rewrite hide records on
+// localhost:8080. DELETE was already safe, because CORS does preflight that.
+//
+// A MISSING Origin is allowed through: curl, the test suite and anything not a
+// browser send none, and they are not the threat this is for.
+function isCrossOriginWrite(req) {
+  if (req.method === 'GET' || req.method === 'HEAD') return false;
+  const origin = req.headers.origin;
+  if (!origin) return false;
+  return origin !== `http://${req.headers.host}`;
 }
 
 function sendJSON(res, status, body) {
@@ -400,7 +494,7 @@ function createSkinsRoutes(dataDir) {
 
     const captureType = getField('captureType') || 'signature';
     const finish = getField('finish') || null;
-    const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
+    const photoExt = photoExtension(photo.originalFilename);
 
     if (captureType === 'outline') {
       const thicknessMmRaw = getField('thicknessMm');
@@ -443,6 +537,13 @@ function createSkinsRoutes(dataDir) {
           return;
         }
         const { polygon, colourL, colourA, colourB } = JSON.parse(stdout);
+
+        const outlineError = validatePolygon(polygon);
+        if (outlineError) {
+          fs.unlink(photo.filepath, () => {});
+          sendJSON(res, 422, { error: outlineError });
+          return;
+        }
 
         const save = (signature, warning) => {
           const record = store.create({
@@ -614,7 +715,7 @@ function createSkinsRoutes(dataDir) {
         return;
       }
       const ext = path.extname(photoPath);
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+      res.writeHead(200, { 'Content-Type': photoContentType(ext) });
       res.end(data);
     });
   }
@@ -658,7 +759,7 @@ function createSkinsRoutes(dataDir) {
       getField('realDistanceMm'),
       ...(hasROI ? roiFields.map(getField) : []),
     ];
-    const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
+    const photoExt = photoExtension(photo.originalFilename);
 
     execPython(args, (err, stdout, stderr) => {
       if (err) {
@@ -667,6 +768,17 @@ function createSkinsRoutes(dataDir) {
         return;
       }
       const { polygon, colourL, colourA, colourB } = JSON.parse(stdout);
+
+      // Checked before the record is touched, not after. redigitize() replaces
+      // the hide's outline outright and resets how much of it is left, so
+      // writing a broken shape here would destroy a good one.
+      const outlineError = validatePolygon(polygon);
+      if (outlineError) {
+        fs.unlink(photo.filepath, () => {});
+        sendJSON(res, 422, { error: outlineError });
+        return;
+      }
+
       const record = store.redigitize(id, {
         outlinePolygon: polygon,
         colourL,
@@ -856,6 +968,11 @@ function createPartsRoutes(dataDir) {
       fs.unlink(svgFile.filepath, () => {});
       try {
         const polygon = parseSVGPolygon(svgContent);
+        const shapeError = validatePolygon(polygon);
+        if (shapeError) {
+          sendJSON(res, 422, { error: shapeError });
+          return;
+        }
         sendJSON(res, 200, store.create({ name, polygon, ...metadata }));
       } catch (err) {
         sendJSON(res, 422, { error: err.message });
@@ -876,6 +993,13 @@ function createPartsRoutes(dataDir) {
         { x: widthMm, y: heightMm },
         { x: 0, y: heightMm },
       ];
+      // Positive numbers, already checked above -- this catches the remaining
+      // case, which is a typed size too large to be a real pattern piece.
+      const shapeError = validatePolygon(polygon);
+      if (shapeError) {
+        sendJSON(res, 422, { error: shapeError });
+        return;
+      }
       sendJSON(res, 200, store.create({ name, polygon, ...metadata }));
       return;
     }
@@ -907,6 +1031,11 @@ function createPartsRoutes(dataDir) {
         return;
       }
       const { polygon } = JSON.parse(stdout);
+      const shapeError = validatePolygon(polygon);
+      if (shapeError) {
+        sendJSON(res, 422, { error: shapeError });
+        return;
+      }
       sendJSON(res, 200, store.create({ name, polygon, ...metadata }));
     });
   }
@@ -1018,6 +1147,30 @@ function createPartsRoutes(dataDir) {
     if (negativeField) {
       sendJSON(res, 400, { error: `${negativeField[0]} must not be negative.` });
       return;
+    }
+
+    // Every piece is checked before the first record is written. One file
+    // produces many components, so validating inside the map below would leave
+    // the earlier pieces saved and the rest not -- a half-imported pattern the
+    // operator would have to find and clean up by hand.
+    for (const [index, piece] of pieces.entries()) {
+      const where = pieces.length > 1 ? `Piece ${index + 1}: ` : '';
+      const shapeError = validatePolygon(piece.polygon);
+      if (shapeError) {
+        sendJSON(res, 422, { error: `${where}${shapeError}` });
+        return;
+      }
+      // The outline is not the whole shape. Interior rings become cut paths in
+      // the exported file, in the same colour as the real cuts, so a
+      // self-crossing hole leaves an X slashed across the finished piece. Its
+      // own validator, not validatePolygon: a real stitch hole measures about
+      // 0.5 square millimetres and validatePolygon's one-square-millimetre
+      // floor would refuse every one of them.
+      const interiorProblems = validateInteriorPaths(piece.polygon, piece.interiorPaths ?? []);
+      if (interiorProblems.length > 0) {
+        sendJSON(res, 422, { error: `${where}${interiorProblems.join(' ')}` });
+        return;
+      }
     }
 
     // One file, several components. Numbered only when there is more than
@@ -1307,7 +1460,7 @@ function createSessionsRoutes(dataDir, partsDataDir, skinsDataDir) {
       roiHeight: Number(getField('roiHeight')),
     };
 
-    const photoExt = path.extname(photo.originalFilename || '') || '.jpg';
+    const photoExt = photoExtension(photo.originalFilename);
     const record = store.create({
       hideId: getField('hideId') || null,
       calibration,
@@ -1403,7 +1556,7 @@ function createSessionsRoutes(dataDir, partsDataDir, skinsDataDir) {
         return;
       }
       const ext = path.extname(photoPath);
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+      res.writeHead(200, { 'Content-Type': photoContentType(ext) });
       res.end(data);
     });
   }
@@ -1501,6 +1654,10 @@ export function createServer({
   const calibrations = createCalibrationsRoutes(calibrationsDataDir);
 
   return http.createServer((req, res) => {
+    if (isCrossOriginWrite(req)) {
+      sendJSON(res, 403, { error: 'Cross-origin writes are not allowed.' });
+      return;
+    }
     if (req.method === 'POST' && req.url === '/digitize') {
       handleDigitize(req, res);
       return;
