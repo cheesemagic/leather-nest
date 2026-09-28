@@ -137,3 +137,68 @@ test('a zero or negative declared size is ignored rather than collapsing the sha
     close(w, 1000);
   }
 });
+
+// Added 2026-09-27. The tests above check that a stated unit converts correctly
+// on the way IN. This checks the loop closes: a shape exported for the laser and
+// read back in is the same size it was, and a drawing given in inches survives
+// the trip as the same millimetres.
+//
+// It matters because export is the last step before something is cut. Import
+// resolves the unit once and everything past it is millimetres, so a scale
+// error here would be silent -- the file would look right and come out wrong.
+import { exportToSVG } from '../src/svg/export.js';
+
+const sizeOf = (polygon) => {
+  const xs = polygon.map((p) => p.x);
+  const ys = polygon.map((p) => p.y);
+  return {
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+};
+
+test('an inch drawing and the same shape in millimetres import identically', () => {
+  // 4in x 2in is 101.6mm x 50.8mm.
+  const inches =
+    '<svg width="4in" height="2in" viewBox="0 0 4 2">' +
+    '<polygon points="0,0 4,0 4,2 0,2" /></svg>';
+  const millimetres =
+    '<svg width="101.6mm" height="50.8mm" viewBox="0 0 101.6 50.8">' +
+    '<polygon points="0,0 101.6,0 101.6,50.8 0,50.8" /></svg>';
+
+  const fromInches = sizeOf(parseSVGPolygon(inches));
+  const fromMm = sizeOf(parseSVGPolygon(millimetres));
+
+  assert.ok(Math.abs(fromInches.width - 101.6) < 0.01, `got ${fromInches.width}mm`);
+  assert.ok(Math.abs(fromInches.height - 50.8) < 0.01, `got ${fromInches.height}mm`);
+  assert.ok(Math.abs(fromInches.width - fromMm.width) < 0.01);
+  assert.ok(Math.abs(fromInches.height - fromMm.height) < 0.01);
+});
+
+test('a shape exported for the laser and read back in is the same size', () => {
+  const sheet = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 120 }, { x: 0, y: 120 }];
+  const parts = [
+    { id: 'a', polygon: [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 60, y: 40 }, { x: 0, y: 40 }] },
+  ];
+  const placements = [{ id: 'a', x: 10, y: 10, rotation: 0 }];
+
+  const exported = exportToSVG(sheet, placements, parts);
+  // The outline is the first polygon in the file, and it is the sheet.
+  const reimported = sizeOf(parseSVGPolygon(exported));
+
+  assert.ok(Math.abs(reimported.width - 200) < 0.01, `width came back as ${reimported.width}mm`);
+  assert.ok(Math.abs(reimported.height - 120) < 0.01, `height came back as ${reimported.height}mm`);
+});
+
+test('an inch drawing survives a full import-export-import round trip', () => {
+  const inches =
+    '<svg width="4in" height="2in" viewBox="0 0 4 2">' +
+    '<polygon points="0,0 4,0 4,2 0,2" /></svg>';
+
+  const once = parseSVGPolygon(inches);
+  const exported = exportToSVG(once, [], []);
+  const twice = sizeOf(parseSVGPolygon(exported));
+
+  assert.ok(Math.abs(twice.width - 101.6) < 0.02, `width drifted to ${twice.width}mm`);
+  assert.ok(Math.abs(twice.height - 50.8) < 0.02, `height drifted to ${twice.height}mm`);
+});

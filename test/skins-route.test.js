@@ -720,3 +720,45 @@ test('a suede hide and a glossy hide are never offered as a pair', async () => {
     assert.deepEqual(groups.flatMap((g) => g.pairs), []);
   });
 });
+
+// Added 2026-09-27. A failed capture must not leave a hide behind. Nothing
+// asserted that before -- the 422 tests above check the status code and the
+// message, but not that the library is still empty afterwards.
+test('a capture that fails part-way leaves no hide and no photo behind', async () => {
+  await withServer(async (baseUrl) => {
+    // Region too small for skin_signature.py to measure anything.
+    const failed = await postSkin(baseUrl, { roiWidth: 5, roiHeight: 5 });
+    assert.equal(failed.status, 422);
+
+    const hides = await (await fetch(`${baseUrl}/skins`)).json();
+    assert.equal(hides.length, 0, 'a failed capture must not create a record');
+  });
+});
+
+test('a capture refused for a missing field leaves no hide behind', async () => {
+  await withServer(async (baseUrl) => {
+    for (const overrides of [{ label: '' }, { species: '' }]) {
+      const response = await postSkin(baseUrl, overrides);
+      assert.equal(response.status, 400);
+    }
+    const hides = await (await fetch(`${baseUrl}/skins`)).json();
+    assert.equal(hides.length, 0);
+  });
+});
+
+test('a redigitize that fails leaves the original hide untouched', async () => {
+  // redigitize() replaces the outline outright and resets how much of the hide
+  // is left, so a failure that half-applied would destroy a good record.
+  await withServer(async (baseUrl) => {
+    const hide = await (await postOutlineSkin(baseUrl)).json();
+    assert.ok(hide.outlinePolygon, 'the hide started with an outline');
+    const before = JSON.stringify(hide);
+
+    const failed = await postRedigitize(baseUrl, hide.id, { roiWidth: 2, roiHeight: 2 });
+    assert.equal(failed.status, 422);
+
+    const after = await (await fetch(`${baseUrl}/skins`)).json();
+    assert.equal(after.length, 1, 'no second record appeared');
+    assert.equal(JSON.stringify(after[0]), before, 'the hide is exactly as it was');
+  });
+});
