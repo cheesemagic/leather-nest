@@ -221,11 +221,19 @@ measured. Until then `DEFAULT_KERF_MM` stays 0.
 cut out, on the Boss. Drawn at **2.24" = 56.90mm** square in LightBurn
 (Andrew confirms both the file and the machine were set to that). Clean
 cut edge, crisp engraving down to fine inner loops, dark char band with a
-slight brown heat halo strongest along two edges. **Measurement pending
-calipers** — a steel rule in a phone photo resolves about half a
-millimetre and the two photos disagreed by that much, which is the size of
-the number being looked for. Kerf = 56.90 minus the caliper reading, and
-it belongs with the settings that cut it, which are not yet recorded.
+slight brown heat halo strongest along two edges. Measured afterwards at
+**2 5/32" x 2 1/8" = 54.8 x 54.0mm** (read in 32nds, so a rule rather than
+calipers; good to about 0.8mm). That is **2.1 and 2.9mm short**, roughly
+ten times a plausible kerf, and different in the two directions. **Not a
+kerf, and not recorded as one.** Leading explanation: the leather shrank
+from the heat of engraving its whole face before the outline was cut,
+unevenly along and across the grain. Alternatives: the rule, or a machine
+or import scale error (least likely — the engraving looks proportioned —
+but the one that would really matter). Next visit: cut the same 2.24"
+square in card and in un-engraved leather, caliper all three. Card right
+and leather short = shrinkage, an operator matter (cut before engrave, or
+engrave after cutting out). Card short = the machine; tell staff. Kerf
+stays 0 until a square from stable material is measured with calipers.
 
 **Boss's published leather settings** (bosslaser.com settings sheet, CO2
 LS series; the makerspace's 150W machine is closest to the 155W row):
