@@ -214,8 +214,18 @@ CO2 laser light, not the spot size; the lens focuses the beam to a spot of
 roughly 0.1-0.3mm, and the channel it burns in leather is a little wider
 than that. Boss's own engraving table (below) spaces raster lines 0.065mm
 apart, and raster lines are spaced to overlap, so the spot is wider than
-0.065mm — already three times the quoted kerf. Still needs the 50mm square
-cut and measured. Until then `DEFAULT_KERF_MM` stays 0.
+0.065mm — already three times the quoted kerf. Still needs a square
+measured. Until then `DEFAULT_KERF_MM` stays 0.
+
+**First real cut, 2026-10-10:** a square patch, engraved with a logo and
+cut out, on the Boss. Drawn at **2.24" = 56.90mm** square in LightBurn
+(Andrew confirms both the file and the machine were set to that). Clean
+cut edge, crisp engraving down to fine inner loops, dark char band with a
+slight brown heat halo strongest along two edges. **Measurement pending
+calipers** — a steel rule in a phone photo resolves about half a
+millimetre and the two photos disagreed by that much, which is the size of
+the number being looked for. Kerf = 56.90 minus the caliper reading, and
+it belongs with the settings that cut it, which are not yet recorded.
 
 **Boss's published leather settings** (bosslaser.com settings sheet, CO2
 LS series; the makerspace's 150W machine is closest to the 155W row):

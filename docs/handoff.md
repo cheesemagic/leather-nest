@@ -67,10 +67,12 @@ deliberately deferred until exotics are actually being cut.
 
 ## Open, in rough priority order
 
-1. **Nothing has ever been cut on a laser.** Machine still undecided (80W Red
-   Sail vs 150W Boss, both at a makerspace, neither used). Every clearance
-   number is an assumption; kerf is not modelled at all. Largest gap against
-   priority 1, and unchanged for weeks.
+1. **One piece has been cut on a laser** (2026-10-10, the badge class: a
+   56.9mm square patch on the 150W Boss, LightBurn). Nothing from this
+   program has been cut yet. Kerf is modelled but still 0: the square is
+   waiting on calipers. Every clearance number is still an assumption.
+   Largest gap against priority 1. Class-day answers, machine facts and
+   the house workflow are in `docs/laser-class-questions.md`.
 2. **The colour threshold is still unset.** CIEDE2000 deliberately did not
    settle it — its spec says so outright: colour still ranks, it does not gate.
    What changed is the starting point. Instead of inventing a number from
