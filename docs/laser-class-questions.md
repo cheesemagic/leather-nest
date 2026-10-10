@@ -144,6 +144,59 @@ The program assumes the leather sits where the drawing says it does.
 
 ---
 
+## Answers so far (2026-10-10, class day)
+
+Recorded as they came in. Measured beats quoted beats assumed; each line
+says which it is.
+
+**Machines.** Both run LightBurn. Neither has a camera, so alignment is by
+eye against the blue outline, with Absolute Coords and the Frame button.
+The Boss is an LS-3655; the model number encodes a 36" x 55" bed, which is
+**914 x 1397mm** — inferred from the name, confirm against the machine. The
+generic LS-series manual
+(https://makesantafe.org/wp-content/uploads/2018/12/ls-series-user-manual.pdf,
+rev 006, 2024) gives no bed size, no spot size and no kerf. It recommends the
+2" lens for cutting and engraving.
+
+**Materials.** The scrap is mixed: some chrome-tanned, some veg-tanned.
+The manual lists leather and suede as laser-safe without distinguishing
+tannage, and bans only chlorine-bearing plastics (PVC, vinyl) and
+polycarbonate. So the manual does not settle the chrome question either
+way — it is makerspace policy, and still worth asking. Follow-up in the
+program: the hide record has no tannage field, so nothing stops a laser
+job being exported for a chrome-tanned hide. Proposed and awaiting a
+go-ahead: a tannage field (veg / chrome / unknown) and the laser export
+refusing chrome and unknown.
+
+**Kerf.** Quoted at the class as "the laser is 10 microns so the kerf is
+20 microns". **Rejected, not recorded.** 10.6 microns is the wavelength of
+CO2 laser light, not the spot size; the lens focuses the beam to a spot of
+roughly 0.1-0.3mm, and the channel it burns in leather is a little wider
+than that. Boss's own engraving table (below) spaces raster lines 0.065mm
+apart, and raster lines are spaced to overlap, so the spot is wider than
+0.065mm — already three times the quoted kerf. Still needs the 50mm square
+cut and measured. Until then `DEFAULT_KERF_MM` stays 0.
+
+**Boss's published leather settings** (bosslaser.com settings sheet, CO2
+LS series; the makerspace's 150W machine is closest to the 155W row):
+
+| Job | Tube | Power | Speed | Interval | Thickness |
+| --- | --- | --- | --- | --- | --- |
+| Cut | 70W | 85% | 10 mm/s | — | 1/8" (3.2mm) |
+| Cut | 105W | 75% | 12 mm/s | — | 1/8" |
+| Cut | 155W | 70% | 15 mm/s | — | 1/8" |
+| Engrave | 70W | 25% | 350 mm/s | 0.065mm | any |
+| Engrave | 105W | 18% | 350 mm/s | 0.065mm | any |
+| Engrave | 155W | 15% | 350 mm/s | 0.065mm | any |
+
+Those are for 1/8" leather, single pass. Exotic skins are thinner —
+python around 1mm, stingray around 1.5mm — so expect to drop power or
+raise speed well below the table, and expect the kerf to differ from
+whatever a 1/8" test square gives. Measure on the leather that will
+actually be cut.
+
+---
+
 ## Assumed numbers this class could replace
 
 Every one of these was chosen in conversation. None has touched leather.
