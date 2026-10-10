@@ -194,6 +194,11 @@ file says it is puts edge pieces off the leather. Two answers, in order:
    error, if the first answer is not enough. Not built — changes machine
    output, and nobody has measured the error yet.
 
+Andrew's read: origin-plus-frame could be dialled in meticulously but it
+would be a pain; a camera is still the right answer and the makerspace
+does not have one. The paper template is the method for now. The export
+works unchanged under either.
+
 **Materials.** The scrap is mixed: some chrome-tanned, some veg-tanned.
 The manual lists leather and suede as laser-safe without distinguishing
 tannage, and bans only chlorine-bearing plastics (PVC, vinyl) and
