@@ -38,9 +38,10 @@ around the edge of your leather and off into the bed.
 ## 3. Kerf — how much does the beam eat?
 
 The beam has width. Every piece comes out slightly smaller than drawn, by
-roughly half the beam width all the way round. **This program does not model
-that at all.** Right now a 50mm strap will cut at something like 49.8mm, and
-nothing accounts for it.
+roughly half the beam width all the way round. The program can compensate
+for this, **but the kerf is set to zero on purpose until someone measures
+it** — a guessed number would silently resize every piece. So right now a
+50mm strap will cut at something like 49.8mm, and nothing accounts for it.
 
 - What's the typical kerf on leather, at the settings used for it?
 - Does it change much between the 80W and the 150W?
