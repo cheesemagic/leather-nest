@@ -129,11 +129,14 @@ The program assumes the leather sits where the drawing says it does.
   offcut on screen and drag the layout onto it — a much better answer than
   the one the program assumes, and worth knowing before building anything
   more around the photographed outline.
-- Otherwise: "Start From: Absolute Coords" cuts shapes where they sit on
-  screen, so the leather goes where the blue outline is. How do people
-  normally place an irregular offcut to match?
+- The house workflow (makerspace wiki, below) is **User Origin**: jog the
+  head to a point on the material, press ORIGIN on the machine, and the
+  job runs from there. Boss's default job origin is the top-right corner.
+  So the thing to line up is one corner of the layout's bounding box, not
+  the whole outline — which corner does LightBurn have set on their
+  machine, and does anyone change it?
 - The Frame button traces the layout's bounding box with the red pointer
-  before cutting. Is that the check people rely on?
+  before cutting. The wiki tells people to use it. Is that the only check?
 
 ## 9. Settings, roughly
 
@@ -157,6 +160,27 @@ generic LS-series manual
 (https://makesantafe.org/wp-content/uploads/2018/12/ls-series-user-manual.pdf,
 rev 006, 2024) gives no bed size, no spot size and no kerf. It recommends the
 2" lens for cutting and engraving.
+
+**House workflow for the Boss** (wiki.makesantafe.org/tools/boss-ls3655-150w-laser):
+key on, air compressor on in the metal shop and 40-60 psi at the machine,
+chiller on, open LightBurn, place material, jog the head over it,
+**autofocus** (Z/U > Autofocus > Enter: the table rises to the nozzle),
+jog to the origin point and press ORIGIN, set layer settings from the Boss
+cut chart (bookmarked in Chrome), **Frame** to check extents, lid closed,
+exhaust on, start. Max cut thickness 1/2". "DO NOT OVER POWER. If settings
+are more than 20% out of spec, alert staff" — going cooler than the chart
+for thin skins is not over-powering. Files are deleted off the computer at
+shutdown, so bring exports on a stick each visit.
+
+What that means for alignment: the program's blue outline is still the
+drawing of where the leather is, but the machine registers on **one point**
+— the corner of the job's bounding box that LightBurn calls the job
+origin, placed wherever the head is parked when ORIGIN is pressed. The
+operator lays the leather down, jogs the head to the matching corner of
+the real hide's extent, presses ORIGIN, frames, and cuts. Nothing in the
+export needs to change for that; what would help is the app telling the
+operator where that corner sits relative to the hide. Not built; see
+whether it is needed after the first real cut.
 
 **Materials.** The scrap is mixed: some chrome-tanned, some veg-tanned.
 The manual lists leather and suede as laser-safe without distinguishing
