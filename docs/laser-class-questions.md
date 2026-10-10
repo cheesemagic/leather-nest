@@ -1,7 +1,8 @@
 # Questions for the laser badge class
 
 Things this project has assumed and nobody has checked. Machines at the
-makerspace: an 80W Red Sail and a 150W Boss LS-3655. Bring this, fill it in.
+makerspace: an 80W Red Sail and a 150W Boss LS-3655, both driven by
+**LightBurn**. Bring this, fill it in.
 
 Ordered by how much damage a wrong assumption does.
 
@@ -29,11 +30,19 @@ blue line is there so you can line the offcut up on the bed — **it must not
 be cut.** If the software can't be told to ignore it, the laser will trace
 around the edge of your leather and off into the bed.
 
-- What software drives each machine?
-- Does it take an SVG file directly?
-- Can you mark a colour or layer as "don't output"? What's it called there?
-- If it can't: I'll change the export so the outline goes in a separate file
-  instead. That's a small change — just say the word.
+LightBurn imports SVG directly and sorts shapes into layers by colour: the
+red cuts land on its red layer, the blue outline on its blue layer. In the
+Cuts/Layers panel each layer has an **Output** toggle — switch it off for
+blue and the outline is on screen for alignment but never cut.
+
+- Does that Output setting stick when the next file is opened, or does it
+  have to be set every time?
+- Do they use the tool layers (T1/T2, which never cut) for reference shapes?
+  If that is the house convention, I can look at exporting the outline so
+  it lands there.
+- On the first import, compare the width LightBurn shows against what the
+  app says. The file states its size in millimetres, so the DPI setting for
+  unitless SVGs should not apply — but one glance confirms it.
 
 ## 3. Kerf — how much does the beam eat?
 
@@ -48,6 +57,13 @@ it** — a guessed number would silently resize every piece. So right now a
 - Is it worth cutting a test square and measuring it?
 
 That measurement is the cheapest way to replace a guess with a fact here.
+
+**One decision:** LightBurn has its own per-layer kerf offset (Advanced tab
+of the cut settings). If LightBurn compensates and this program also
+compensates, every piece comes out a full kerf too big. Recommendation:
+measure it, put the number in this program, leave LightBurn's kerf offset at
+zero. The program needs the number anyway for nesting gaps and fringe strand
+widths, and one place holding it is one place to get it wrong.
 
 ## 4. Spacing between pieces
 
@@ -92,10 +108,11 @@ it has to be set at the laser.
 
 The file now cuts pieces in a spread-out order rather than working across the
 sheet neighbour by neighbour, so the beam is rarely returning to leather it
-was just beside. Worth asking whether that is a thing people actually bother
-with, or whether the machine's own path optimiser overrides file order anyway
-— if it does, this needs to be switched off for the ordering to mean
-anything.
+was just beside. LightBurn's optimiser (Optimization Settings, next to the
+Start button — "reduce travel moves" and friends) throws that order away.
+Ask whether it is on by default on their machines, and whether anyone
+bothers with heat ordering at all. If the optimiser stays on, the file's
+ordering means nothing, which is fine as long as we know.
 
 ## 7. Bed size
 
@@ -108,10 +125,15 @@ The program has no idea how big the machines are.
 
 The program assumes the leather sits where the drawing says it does.
 
-- Is there a camera, registration pins, or do you eyeball it?
-- How do people normally align an irregular offcut?
-- Is there a way to jog the head to a corner to check alignment before
-  running?
+- Does either machine have a LightBurn camera calibrated? If so you see the
+  offcut on screen and drag the layout onto it — a much better answer than
+  the one the program assumes, and worth knowing before building anything
+  more around the photographed outline.
+- Otherwise: "Start From: Absolute Coords" cuts shapes where they sit on
+  screen, so the leather goes where the blue outline is. How do people
+  normally place an irregular offcut to match?
+- The Frame button traces the layout's bounding box with the red pointer
+  before cutting. Is that the check people rely on?
 
 ## 9. Settings, roughly
 
