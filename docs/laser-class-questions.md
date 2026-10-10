@@ -177,10 +177,22 @@ drawing of where the leather is, but the machine registers on **one point**
 — the corner of the job's bounding box that LightBurn calls the job
 origin, placed wherever the head is parked when ORIGIN is pressed. The
 operator lays the leather down, jogs the head to the matching corner of
-the real hide's extent, presses ORIGIN, frames, and cuts. Nothing in the
-export needs to change for that; what would help is the app telling the
-operator where that corner sits relative to the hide. Not built; see
-whether it is needed after the first real cut.
+the real hide's extent, presses ORIGIN, frames, and cuts. Andrew was shown
+this at the class and reports it is **an estimate, not precise**. That
+matters because the nester keeps only the laser clearance (1mm) between a
+part and the hide's edge: a hide placed a few millimetres off where the
+file says it is puts edge pieces off the leather. Two answers, in order:
+
+1. **Mark the outline on a sacrificial sheet first.** Lay paper or thin
+   card on the bed, turn the blue layer's Output on at engrave power, run
+   only that layer, then lay the hide into the drawn outline, turn blue
+   off and cut red. Same origin for both runs — do not touch ORIGIN in
+   between. Registration then depends on placing leather into a drawn
+   line, not on eyeballing a corner. Nothing to build; the export already
+   carries the outline as its own layer.
+2. **An edge margin in the nester**, sized to the measured placement
+   error, if the first answer is not enough. Not built — changes machine
+   output, and nobody has measured the error yet.
 
 **Materials.** The scrap is mixed: some chrome-tanned, some veg-tanned.
 The manual lists leather and suede as laser-safe without distinguishing
