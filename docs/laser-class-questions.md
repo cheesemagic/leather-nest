@@ -151,8 +151,8 @@ says which it is.
 
 **Machines.** Both run LightBurn. Neither has a camera, so alignment is by
 eye against the blue outline, with Absolute Coords and the Frame button.
-The Boss is an LS-3655; the model number encodes a 36" x 55" bed, which is
-**914 x 1397mm** — inferred from the name, confirm against the machine. The
+The Boss is an LS-3655 with a 36" x 55" bed, **914 x 1397mm** — confirmed
+at the machine. The
 generic LS-series manual
 (https://makesantafe.org/wp-content/uploads/2018/12/ls-series-user-manual.pdf,
 rev 006, 2024) gives no bed size, no spot size and no kerf. It recommends the
@@ -162,11 +162,10 @@ rev 006, 2024) gives no bed size, no spot size and no kerf. It recommends the
 The manual lists leather and suede as laser-safe without distinguishing
 tannage, and bans only chlorine-bearing plastics (PVC, vinyl) and
 polycarbonate. So the manual does not settle the chrome question either
-way — it is makerspace policy, and still worth asking. Follow-up in the
-program: the hide record has no tannage field, so nothing stops a laser
-job being exported for a chrome-tanned hide. Proposed and awaiting a
-go-ahead: a tannage field (veg / chrome / unknown) and the laser export
-refusing chrome and unknown.
+way — it is makerspace policy, and still worth asking. A tannage field on the
+hide record, with the laser export refusing chrome, was proposed and
+turned down: the app does not know what is in the laser, the operator
+does. Settled in `DECISIONS.md` (2026-10-10).
 
 **Kerf.** Quoted at the class as "the laser is 10 microns so the kerf is
 20 microns". **Rejected, not recorded.** 10.6 microns is the wavelength of
