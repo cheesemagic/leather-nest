@@ -235,6 +235,16 @@ and leather short = shrinkage, an operator matter (cut before engrave, or
 engrave after cutting out). Card short = the machine; tell staff. Kerf
 stays 0 until a square from stable material is measured with calipers.
 
+Settings for that patch, confirmed by Andrew: the Boss chart's 155W rows,
+i.e. **cut 70% at 15 mm/s, engrave 15% at 350 mm/s, 0.065mm interval**,
+on the 150W machine. Those cut settings are for 1/8" (3.2mm) leather; the
+patch was visibly thinner, around 1-1.5mm. Full-thickness heat into a
+piece a third as thick, after the engraving had warmed the whole face,
+is consistent with shrinkage. For the next test cut thin leather cooler
+than the chart (start around 45-50% at 15 mm/s and go up only if it does
+not cut through) — going cooler is within the makerspace's 20% rule;
+only hotter needs staff.
+
 **Boss's published leather settings** (bosslaser.com settings sheet, CO2
 LS series; the makerspace's 150W machine is closest to the 155W row):
 
