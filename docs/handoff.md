@@ -82,8 +82,10 @@ deliberately deferred until exotics are actually being cut.
    on which he would accept, including one genuine close call.
 3. **Multi-hide colour pooling for products** — Andrew confirmed he wants it:
    non-sneaker products should draw from all hides of the same colour. Blocked
-   on #2 for the threshold, and needs multi-bin nesting in `place.js`, which
-   today nests onto one sheet only.
+   on #2 for the threshold. The nesting half already exists:
+   `nestAcrossHides` (`src/nesting/multi.js`, `test/multi-bin.test.js`)
+   spills an order across several hides, and the Across Library mode uses
+   it. What is missing is choosing *which* hides pool, which is #2.
 4. **Questions for Magna are written but unsent** — seven questions and five
    material asks: whether a pair needs two hides or a full set, where "close
    enough" stops, whether Magna shoots their own photos.

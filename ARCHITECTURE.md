@@ -154,11 +154,16 @@ Two consequences for anyone working here:
   the offcut, with a comment in the file warning that it must be set to
   no-output or the laser will trace the edge of the leather. Do not merge that
   colour with the cut colour.
-- **Which machine is not settled.** Earlier drafts named a Thunder Laser Nova 51
-  driven by LightBurn as fact; it was an aspiration. The machines actually
-  reachable are at a makerspace — an 80W Red Sail and a 150W Boss LS-3655 —
-  and neither has been used. Assume only: large-bed CO2, SVG in. Treat LightBurn
-  as one possible import target, not the target.
+- **The machines are known, as of 2026-10-10.** An 80W Red Sail and a 150W
+  Boss LS-3655 (914 x 1397mm bed) at a makerspace, both driven by LightBurn,
+  neither with a camera. Andrew holds the badge and has cut one piece on the
+  Boss; nothing from this program has been cut yet. LightBurn is the import
+  target: it sorts shapes into layers by stroke colour, which is why the
+  outline and the cuts are different pure colours. Registration is by a
+  user-set origin at the machine, which is coarse — see
+  `docs/laser-class-questions.md` for the paper-template workaround and
+  `docs/first-laser-job.md` for the visit checklist. Earlier drafts named a
+  Thunder Laser Nova 51 as fact; it was an aspiration.
 
 ## Future service operations
 
