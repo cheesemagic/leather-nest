@@ -24,8 +24,8 @@
 
 set -eu
 
-REPO="${LEATHER_NEST_REPO:-$HOME/leather-nest}"
-DEST="${LEATHER_NEST_BACKUPS:-$HOME/leather-nest-backups}"
+REPO="${LEATHER_NEST_REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
+DEST="${LEATHER_NEST_BACKUPS:-$HOME/Code/leather-nest-backups}"
 KEEP=60
 
 [ -d "$REPO/data" ] || { echo "no data directory at $REPO/data, nothing to back up"; exit 0; }

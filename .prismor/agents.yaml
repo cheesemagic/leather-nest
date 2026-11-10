@@ -1,0 +1,4 @@
+agents:
+  claude:
+    framework: claude
+    last_seen: '2026-10-07T06:51:24.120633+00:00'

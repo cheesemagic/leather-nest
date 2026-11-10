@@ -1,0 +1,45 @@
+{
+  "schema": "prismor.memory-integrity.v1",
+  "files": {
+    "/Users/donalucas/Code/leather-nest/CLAUDE.md": {
+      "sha256": "eab2bfe27db59909c67989a0d1ed879817d5026b414b09d631f694a14a115f83",
+      "first_seen_at": "2026-10-07T06:51:18.826384+00:00",
+      "first_seen_commit": "acabac2",
+      "last_approved_at": "2026-10-07T06:51:18.826384+00:00",
+      "last_approved_commit": "acabac2",
+      "mode": "trusted",
+      "signing_key_id": null
+    },
+    "/Users/donalucas/Code/leather-nest/AGENTS.md": {
+      "sha256": "9e0369026d16f3ec5db70a463fa904ccceece5fcdc0520e18bf554a94ffcc1c2",
+      "first_seen_at": "2026-10-07T06:51:18.933008+00:00",
+      "first_seen_commit": "acabac2",
+      "last_approved_at": "2026-10-07T06:51:18.933008+00:00",
+      "last_approved_commit": "acabac2",
+      "mode": "trusted",
+      "signing_key_id": null
+    },
+    "/Users/donalucas/Code/leather-nest/.claude/agents/verifier.md": {
+      "sha256": "e729a6ded3718cde64744a4ddd8d91719827e4ae556acba63a6a0d1b6aef3907",
+      "first_seen_at": "2026-10-07T06:51:19.028392+00:00",
+      "first_seen_commit": "acabac2",
+      "last_approved_at": "2026-10-07T06:51:19.028392+00:00",
+      "last_approved_commit": "acabac2",
+      "mode": "trusted",
+      "signing_key_id": null
+    },
+    "/Users/donalucas/.claude/CLAUDE.md": {
+      "sha256": "fa06e01e63b88ca38683de6d12a516b726879845bd5344a287e6e3ee3ba47da2",
+      "first_seen_at": "2026-10-07T06:51:19.107852+00:00",
+      "first_seen_commit": "acabac2",
+      "last_approved_at": "2026-10-07T06:51:19.107852+00:00",
+      "last_approved_commit": "acabac2",
+      "mode": "trusted",
+      "signing_key_id": null
+    }
+  },
+  "signing": {
+    "enabled": false,
+    "public_keys": {}
+  }
+}
