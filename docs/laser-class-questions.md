@@ -1,7 +1,8 @@
 # Questions for the laser badge class
 
 Things this project has assumed and nobody has checked. Machines at the
-makerspace: an 80W Red Sail and a 150W Boss LS-3655. Bring this, fill it in.
+makerspace: an 80W Red Sail and a 150W Boss LS-3655, both driven by
+**LightBurn**. Bring this, fill it in.
 
 Ordered by how much damage a wrong assumption does.
 
@@ -29,24 +30,40 @@ blue line is there so you can line the offcut up on the bed — **it must not
 be cut.** If the software can't be told to ignore it, the laser will trace
 around the edge of your leather and off into the bed.
 
-- What software drives each machine?
-- Does it take an SVG file directly?
-- Can you mark a colour or layer as "don't output"? What's it called there?
-- If it can't: I'll change the export so the outline goes in a separate file
-  instead. That's a small change — just say the word.
+LightBurn imports SVG directly and sorts shapes into layers by colour: the
+red cuts land on its red layer, the blue outline on its blue layer. In the
+Cuts/Layers panel each layer has an **Output** toggle — switch it off for
+blue and the outline is on screen for alignment but never cut.
+
+- Does that Output setting stick when the next file is opened, or does it
+  have to be set every time?
+- Do they use the tool layers (T1/T2, which never cut) for reference shapes?
+  If that is the house convention, I can look at exporting the outline so
+  it lands there.
+- On the first import, compare the width LightBurn shows against what the
+  app says. The file states its size in millimetres, so the DPI setting for
+  unitless SVGs should not apply — but one glance confirms it.
 
 ## 3. Kerf — how much does the beam eat?
 
 The beam has width. Every piece comes out slightly smaller than drawn, by
-roughly half the beam width all the way round. **This program does not model
-that at all.** Right now a 50mm strap will cut at something like 49.8mm, and
-nothing accounts for it.
+roughly half the beam width all the way round. The program can compensate
+for this, **but the kerf is set to zero on purpose until someone measures
+it** — a guessed number would silently resize every piece. So right now a
+50mm strap will cut at something like 49.8mm, and nothing accounts for it.
 
 - What's the typical kerf on leather, at the settings used for it?
 - Does it change much between the 80W and the 150W?
 - Is it worth cutting a test square and measuring it?
 
 That measurement is the cheapest way to replace a guess with a fact here.
+
+**One decision:** LightBurn has its own per-layer kerf offset (Advanced tab
+of the cut settings). If LightBurn compensates and this program also
+compensates, every piece comes out a full kerf too big. Recommendation:
+measure it, put the number in this program, leave LightBurn's kerf offset at
+zero. The program needs the number anyway for nesting gaps and fringe strand
+widths, and one place holding it is one place to get it wrong.
 
 ## 4. Spacing between pieces
 
@@ -91,10 +108,11 @@ it has to be set at the laser.
 
 The file now cuts pieces in a spread-out order rather than working across the
 sheet neighbour by neighbour, so the beam is rarely returning to leather it
-was just beside. Worth asking whether that is a thing people actually bother
-with, or whether the machine's own path optimiser overrides file order anyway
-— if it does, this needs to be switched off for the ordering to mean
-anything.
+was just beside. LightBurn's optimiser (Optimization Settings, next to the
+Start button — "reduce travel moves" and friends) throws that order away.
+Ask whether it is on by default on their machines, and whether anyone
+bothers with heat ordering at all. If the optimiser stays on, the file's
+ordering means nothing, which is fine as long as we know.
 
 ## 7. Bed size
 
@@ -107,10 +125,18 @@ The program has no idea how big the machines are.
 
 The program assumes the leather sits where the drawing says it does.
 
-- Is there a camera, registration pins, or do you eyeball it?
-- How do people normally align an irregular offcut?
-- Is there a way to jog the head to a corner to check alignment before
-  running?
+- Does either machine have a LightBurn camera calibrated? If so you see the
+  offcut on screen and drag the layout onto it — a much better answer than
+  the one the program assumes, and worth knowing before building anything
+  more around the photographed outline.
+- The house workflow (makerspace wiki, below) is **User Origin**: jog the
+  head to a point on the material, press ORIGIN on the machine, and the
+  job runs from there. Boss's default job origin is the top-right corner.
+  So the thing to line up is one corner of the layout's bounding box, not
+  the whole outline — which corner does LightBurn have set on their
+  machine, and does anyone change it?
+- The Frame button traces the layout's bounding box with the red pointer
+  before cutting. The wiki tells people to use it. Is that the only check?
 
 ## 9. Settings, roughly
 
@@ -118,6 +144,124 @@ The program assumes the leather sits where the drawing says it does.
 - Does it need multiple passes, or one?
 - Air assist — always on for leather?
 - How badly does it smell, and does that limit how long a job can run?
+
+---
+
+## Answers so far (2026-10-10, class day)
+
+Recorded as they came in. Measured beats quoted beats assumed; each line
+says which it is.
+
+**Machines.** Both run LightBurn. Neither has a camera, so alignment is by
+eye against the blue outline, with Absolute Coords and the Frame button.
+The Boss is an LS-3655 with a 36" x 55" bed, **914 x 1397mm** — confirmed
+at the machine. The
+generic LS-series manual
+(https://makesantafe.org/wp-content/uploads/2018/12/ls-series-user-manual.pdf,
+rev 006, 2024) gives no bed size, no spot size and no kerf. It recommends the
+2" lens for cutting and engraving.
+
+**House workflow for the Boss** (wiki.makesantafe.org/tools/boss-ls3655-150w-laser):
+key on, air compressor on in the metal shop and 40-60 psi at the machine,
+chiller on, open LightBurn, place material, jog the head over it,
+**autofocus** (Z/U > Autofocus > Enter: the table rises to the nozzle),
+jog to the origin point and press ORIGIN, set layer settings from the Boss
+cut chart (bookmarked in Chrome), **Frame** to check extents, lid closed,
+exhaust on, start. Max cut thickness 1/2". "DO NOT OVER POWER. If settings
+are more than 20% out of spec, alert staff" — going cooler than the chart
+for thin skins is not over-powering. Files are deleted off the computer at
+shutdown, so bring exports on a stick each visit.
+
+What that means for alignment: the program's blue outline is still the
+drawing of where the leather is, but the machine registers on **one point**
+— the corner of the job's bounding box that LightBurn calls the job
+origin, placed wherever the head is parked when ORIGIN is pressed. The
+operator lays the leather down, jogs the head to the matching corner of
+the real hide's extent, presses ORIGIN, frames, and cuts. Andrew was shown
+this at the class and reports it is **an estimate, not precise**. That
+matters because the nester keeps only the laser clearance (1mm) between a
+part and the hide's edge: a hide placed a few millimetres off where the
+file says it is puts edge pieces off the leather. Two answers, in order:
+
+1. **Mark the outline on a sacrificial sheet first.** Lay paper or thin
+   card on the bed, turn the blue layer's Output on at engrave power, run
+   only that layer, then lay the hide into the drawn outline, turn blue
+   off and cut red. Same origin for both runs — do not touch ORIGIN in
+   between. Registration then depends on placing leather into a drawn
+   line, not on eyeballing a corner. Nothing to build; the export already
+   carries the outline as its own layer.
+2. **An edge margin in the nester**, sized to the measured placement
+   error, if the first answer is not enough. Not built — changes machine
+   output, and nobody has measured the error yet.
+
+Andrew's read: origin-plus-frame could be dialled in meticulously but it
+would be a pain; a camera is still the right answer and the makerspace
+does not have one. The paper template is the method for now. The export
+works unchanged under either.
+
+**Materials.** The scrap is mixed: some chrome-tanned, some veg-tanned.
+The manual lists leather and suede as laser-safe without distinguishing
+tannage, and bans only chlorine-bearing plastics (PVC, vinyl) and
+polycarbonate. So the manual does not settle the chrome question either
+way — it is makerspace policy, and still worth asking. A tannage field on the
+hide record, with the laser export refusing chrome, was proposed and
+turned down: the app does not know what is in the laser, the operator
+does. Settled in `DECISIONS.md` (2026-10-10).
+
+**Kerf.** Quoted at the class as "the laser is 10 microns so the kerf is
+20 microns". **Rejected, not recorded.** 10.6 microns is the wavelength of
+CO2 laser light, not the spot size; the lens focuses the beam to a spot of
+roughly 0.1-0.3mm, and the channel it burns in leather is a little wider
+than that. Boss's own engraving table (below) spaces raster lines 0.065mm
+apart, and raster lines are spaced to overlap, so the spot is wider than
+0.065mm — already three times the quoted kerf. Still needs a square
+measured. Until then `DEFAULT_KERF_MM` stays 0.
+
+**First real cut, 2026-10-10:** a square patch, engraved with a logo and
+cut out, on the Boss. Drawn at **2.24" = 56.90mm** square in LightBurn
+(Andrew confirms both the file and the machine were set to that). Clean
+cut edge, crisp engraving down to fine inner loops, dark char band with a
+slight brown heat halo strongest along two edges. Measured afterwards at
+**2 5/32" x 2 1/8" = 54.8 x 54.0mm** (read in 32nds, so a rule rather than
+calipers; good to about 0.8mm). That is **2.1 and 2.9mm short**, roughly
+ten times a plausible kerf, and different in the two directions. **Not a
+kerf, and not recorded as one.** Leading explanation: the leather shrank
+from the heat of engraving its whole face before the outline was cut,
+unevenly along and across the grain. Alternatives: the rule, or a machine
+or import scale error (least likely — the engraving looks proportioned —
+but the one that would really matter). Next visit: cut the same 2.24"
+square in card and in un-engraved leather, caliper all three. Card right
+and leather short = shrinkage, an operator matter (cut before engrave, or
+engrave after cutting out). Card short = the machine; tell staff. Kerf
+stays 0 until a square from stable material is measured with calipers.
+
+Settings for that patch, confirmed by Andrew: the Boss chart's 155W rows,
+i.e. **cut 70% at 15 mm/s, engrave 15% at 350 mm/s, 0.065mm interval**,
+on the 150W machine. Those cut settings are for 1/8" (3.2mm) leather; the
+patch was visibly thinner, around 1-1.5mm. Full-thickness heat into a
+piece a third as thick, after the engraving had warmed the whole face,
+is consistent with shrinkage. For the next test cut thin leather cooler
+than the chart (start around 45-50% at 15 mm/s and go up only if it does
+not cut through) — going cooler is within the makerspace's 20% rule;
+only hotter needs staff.
+
+**Boss's published leather settings** (bosslaser.com settings sheet, CO2
+LS series; the makerspace's 150W machine is closest to the 155W row):
+
+| Job | Tube | Power | Speed | Interval | Thickness |
+| --- | --- | --- | --- | --- | --- |
+| Cut | 70W | 85% | 10 mm/s | — | 1/8" (3.2mm) |
+| Cut | 105W | 75% | 12 mm/s | — | 1/8" |
+| Cut | 155W | 70% | 15 mm/s | — | 1/8" |
+| Engrave | 70W | 25% | 350 mm/s | 0.065mm | any |
+| Engrave | 105W | 18% | 350 mm/s | 0.065mm | any |
+| Engrave | 155W | 15% | 350 mm/s | 0.065mm | any |
+
+Those are for 1/8" leather, single pass. Exotic skins are thinner —
+python around 1mm, stingray around 1.5mm — so expect to drop power or
+raise speed well below the table, and expect the kerf to differ from
+whatever a 1/8" test square gives. Measure on the leather that will
+actually be cut.
 
 ---
 

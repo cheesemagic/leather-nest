@@ -8,6 +8,27 @@ Fuller reasoning for most of these is in `docs/superpowers/specs/`.
 
 ---
 
+## 2026-10-10 — The app does not know whether a hide is chrome- or veg-tanned.
+
+No tannage field on the hide record, and the laser export does not gate on
+it. Whether a given piece of leather may go in a given laser is the
+operator's call and the makerspace's policy, made at the machine.
+
+**Why:** proposed on class day, when the scrap turned out to be a mix of
+both, and turned down by Andrew: "that's on the user". A field the app
+cannot verify is a label, not a safety gate, and a label that is wrong is
+worse than none. Do not re-propose without new evidence.
+
+## 2026-10-10 — Target machines: Boss LS-3655 (150W) and 80W Red Sail, both on LightBurn.
+
+Bed on the Boss confirmed at 36" x 55" (914 x 1397mm). No camera on
+either, so alignment is by eye against the exported blue outline. The
+export was already LightBurn-shaped (size in mm, pure red cuts, pure blue
+outline); nothing in it changed on learning this.
+
+**Why:** Andrew stood at both on 2026-10-10. The details, including Boss's
+published leather settings, are in `docs/laser-class-questions.md`.
+
 ## 2026-09-27 — Single shop, local tool. No multi-tenancy.
 
 One shop, one operator, one machine, bound to `127.0.0.1`. No accounts, no
@@ -254,9 +275,9 @@ SVGnest's orbiting-NFP code is not used, for a separate licensing reason — see
 
 ## Open, deliberately
 
-- **The target machine.** Large-bed CO2, SVG in. Nothing more is settled, and
-  nothing should be designed against a specific controller until someone has
-  stood at one.
+- **Which of the two machines.** Both are on LightBurn and both take the
+  same file, so nothing in the program depends on the choice yet. Kerf and
+  settings will, once measured on one.
 - **Every physical constant.** Clearances, packing efficiency, kerf. All chosen
   in conversation, none measured against cut leather.
 - **What actually makes two hides a match.** The program guesses from scale and
