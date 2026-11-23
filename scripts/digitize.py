@@ -21,6 +21,96 @@ def fail(message):
 MAX_ROUGHNESS = 3.0
 
 
+# Two outlines count as "the same answer" when they overlap this much. The
+# number is the standard detection convention, not something measured here —
+# it only has to separate "these attempts found the same blob" from "these
+# attempts found different things", and anything near a half does that.
+SAME_ANSWER_IOU = 0.5
+
+# Masks are compared at this size rather than full resolution. Deciding
+# whether two blobs are the same blob does not need four thousand pixels, and
+# a dozen full-size masks on a phone photo is seconds of work for an answer
+# that does not change.
+AGREEMENT_RASTER_PX = 256
+
+
+def _overlap(shape, a, b):
+    """Intersection over union of two contours, rasterized small."""
+    h, w = shape
+    scale = AGREEMENT_RASTER_PX / max(h, w)
+    size = (max(1, int(w * scale)), max(1, int(h * scale)))
+    masks = []
+    for contour in (a, b):
+        mask = np.zeros((size[1], size[0]), dtype=np.uint8)
+        cv2.drawContours(mask, [(contour * scale).astype(np.int32)], -1, 255, -1)
+        masks.append(mask)
+    union = cv2.countNonZero(cv2.bitwise_or(masks[0], masks[1]))
+    if union == 0:
+        return 0.0
+    return cv2.countNonZero(cv2.bitwise_and(masks[0], masks[1])) / union
+
+
+def assess(candidates, shape, total_area):
+    """Say how much to trust the winning outline, and why.
+
+    This does NOT refuse anything. It reports, because the thing that goes
+    wrong here cannot be refused reliably — see below.
+
+    The six attempts above are independent readings of the same photo, and
+    the biggest survivor wins. Nothing in that check asks whether the biggest
+    survivor is the *piece*. A tidy outline around a strip of bench passes it
+    perfectly: measured on photo 34 of the project's own photographs, the
+    traced bench and the real skin both scored 1.20 roughness.
+
+    Four signals were measured across twelve real photographs where the
+    answer is known wrong and five fixtures where it is known right
+    (2026-11-23, spike findings doc). Roughness, area fraction, boundary
+    contrast and agreement all OVERLAP between the two sets — none separates
+    them on its own, so none can be turned into a limit. What did separate
+    them is the pair below, and even then only as a suspicion:
+
+        uncertain if (several attempts survived and none agreed)
+                  or (the outline touches an edge of the photo)
+
+        flagged 12 of 12 known-wrong, and 1 of 5 known-right. That one is
+        test-edge-piece.png, a piece deliberately photographed against the
+        frame edge — genuinely the ambiguous case, so arguably not a false
+        alarm at all.
+
+    Calibrating anything stronger needs examples of this tracer being RIGHT
+    on a real photograph, and there are none: every real photograph on hand
+    was shot for a supplier catalogue, not the way this script asks for.
+    Until one exists, reporting the doubt is the honest ceiling.
+    """
+    best_area, best_contour, best_sides, best_roughness = max(candidates, key=lambda c: c[0])
+    agreeing = sum(
+        1 for c in candidates
+        if c[1] is not best_contour and _overlap(shape, best_contour, c[1]) >= SAME_ANSWER_IOU
+    )
+
+    reasons = []
+    if len(candidates) > 1 and agreeing == 0:
+        reasons.append(
+            f"the {len(candidates)} outlines found disagreed about where the piece is, "
+            "and the largest was taken"
+        )
+    if best_sides:
+        reasons.append(
+            f"the outline runs into {best_sides} edge{'s' if best_sides > 1 else ''} of the photo, "
+            "so it may be tracing the bench rather than the piece"
+        )
+
+    return {
+        "certain": not reasons,
+        "reasons": reasons,
+        "roughness": round(best_roughness, 3),
+        "areaPct": round(100 * best_area / total_area, 1),
+        "attempts": len(candidates),
+        "agreeing": agreeing,
+        "edgesTouched": best_sides,
+    }
+
+
 def main():
     if len(sys.argv) not in (7, 11):
         fail(
@@ -142,7 +232,7 @@ def main():
                 if roughness > MAX_ROUGHNESS:
                     too_ragged.append(roughness)
                     continue
-                candidates.append((area, contour))
+                candidates.append((area, contour, sides, roughness))
 
     if not candidates:
         if too_ragged:
@@ -162,7 +252,8 @@ def main():
             )
         fail("No clear pattern outline detected — check lighting/contrast against the mat.")
 
-    _, best_contour = max(candidates, key=lambda pair: pair[0])
+    best_area, best_contour, best_sides, best_roughness = max(candidates, key=lambda c: c[0])
+    confidence = assess(candidates, gray.shape, total_area)
 
     # Colour sampled from inside the traced outline only -- the same photo
     # already taken, restricted to the piece itself rather than the bench
@@ -193,6 +284,7 @@ def main():
         "colourL": colour_l,
         "colourA": colour_a,
         "colourB": colour_b,
+        "confidence": confidence,
     }))
 
 

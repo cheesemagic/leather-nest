@@ -1,6 +1,6 @@
 # Test plan
 
-**605 tests across 52 files, all passing, ~27s.** `npm test` — `node --test`,
+**616 tests across 54 files, all passing, ~28s.** `npm test` — `node --test`,
 Node's own runner. No framework, no coverage tool, and no coverage target:
 the aim is that the invariants below hold, not that a percentage goes up.
 
@@ -32,6 +32,9 @@ A unit error is invisible in a passing test and ruins a hide.
 | Invalid geometry is refused: <3 points, non-finite, zero area, self-crossing, absurd size | `validate-polygon.test.js` — 16 cases |
 | Refusal happens at every boundary a shape can enter through | `geometry-boundary.test.js` |
 | Concave outlines are *accepted* — concave is normal, not an error | `validate-polygon.test.js` |
+| Photos are read in the frame the browser showed the operator, not raw sensor pixels | `exif-orientation.test.js` — real Orientation=6 fixture |
+| An outline the tracer is unsure of says so, and still returns | `digitize-confidence.test.js` |
+| **Whether the outline is around the right object** | **NOT COVERED — see below** |
 
 ### Nesting and fit — what decides whether material is wasted
 
@@ -131,6 +134,25 @@ cost.
    two hides match" is unknown and untested, because it needs real labelled hide
    pairs. Colour currently ranks and never gates, which is why this is a gap and
    not a bug.
+
+10. **Nothing proves the outline is around the right object, and nothing can
+    yet.** The tracer picks the largest surviving candidate and no check asks
+    whether that candidate is the piece. Measured on 2026-11-23 against twelve
+    real photographs (answer known wrong) and five fixtures (known right):
+    roughness, area fraction, boundary contrast and candidate agreement all
+    **overlap** between the two sets, so none can become a limit.
+
+    `digitize.py` now reports its doubt instead — "several readings survived
+    and none agreed" or "the outline runs into the edge of the photo" flagged
+    12 of 12 known-wrong and 1 of 5 known-right. It is a suspicion, not a gate,
+    and **nothing in the app consumes it yet**: the operator still never sees
+    the traced outline before the hide is saved.
+
+    Calibrating anything stronger needs examples of this tracer being *right*
+    on a real photograph, and there are none — every real photograph on hand
+    was shot for a supplier catalogue, not the way `digitize.py` asks for.
+    One correctly-shot hide would change this entry. See
+    `docs/superpowers/specs/2026-11-23-sam-browser-segmentation-spike-findings.md`.
 
 ## Conventions
 
