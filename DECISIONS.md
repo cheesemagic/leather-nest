@@ -8,6 +8,42 @@ Fuller reasoning for most of these is in `docs/superpowers/specs/`.
 
 ---
 
+## 2026-11-23 — Photos are read with EXIF orientation applied. `IMREAD_IGNORE_ORIENTATION` is gone.
+
+All four spawned scripts now read through `read_photo()` in
+`scripts/_image.py`, which uses plain `cv2.imread`. The flag is not coming
+back.
+
+**Why:** every coordinate these scripts receive — calibration points, outline
+regions, scale patches, blotch search areas — is computed in the browser from
+`img.naturalWidth/naturalHeight`, which is the **upright** frame, because a
+browser applies the EXIF tag when it renders an `<img>`. The scripts passed
+`IMREAD_IGNORE_ORIENTATION` under a comment saying it *applies* the EXIF tag.
+It does the opposite — OpenCV documents it as "do not rotate the image
+according to EXIF's orientation flag" — so the scripts worked in raw sensor
+pixels while the browser sent upright coordinates. On a portrait phone photo
+the two are transposed.
+
+Measured on the project's own photographs: IMG_7428 read 4032x3024 upright and
+3024x4032 ignoring EXIF; IMG_7430, which carries no tag, read the same either
+way. **Photos with no orientation tag are identical under both**, which is
+almost certainly how the original flag passed its own verification.
+
+Reproduced end to end before and after, posting a tagged photo to `/skins`
+with a region valid in the displayed frame: before, `"Selected region falls
+outside the photo bounds"`; after, a correct 99x199mm upright outline. The
+millimetre scale was never affected — the distance between two calibration
+points does not change when the frame rotates — so this mislocated and
+misoriented, it never resized.
+
+Guarded by `test/exif-orientation.test.js` against
+`test/fixtures/test-exif-rotated.jpg`, which carries a real Orientation=6 tag.
+All five checks were confirmed to fail with the flag put back.
+
+**Records digitized before this date may hold a rotated outline.** Nothing
+migrates them; re-digitize if one looks wrong. Found while spiking SAM — see
+`docs/superpowers/specs/2026-11-23-sam-browser-segmentation-spike-findings.md`.
+
 ## 2026-10-10 — The app does not know whether a hide is chrome- or veg-tanned.
 
 No tannage field on the hide record, and the laser export does not gate on

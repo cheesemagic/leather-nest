@@ -5,6 +5,8 @@ import math
 import cv2
 import numpy as np
 
+from _image import read_photo
+
 MIN_SIDE_PX = 32
 MIN_R = 3
 STD_DEV_THRESHOLD = 3.0
@@ -44,13 +46,8 @@ def main():
     if roi_w <= 0 or roi_h <= 0:
         fail("Selected region must have positive width and height.")
 
-    # IMREAD_IGNORE_ORIENTATION applies the file's EXIF orientation tag
-    # (phone photos are frequently stored rotated) instead of the default
-    # of returning raw sensor pixels — verified against real EXIF-rotated
-    # photos, since without it the pixel frame doesn't match the
-    # calibration/region coordinates the browser computed from the
-    # EXIF-corrected image it displayed.
-    image = cv2.imread(image_path, cv2.IMREAD_IGNORE_ORIENTATION | cv2.IMREAD_COLOR)
+    # Read in the frame the browser showed the operator; see scripts/_image.py.
+    image = read_photo(image_path)
     if image is None:
         fail("Could not read image file.")
 

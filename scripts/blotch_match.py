@@ -5,6 +5,8 @@ import math
 import cv2
 import numpy as np
 
+from _image import read_photo
+
 ROTATION_STEP_DEG = 15
 MAX_MATCH_DISTANCE = 0.35  # TM_SQDIFF_NORMED: lower is better, 0 = perfect
 
@@ -138,7 +140,8 @@ def main():
     if roi_w <= 0 or roi_h <= 0:
         fail("Search region must have positive width and height.")
 
-    image = cv2.imread(image_path, cv2.IMREAD_IGNORE_ORIENTATION | cv2.IMREAD_COLOR)
+    # Read in the frame the browser showed the operator; see scripts/_image.py.
+    image = read_photo(image_path)
     if image is None:
         fail("Could not read image file.")
     img_h, img_w = image.shape[:2]
