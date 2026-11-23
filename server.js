@@ -441,6 +441,13 @@ async function handleDigitize(req, res) {
   }
 
   const getField = (name) => fields[name] && fields[name][0];
+
+  // The region is forwarded here for the same reason it is on /skins: this is
+  // what the hide page previews with, and a preview that ignored the
+  // operator's region would show an outline the save would not reproduce.
+  // Same field names and the same all-or-nothing rule as /skins.
+  const roiFields = ['roiX', 'roiY', 'roiWidth', 'roiHeight'];
+  const hasROI = roiFields.every((field) => getField(field));
   const args = [
     DIGITIZE_SCRIPT,
     photo.filepath,
@@ -449,6 +456,7 @@ async function handleDigitize(req, res) {
     getField('p2x'),
     getField('p2y'),
     getField('realDistanceMm'),
+    ...(hasROI ? roiFields.map(getField) : []),
   ];
 
   execPython(args, (err, stdout, stderr) => {

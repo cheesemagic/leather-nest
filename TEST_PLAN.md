@@ -1,6 +1,6 @@
 # Test plan
 
-**616 tests across 54 files, all passing, ~28s.** `npm test` — `node --test`,
+**618 tests across 54 files, all passing, ~28s.** `npm test` — `node --test`,
 Node's own runner. No framework, no coverage tool, and no coverage target:
 the aim is that the invariants below hold, not that a percentage goes up.
 
@@ -34,6 +34,8 @@ A unit error is invisible in a passing test and ruins a hide.
 | Concave outlines are *accepted* — concave is normal, not an error | `validate-polygon.test.js` |
 | Photos are read in the frame the browser showed the operator, not raw sensor pixels | `exif-orientation.test.js` — real Orientation=6 fixture |
 | An outline the tracer is unsure of says so, and still returns | `digitize-confidence.test.js` |
+| The preview and the save agree about the region | `digitize-route.test.js` |
+| The preview gets the outline in whole-photo pixels, crop offset included | `digitize-route.test.js` |
 | **Whether the outline is around the right object** | **NOT COVERED — see below** |
 
 ### Nesting and fit — what decides whether material is wasted
@@ -145,8 +147,10 @@ cost.
     `digitize.py` now reports its doubt instead — "several readings survived
     and none agreed" or "the outline runs into the edge of the photo" flagged
     12 of 12 known-wrong and 1 of 5 known-right. It is a suspicion, not a gate,
-    and **nothing in the app consumes it yet**: the operator still never sees
-    the traced outline before the hide is saved.
+    and it is shown to the operator rather than enforced: the hide page now
+    draws the traced outline on the photo and will not save until the operator
+    confirms it. That confirmation is the only reliable detector of a wrong
+    outline, and it is a person, not a check.
 
     Calibrating anything stronger needs examples of this tracer being *right*
     on a real photograph, and there are none — every real photograph on hand

@@ -142,6 +142,11 @@ def main():
     # margins, multiple objects in one photo) — the largest-contour
     # heuristic below can otherwise latch onto a fragment of the
     # background instead of the actual piece.
+    # Where the crop sits in the full photo, and how big the whole photo is.
+    # Contours come back in crop coordinates, and the preview has to draw them
+    # back onto the whole photograph, so both have to survive the crop.
+    photo_h, photo_w = image.shape[:2]
+    crop_x, crop_y = 0, 0
     if roi is not None:
         roi_x, roi_y, roi_w, roi_h = (int(round(v)) for v in roi)
         if roi_w <= 0 or roi_h <= 0:
@@ -150,6 +155,7 @@ def main():
         if roi_x < 0 or roi_y < 0 or roi_x + roi_w > img_w or roi_y + roi_h > img_h:
             fail("Selected region falls outside the photo bounds.")
         image = image[roi_y:roi_y + roi_h, roi_x:roi_x + roi_w]
+        crop_x, crop_y = roi_x, roi_y
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     total_area = gray.shape[0] * gray.shape[1]
@@ -279,8 +285,22 @@ def main():
     min_y = min(p["y"] for p in points_mm)
     normalized = [{"x": p["x"] - min_x, "y": p["y"] - min_y} for p in points_mm]
 
+    # The same outline in whole-photo pixels, which `polygon` cannot express:
+    # it is in millimetres and normalized to its own bounding box, so it says
+    # what shape was found and not where. Drawing the shape alone proves
+    # nothing — a strip of bench looks like a perfectly good piece once it is
+    # off the photograph. Only the outline sitting on the picture shows the
+    # operator that it has traced the bench.
+    polygon_px = [
+        {"x": int(pt[0][0]) + crop_x, "y": int(pt[0][1]) + crop_y}
+        for pt in approx
+    ]
+
     print(json.dumps({
         "polygon": normalized,
+        "polygonPx": polygon_px,
+        "photoWidth": photo_w,
+        "photoHeight": photo_h,
         "colourL": colour_l,
         "colourA": colour_a,
         "colourB": colour_b,

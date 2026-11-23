@@ -155,12 +155,22 @@
               <label>Drag a patch of scales to measure</label>
               <div id="hide-matching-region-container"></div>
             </div>
+            <!-- The traced outline drawn back onto the photo. Drawing the
+                 shape on its own would prove nothing: a strip of bench looks
+                 like a perfectly good piece once it is off the picture. -->
+            <div id="hide-preview-wrapper" hidden>
+              <label>Does this outline follow the hide?</label>
+              <div id="hide-preview-container"></div>
+              <p id="hide-preview-size" class="text-muted field-hint"></p>
+              <ul id="hide-preview-doubts" class="field-hint" hidden></ul>
+            </div>
             <div id="add-hide-status" class="text-muted"></div>
           </div>
         </div>
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" id="cancel-add-hide">Cancel</button>
-          <button type="button" class="btn btn-primary" id="submit-hide">Add to library</button>
+          <button type="button" class="btn btn-secondary" id="retrace-hide" hidden>Trace again</button>
+          <button type="button" class="btn btn-primary" id="submit-hide">Trace outline</button>
         </div>
       </div>
     </div>
